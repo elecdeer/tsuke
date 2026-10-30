@@ -1,11 +1,20 @@
-import { action, Link } from "@void/react";
-import { Camera, Info, LoaderCircle, TriangleAlert } from "lucide-react";
-import { useEffect, useId, useMemo, useState, type ChangeEvent } from "react";
+import { Link } from "@void/react";
+import {
+  Camera,
+  CircleCheck,
+  ImagePlus,
+  Info,
+  LoaderCircle,
+  RotateCw,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
+import { useEffect, useId, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createLedgerClient, type LedgerOutput } from "@/client";
+import { createLedgerClient, LedgerFetchError } from "@/client";
 import type { DuplicateCandidate } from "@/ledger/payments";
-import { actionErrorMessage } from "@/web/actionError";
+import type { ExtractedPayment } from "@/llm/extractPayment";
 import { Section } from "@/web/components/Section";
 import {
   AccountSelect,
@@ -22,11 +31,16 @@ import {
   paymentFromDraft,
 } from "@/web/receiptDraft";
 import { resizeReceiptImage } from "@/web/receiptImage";
+import {
+  nextAfterRemoval,
+  selectedEntry,
+  type ReceiptEntry,
+  type ReceiptStatus,
+} from "@/web/receiptQueue";
 import type { TransactionDraft } from "@/web/transactionDraft";
+import { useReceiptQueue } from "@/web/useReceiptQueue";
 import { cn } from "@/lib/utils";
 import type { Props } from "./new.server";
-
-type Extracted = LedgerOutput<"/api/receipts/extract", "POST">;
 
 /** 入力が止まってから重複を確かめるまでの間（ms） */
 const DUPLICATE_CHECK_DELAY = 500;
@@ -111,72 +125,152 @@ const DuplicateWarning = ({ byItem }: { byItem: DuplicateCandidate[][] }) => {
 };
 
 /**
- * レシートの写真を撮る（選ぶ）ボタンと、撮った写真。
- *
- * `capture="environment"` でスマートフォンでは背面のカメラが開く。PC ではファイルを選べる。
+ * 写真を選ぶボタン 1 つ。label の中に file の input を隠す。
  */
-const PhotoPicker = ({
-  image,
-  reading,
+const FilePickButton = ({
+  icon,
+  children,
+  capture,
+  multiple,
+  disabled,
   onPick,
 }: {
-  image: string | null;
-  reading: boolean;
-  onPick: (file: File) => void;
+  icon: ReactNode;
+  children: ReactNode;
+  capture?: "environment";
+  multiple?: boolean;
+  disabled: boolean;
+  onPick: (files: File[]) => void;
 }) => {
   const inputId = useId();
   const pick = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const files = [...(event.target.files ?? [])];
     // 同じ写真を選び直しても change が起きるよう、値を空に戻す
     event.target.value = "";
-    if (file !== undefined) onPick(file);
+    if (files.length > 0) onPick(files);
   };
-
   return (
-    <div className="flex flex-col gap-3 border-t border-foreground pt-3">
-      <div className="flex items-center gap-4">
-        <label
-          htmlFor={inputId}
-          className={cn(
-            buttonVariants({ variant: "outline", size: "lg" }),
-            "cursor-pointer",
-            reading && "pointer-events-none opacity-50",
-          )}
-        >
-          <Camera />
-          {image === null ? "レシートを撮る" : "撮り直す"}
-        </label>
-        <input
-          id={inputId}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="sr-only"
-          disabled={reading}
-          onChange={pick}
-        />
-        {reading && (
-          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-            読み取っています
-          </span>
+    <>
+      <label
+        htmlFor={inputId}
+        className={cn(
+          buttonVariants({ variant: "outline", size: "lg" }),
+          "cursor-pointer",
+          disabled && "pointer-events-none opacity-50",
         )}
-      </div>
-      {image !== null && (
-        <img
-          src={image}
-          alt="撮影したレシート"
-          className="max-h-96 self-start border object-contain"
-        />
-      )}
-    </div>
+      >
+        {icon}
+        {children}
+      </label>
+      <input
+        id={inputId}
+        type="file"
+        accept="image/*"
+        capture={capture}
+        multiple={multiple}
+        className="sr-only"
+        disabled={disabled}
+        onChange={pick}
+      />
+    </>
   );
 };
 
 /**
+ * レシートを撮る（選ぶ）ボタン。撮った写真はキューに溜まり、確かめている間も続けて撮れる。
+ *
+ * `capture="environment"` でスマートフォンでは背面のカメラが開く。カメラは 1 枚ずつしか撮れないので、
+ * 撮りためた写真をまとめて足せるよう、写真から選ぶボタンも置く。
+ */
+const PhotoPicker = ({ adding, onPick }: { adding: boolean; onPick: (files: File[]) => void }) => (
+  <div className="flex flex-wrap items-center gap-3">
+    <FilePickButton icon={<Camera />} capture="environment" disabled={adding} onPick={onPick}>
+      レシートを撮る
+    </FilePickButton>
+    <FilePickButton icon={<ImagePlus />} multiple disabled={adding} onPick={onPick}>
+      写真から選ぶ
+    </FilePickButton>
+    {adding && (
+      <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+        写真を取り込んでいます
+      </span>
+    )}
+  </div>
+);
+
+const STATUS_LABELS: Record<ReceiptStatus, string> = {
+  waiting: "読み取り待ち",
+  reading: "読み取り中",
+  read: "確認待ち",
+  failed: "読み取り失敗",
+};
+
+/**
+ * 状態のアイコン。読み取っている間は回し、失敗したら警告にする。
+ */
+const StatusIcon = ({ status, className }: { status: ReceiptStatus; className?: string }) => {
+  switch (status) {
+    case "waiting":
+    case "reading":
+      return (
+        <LoaderCircle
+          className={cn(status === "reading" && "animate-spin", className)}
+          aria-hidden="true"
+        />
+      );
+    case "read":
+      return <CircleCheck className={className} aria-hidden="true" />;
+    case "failed":
+      return <TriangleAlert className={cn("text-destructive", className)} aria-hidden="true" />;
+  }
+};
+
+/**
+ * 撮ったレシートの一覧。押すとそのレシートを確かめる。
+ */
+const QueueList = ({
+  entries,
+  images,
+  selectedId,
+  onSelect,
+}: {
+  entries: ReceiptEntry[];
+  images: ReadonlyMap<string, string>;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) => (
+  <ol aria-label="撮ったレシート" className="flex gap-2 overflow-x-auto pb-1">
+    {entries.map((entry, index) => {
+      const selected = entry.id === selectedId;
+      const image = images.get(entry.id);
+      return (
+        <li key={entry.id} className="shrink-0">
+          <button
+            type="button"
+            aria-current={selected ? "true" : undefined}
+            aria-label={`${index + 1} 枚目（${STATUS_LABELS[entry.status]}）`}
+            className={cn(
+              "relative block h-24 w-16 overflow-hidden border bg-muted outline-offset-2",
+              selected && "outline-2 outline-primary",
+            )}
+            onClick={() => onSelect(entry.id)}
+          >
+            {image !== undefined && <img src={image} alt="" className="size-full object-cover" />}
+            <span className="absolute inset-x-0 bottom-0 flex items-center justify-center bg-background/85 py-0.5">
+              <StatusIcon status={entry.status} className="size-3.5" />
+            </span>
+          </button>
+        </li>
+      );
+    })}
+  </ol>
+);
+
+/**
  * 読み取りに自信がないときの知らせ。
  */
-const ConfidenceNote = ({ extracted }: { extracted: Extracted }) =>
+const ConfidenceNote = ({ extracted }: { extracted: ExtractedPayment }) =>
   extracted.confidence === "high" ? null : (
     <p className="flex gap-1.5 text-xs text-muted-foreground">
       <Info className="mt-px size-3.5 shrink-0" aria-hidden="true" />
@@ -186,41 +280,47 @@ const ConfidenceNote = ({ extracted }: { extracted: Extracted }) =>
   );
 
 /**
- * レシートの写真から支出を登録する画面。
- *
- * 写真を撮ると AI が読み取ってフォームに入れる。内容を確かめて直してから登録する。
- * 写真はこの画面の中にだけ持ち、台帳には保存しない。
+ * 登録に失敗したときに画面に出す文言。台帳が `{ error: string }` を返していればそれを使う。
  */
-const ReceiptNewPage = ({ accounts, categories, placeNames, today }: Props) => {
-  const [image, setImage] = useState<string | null>(null);
-  const [reading, setReading] = useState(false);
-  const [extracted, setExtracted] = useState<Extracted | null>(null);
-  const [draft, setDraft] = useState(() => emptyPaymentDraft(today));
+const registerErrorMessage = (error: unknown): string => {
+  if (error instanceof LedgerFetchError) {
+    const { data } = error;
+    if (typeof data === "object" && data !== null && "error" in data) {
+      const message: unknown = data.error;
+      if (typeof message === "string") return message;
+    }
+  }
+  return "登録できませんでした";
+};
+
+/**
+ * 確かめているレシートのフォーム。読み取りが済むまでは写真と進み具合だけを出す。
+ */
+const ReceiptReview = ({
+  entry,
+  draft,
+  accounts,
+  categories,
+  placeNames,
+  onChange,
+  onRetry,
+  onDiscard,
+  onRegistered,
+}: Pick<Props, "accounts" | "categories" | "placeNames"> & {
+  entry: ReceiptEntry;
+  draft: TransactionDraft;
+  onChange: (draft: TransactionDraft) => void;
+  onRetry: () => void;
+  onDiscard: () => void;
+  onRegistered: (transactionId: number) => void;
+}) => {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const duplicates = useDuplicates(draft);
   const ids = { date: useId(), account: useId(), place: useId() };
+  const ready = entry.status === "read" || entry.status === "failed";
 
-  const update = (patch: Partial<TransactionDraft>) =>
-    setDraft((current) => ({ ...current, ...patch }));
-
-  const read = async (file: File) => {
-    setError(null);
-    setReading(true);
-    try {
-      const resized = await resizeReceiptImage(file);
-      setImage(resized);
-      const result = await ledgerApi()("/api/receipts/extract", "POST", {
-        body: { image: resized },
-      });
-      setExtracted(result);
-      setDraft(draftFromExtracted(result, { categories, accounts, today }));
-    } catch {
-      setError("レシートを読み取れませんでした。撮り直すか、手で入力してください");
-    } finally {
-      setReading(false);
-    }
-  };
+  const update = (patch: Partial<TransactionDraft>) => onChange({ ...draft, ...patch });
 
   const register = async () => {
     const parsed = paymentFromDraft(draft);
@@ -230,10 +330,18 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, today }: Props) => {
     }
     setError(null);
     setPending(true);
-    // 登録できると登録した取引の画面へ移る
-    const result = await action("/receipts/new", { data: parsed.input });
-    setPending(false);
-    if (!result.ok) setError(actionErrorMessage(result.error));
+    try {
+      const { id } = await ledgerApi()("/api/transactions", "POST", { body: parsed.input });
+      onRegistered(id);
+    } catch (registerError) {
+      setError(registerErrorMessage(registerError));
+      setPending(false);
+    }
+  };
+
+  const discard = () => {
+    // 写真は端末にしか残っていないので、捨てる前に確かめる
+    if (window.confirm("このレシートを登録せずに捨てますか？")) onDiscard();
   };
 
   return (
@@ -244,71 +352,213 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, today }: Props) => {
         void register();
       }}
     >
-      <Section label={<h1 className="text-2xl font-semibold">レシート</h1>}>
-        <PhotoPicker image={image} reading={reading} onPick={(file) => void read(file)} />
-      </Section>
-
       <Section label="支出">
         <div className="flex flex-col gap-4 border-t border-foreground pt-3">
-          {extracted !== null && <ConfidenceNote extracted={extracted} />}
-          <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-            <FormField label="日付" htmlFor={ids.date}>
-              <Input
-                id={ids.date}
-                type="date"
-                required
-                value={draft.date}
-                onChange={(event) => update({ date: event.target.value })}
+          {entry.status === "waiting" || entry.status === "reading" ? (
+            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <LoaderCircle
+                className={cn("size-4", entry.status === "reading" && "animate-spin")}
+                aria-hidden="true"
               />
-            </FormField>
-            <FormField label="支払元" htmlFor={ids.account}>
-              <AccountSelect
-                id={ids.account}
-                value={draft.fromAccountId}
-                accounts={accounts}
-                allowEmpty
-                onChange={(fromAccountId) => update({ fromAccountId })}
-              />
-            </FormField>
-            <FormField label="店舗" htmlFor={ids.place}>
-              <PlaceInput
-                id={ids.place}
-                value={draft.placeName}
-                placeNames={placeNames}
-                onChange={(placeName) => update({ placeName })}
-              />
-            </FormField>
-          </div>
+              {entry.status === "reading"
+                ? "読み取っています。ほかのレシートを撮って待てます"
+                : "読み取りの順番を待っています"}
+            </p>
+          ) : entry.status === "failed" ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <ErrorMessage message="レシートを読み取れませんでした。読み直すか、手で入力してください" />
+              <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+                <RotateCw />
+                読み直す
+              </Button>
+            </div>
+          ) : (
+            entry.extracted !== null && <ConfidenceNote extracted={entry.extracted} />
+          )}
+          {ready && (
+            <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+              <FormField label="日付" htmlFor={ids.date}>
+                <Input
+                  id={ids.date}
+                  type="date"
+                  required
+                  value={draft.date}
+                  onChange={(event) => update({ date: event.target.value })}
+                />
+              </FormField>
+              <FormField label="支払元" htmlFor={ids.account}>
+                <AccountSelect
+                  id={ids.account}
+                  value={draft.fromAccountId}
+                  accounts={accounts}
+                  allowEmpty
+                  onChange={(fromAccountId) => update({ fromAccountId })}
+                />
+              </FormField>
+              <FormField label="店舗" htmlFor={ids.place}>
+                <PlaceInput
+                  id={ids.place}
+                  value={draft.placeName}
+                  placeNames={placeNames}
+                  onChange={(placeName) => update({ placeName })}
+                />
+              </FormField>
+            </div>
+          )}
         </div>
       </Section>
 
-      <Section label="品目">
-        <ItemsFields
-          mode="payment"
-          items={draft.items}
-          categories={categories}
-          onChange={(items) => update({ items })}
-        />
-      </Section>
+      {ready && (
+        <Section label="品目">
+          <ItemsFields
+            mode="payment"
+            items={draft.items}
+            categories={categories}
+            onChange={(items) => update({ items })}
+          />
+        </Section>
+      )}
 
       <Section label="">
         <div className="flex flex-col gap-4">
-          <DuplicateWarning byItem={duplicates} />
+          {ready && <DuplicateWarning byItem={duplicates} />}
           {error !== null && <ErrorMessage message={error} />}
-          <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button
               type="submit"
               size="lg"
               // この画面で押すのはほぼこのボタンだけなので、スマホでは幅いっぱいにして親指で押しやすくする
               className="h-12 w-full text-base sm:h-11 sm:w-auto sm:px-10"
-              disabled={pending || reading}
+              disabled={pending || !ready}
             >
               登録
+            </Button>
+            <Button type="button" variant="ghost" disabled={pending} onClick={discard}>
+              <Trash2 />
+              捨てる
             </Button>
           </div>
         </div>
       </Section>
     </form>
+  );
+};
+
+/**
+ * 登録できたことの知らせ。登録した取引を開いて直せるよう、取引への入口を付ける。
+ */
+const RegisteredNotice = ({ transactionId }: { transactionId: number }) => (
+  <output className="flex items-center gap-1.5 text-sm">
+    <CircleCheck className="size-4 shrink-0" aria-hidden="true" />
+    登録しました。
+    <Link href={`/transactions/${transactionId}`} className="underline underline-offset-4">
+      登録した取引を開く
+    </Link>
+  </output>
+);
+
+/**
+ * レシートの写真から支出を登録する画面。
+ *
+ * 撮った写真はキューに溜まり、裏で AI が順に読み取る。読み取れたものから 1 枚ずつ確かめて登録し、
+ * 登録すると次のレシートへ進む。キューは端末の IndexedDB に保存し、台帳には写真を保存しない。
+ */
+const ReceiptNewPage = ({ accounts, categories, placeNames, today }: Props) => {
+  const toDraft = (extracted: ExtractedPayment | null): TransactionDraft =>
+    extracted === null
+      ? emptyPaymentDraft(today)
+      : draftFromExtracted(extracted, { categories, accounts, today });
+  const queue = useReceiptQueue({
+    read: (image) => ledgerApi()("/api/receipts/extract", "POST", { body: { image } }),
+    toDraft,
+  });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [registeredId, setRegisteredId] = useState<number | null>(null);
+  const selected = selectedEntry(queue.entries, selectedId);
+  const unconfirmed = queue.entries.length;
+
+  const add = async (files: File[]) => {
+    setAddError(null);
+    setAdding(true);
+    let failed = 0;
+    // 撮った順を保つよう、1 枚ずつ縮めて足す
+    for (const file of files) {
+      try {
+        queue.add(await resizeReceiptImage(file));
+      } catch {
+        failed += 1;
+      }
+    }
+    setAdding(false);
+    if (failed > 0) setAddError(`${failed} 枚の写真を取り込めませんでした`);
+  };
+
+  /** キューから外し、次のレシートを選ぶ */
+  const removeSelected = (id: string) => {
+    setSelectedId(nextAfterRemoval(queue.entries, id));
+    queue.remove(id);
+  };
+
+  const image = selected === null ? undefined : queue.images.get(selected.id);
+
+  return (
+    <div className="flex flex-col gap-10">
+      <Section label={<h1 className="text-2xl font-semibold">レシート</h1>}>
+        <div className="flex flex-col gap-3 border-t border-foreground pt-3">
+          <PhotoPicker adding={adding} onPick={(files) => void add(files)} />
+          {addError !== null && <ErrorMessage message={addError} />}
+          {registeredId !== null && <RegisteredNotice transactionId={registeredId} />}
+          {unconfirmed > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-muted-foreground">
+                確かめていないレシート {unconfirmed} 枚
+                {selected !== null &&
+                  `（${queue.entries.indexOf(selected) + 1} 枚目・${STATUS_LABELS[selected.status]}）`}
+              </p>
+              <QueueList
+                entries={queue.entries}
+                images={queue.images}
+                selectedId={selected?.id ?? null}
+                onSelect={setSelectedId}
+              />
+            </div>
+          )}
+          {queue.loaded && unconfirmed === 0 && registeredId === null && (
+            <p className="text-sm text-muted-foreground">
+              レシートを撮ると AI が読み取ります。続けて何枚でも撮れます。
+            </p>
+          )}
+          {image !== undefined && (
+            <img
+              src={image}
+              alt="確かめているレシート"
+              className="max-h-96 self-start border object-contain"
+            />
+          )}
+        </div>
+      </Section>
+
+      {selected !== null && (
+        <ReceiptReview
+          // レシートを切り替えたら、エラーや重複の確かめを前のレシートから持ち越さない
+          key={selected.id}
+          entry={selected}
+          draft={selected.draft ?? emptyPaymentDraft(today)}
+          accounts={accounts}
+          categories={categories}
+          placeNames={placeNames}
+          onChange={(draft) => queue.updateDraft(selected.id, draft)}
+          onRetry={() => queue.retry(selected.id)}
+          onDiscard={() => removeSelected(selected.id)}
+          onRegistered={(transactionId) => {
+            setRegisteredId(transactionId);
+            removeSelected(selected.id);
+          }}
+        />
+      )}
+    </div>
   );
 };
 

@@ -33,6 +33,7 @@ catalog:
   tailwindcss: ^4.2.4
   leaflet: ^1.9.4
   "@types/leaflet": ^1.9.22
+  fake-indexeddb: ^6.2.6
 
 catalogMode: prefer
 overrides:
