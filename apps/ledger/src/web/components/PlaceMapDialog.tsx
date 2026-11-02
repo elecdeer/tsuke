@@ -243,79 +243,86 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
 
   return (
     <>
-      <form className="flex gap-1.5" onSubmit={searchView}>
-        <Input
-          type="search"
-          aria-label="キーワード"
-          placeholder="キーワード"
-          value={keyword}
-          onChange={(event) => setKeyword(event.target.value)}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 md:grid md:grid-cols-[minmax(0,1fr)_22rem] md:grid-rows-[auto_minmax(0,1fr)]">
+        <form className="flex gap-1.5 md:col-start-2 md:row-start-1" onSubmit={searchView}>
+          <Input
+            type="search"
+            aria-label="キーワード"
+            placeholder="キーワード"
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+          />
+          <Button type="submit" variant="outline" disabled={!ready || busy}>
+            <Search />
+            この範囲で探す
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="現在地の周りを探す"
+            disabled={!ready || busy}
+            onClick={() => void searchNearby()}
+          >
+            <LocateFixed />
+          </Button>
+        </form>
+        <div
+          ref={containerRef}
+          className="isolate min-h-0 w-full flex-3 rounded-md border md:col-start-1 md:row-span-2 md:row-start-1"
         />
-        <Button type="submit" variant="outline" disabled={!ready || busy}>
-          <Search />
-          この範囲で探す
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label="現在地の周りを探す"
-          disabled={!ready || busy}
-          onClick={() => void searchNearby()}
-        >
-          <LocateFixed />
-        </Button>
-      </form>
-      <div ref={containerRef} className="isolate h-[40dvh] min-h-48 w-full rounded-md border" />
-      <div aria-live="polite" className="text-xs text-muted-foreground">
-        {busy ? (
-          <span className="flex items-center gap-1.5">
-            <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
-            {status.type === "locating" ? "現在地を調べています" : "探しています"}
-          </span>
-        ) : status.type === "error" ? (
-          <span role="alert" className="text-destructive">
-            {status.message}
-          </span>
-        ) : (
-          <>
-            {status.type === "done" && status.note !== undefined && <p>{status.note}</p>}
-            <p>
-              {result.pois.length === 0
-                ? "見つかりませんでした。地図を動かすか、キーワードを変えて探してください"
-                : `${result.pois.length} 件。地図の印か一覧から選んでください`}
-            </p>
-          </>
-        )}
+        <div className="flex min-h-0 flex-2 flex-col gap-2 md:col-start-2 md:row-start-2">
+          <div aria-live="polite" className="text-xs text-muted-foreground">
+            {busy ? (
+              <span className="flex items-center gap-1.5">
+                <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+                {status.type === "locating" ? "現在地を調べています" : "探しています"}
+              </span>
+            ) : status.type === "error" ? (
+              <span role="alert" className="text-destructive">
+                {status.message}
+              </span>
+            ) : (
+              <>
+                {status.type === "done" && status.note !== undefined && <p>{status.note}</p>}
+                <p>
+                  {result.pois.length === 0
+                    ? "見つかりませんでした。地図を動かすか、キーワードを変えて探してください"
+                    : `${result.pois.length} 件。地図の印か一覧から選んでください`}
+                </p>
+              </>
+            )}
+          </div>
+          {result.pois.length > 0 && (
+            <ul ref={listRef} className="-mx-1 min-h-0 flex-1 overflow-y-auto">
+              {result.pois.map((poi, index) => (
+                <li key={`${poi.name}:${poi.position.lng}:${poi.position.lat}`}>
+                  <button
+                    type="button"
+                    data-poi-index={index}
+                    aria-pressed={poi === selected}
+                    className={cn(
+                      "flex w-full items-baseline gap-2 rounded-md px-1 py-1.5 text-left hover:bg-muted",
+                      poi === selected && "bg-muted",
+                    )}
+                    onClick={() => setSelected(poi)}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">{poi.name}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {[poi.kind, poi.address].filter((text) => text !== "").join("・")}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                      {formatDistance(distance(result.origin, poi.position))}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
-      {result.pois.length > 0 && (
-        <ul ref={listRef} className="-mx-1 min-h-0 flex-1 overflow-y-auto">
-          {result.pois.map((poi, index) => (
-            <li key={`${poi.name}:${poi.position.lng}:${poi.position.lat}`}>
-              <button
-                type="button"
-                data-poi-index={index}
-                aria-pressed={poi === selected}
-                className={cn(
-                  "flex w-full items-baseline gap-2 rounded-md px-1 py-1.5 text-left hover:bg-muted",
-                  poi === selected && "bg-muted",
-                )}
-                onClick={() => setSelected(poi)}
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{poi.name}</span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {[poi.kind, poi.address].filter((text) => text !== "").join("・")}
-                  </span>
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                  {formatDistance(distance(result.origin, poi.position))}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
       <div className="-mx-4 -mb-4 flex items-center gap-2 rounded-b-xl border-t bg-muted/50 p-4">
         <span className="min-w-0 flex-1 truncate">
           {selected === null ? (
@@ -344,7 +351,7 @@ export const PlaceMapDialog = ({ onSelect }: { onSelect: (name: string) => void 
       >
         <MapPin />
       </DialogTrigger>
-      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-lg">
+      <DialogContent className="flex h-[calc(100dvh-2rem)] flex-col sm:max-w-[min(calc(100%-2rem),72rem)] md:max-h-200">
         <DialogHeader>
           <DialogTitle>地図から店舗を選ぶ</DialogTitle>
           <DialogDescription className="sr-only">
