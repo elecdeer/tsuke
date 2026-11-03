@@ -40,6 +40,11 @@ export const emptyItem = (key: number): ItemDraft => ({
 });
 
 /**
+ * 改行を空白に置き換えて 1 行にする。品目名・メモは 1 行の値なので、貼り付けた改行も残さない。
+ */
+export const toSingleLine = (value: string): string => value.replace(/[\r\n]+/g, " ");
+
+/**
  * 保存されている取引から、入力中の値を作る。
  */
 export const draftFromTransaction = (transaction: TransactionDetail): TransactionDraft => ({

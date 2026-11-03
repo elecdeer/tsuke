@@ -4,9 +4,24 @@ import {
   emptyItem,
   isDraftEdited,
   moveItem,
+  toSingleLine,
   updateFromDraft,
   type TransactionDraft,
 } from "./transactionDraft.ts";
+
+describe("toSingleLine", () => {
+  test("改行を空白に置き換える", () => {
+    expect(toSingleLine("コーヒー\nミルク")).toBe("コーヒー ミルク");
+  });
+
+  test("続いた改行や CRLF は 1 つの空白にまとめる", () => {
+    expect(toSingleLine("コーヒー\r\n\r\nミルク")).toBe("コーヒー ミルク");
+  });
+
+  test("改行のない値はそのまま返す", () => {
+    expect(toSingleLine("コーヒー ミルク")).toBe("コーヒー ミルク");
+  });
+});
 
 describe("draftFromTransaction", () => {
   test("保存されている取引を入力欄の文字列にする", () => {
