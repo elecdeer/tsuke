@@ -1,8 +1,9 @@
 /**
  * 地図から店舗を選ぶダイアログ。現在地の周りの施設を OpenPOI API で探し、地図と一覧に出す。
  */
-import "leaflet/dist/leaflet.css";
-import type { CircleMarker, LayerGroup, Map as LeafletMap } from "leaflet";
+import "maplibre-gl/dist/maplibre-gl.css";
+import type { Map as MapLibreMap, Marker } from "maplibre-gl";
+import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { LoaderCircle, LocateFixed, MapPin, Search } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
@@ -23,9 +24,10 @@ import {
   type Poi,
   type PoiArea,
 } from "@/web/openPoi";
+import { adjustMapStyle, MAP_STYLE_URL } from "@/web/mapStyle";
 import { cn } from "@/lib/utils";
 
-type Leaflet = typeof import("leaflet");
+type MapLibre = typeof import("maplibre-gl");
 
 /** 現在地がわからないときに出す場所（東京駅） */
 const FALLBACK_CENTER: LngLat = { lng: 139.7671, lat: 35.6812 };
@@ -33,33 +35,36 @@ const FALLBACK_CENTER: LngLat = { lng: 139.7671, lat: 35.6812 };
 /** 開いたときに探す、現在地からの半径（m） */
 const NEARBY_RADIUS = 300;
 
-const INITIAL_ZOOM = 17;
+const INITIAL_ZOOM = 16;
+
+/** 施設の印の見た目 */
+const MARKER_CLASS = "size-3.5 border-2 border-background bg-muted-foreground";
+const SELECTED_MARKER_CLASS = "z-20 size-5 border-2 border-background bg-primary";
+const CURRENT_MARKER_CLASS = "size-3 border-[3px] border-white bg-blue-600";
 
 /**
- * 施設の印。色は Leaflet が SVG の属性に書くと CSS 変数が効かないので、テーマに合わせてクラスで付ける
+ * 地図に置く印の要素を作る。名前は、選んでいるときは常に、それ以外は指しているときに出す。
  */
-const MARKER_STYLE = {
-  radius: 7,
-  weight: 2,
-  fillOpacity: 1,
-  className: "fill-muted-foreground stroke-background",
-};
-const SELECTED_MARKER_STYLE = {
-  ...MARKER_STYLE,
-  radius: 10,
-  className: "fill-primary stroke-background",
-};
-const CURRENT_MARKER_STYLE = {
-  ...MARKER_STYLE,
-  radius: 6,
-  weight: 3,
-  className: "fill-blue-600 stroke-white",
+const createMarkerElement = (
+  name: string,
+  { className, showName = false }: { className: string; showName?: boolean },
+) => {
+  const element = document.createElement("button");
+  element.type = "button";
+  element.ariaLabel = name;
+  element.className = cn("group rounded-full shadow-sm hover:z-10 focus-visible:z-10", className);
+  const label = document.createElement("span");
+  label.textContent = name;
+  label.className = cn(
+    "pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 rounded-md bg-popover px-1.5 py-0.5 text-xs whitespace-nowrap text-popover-foreground shadow-sm",
+    !showName && "hidden group-hover:block group-focus-visible:block",
+  );
+  element.appendChild(label);
+  return element;
 };
 
 const formatDistance = (meters: number) =>
   meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`;
-
-const toLatLng = ({ lng, lat }: LngLat): [number, number] => [lat, lng];
 
 /** 現在地を取る。取れないとき（許可されない・対応していない）は null */
 const locate = () =>
@@ -82,12 +87,12 @@ type Status =
   | { type: "error"; message: string };
 
 /**
- * ダイアログの中身。開いている間だけ置き、Leaflet はブラウザで開いたときに読み込む。
+ * ダイアログの中身。開いている間だけ置き、MapLibre はブラウザで開いたときに読み込む。
  */
 const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const leafletRef = useRef<{ L: Leaflet; map: LeafletMap; layer: LayerGroup } | null>(null);
-  const currentMarkerRef = useRef<CircleMarker | null>(null);
+  const mapRef = useRef<{ maplibre: MapLibre; map: MapLibreMap } | null>(null);
+  const currentMarkerRef = useRef<Marker | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const [ready, setReady] = useState(false);
@@ -131,17 +136,19 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
   const searchNearby = async () => {
     setStatus({ type: "locating" });
     const here = await locate();
-    const leaflet = leafletRef.current;
-    if (leaflet === null) return;
+    const current = mapRef.current;
+    if (current === null) return;
     const center = here ?? FALLBACK_CENTER;
-    leaflet.map.setView(toLatLng(center), INITIAL_ZOOM);
+    current.map.jumpTo({ center, zoom: INITIAL_ZOOM });
     currentMarkerRef.current?.remove();
     currentMarkerRef.current =
       here === null
         ? null
-        : leaflet.L.circleMarker(toLatLng(here), CURRENT_MARKER_STYLE)
-            .bindTooltip("現在地")
-            .addTo(leaflet.map);
+        : new current.maplibre.Marker({
+            element: createMarkerElement("現在地", { className: CURRENT_MARKER_CLASS }),
+          })
+            .setLngLat(here)
+            .addTo(current.map);
     await search(
       { center, radius: NEARBY_RADIUS },
       center,
@@ -152,7 +159,7 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
   /** 地図に今出ている範囲を探す */
   const searchView = (event: FormEvent) => {
     event.preventDefault();
-    const map = leafletRef.current?.map;
+    const map = mapRef.current?.map;
     if (map === undefined) return;
     const bounds = map.getBounds();
     const center = map.getCenter();
@@ -169,34 +176,45 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
     );
   };
 
-  // Leaflet は読み込むだけで window に触れるので、サーバーでの描画を避けてここで読み込む
+  // MapLibre は読み込むだけで window に触れるので、サーバーでの描画を避けてここで読み込む
   useEffect(() => {
     let disposed = false;
     let cleanup = () => {};
-    void import("leaflet").then((L) => {
+    void import("maplibre-gl").then((maplibre) => {
       const container = containerRef.current;
       if (disposed || container === null) return;
-      const map = L.map(container, { zoomControl: false }).setView(
-        toLatLng(FALLBACK_CENTER),
-        INITIAL_ZOOM,
-      );
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      // 既定では本体のファイルの隣から Worker を読むが、Vite でまとめると本体の場所が変わって読めなくなる
+      maplibre.setWorkerUrl(mapWorkerUrl);
+      const map = new maplibre.Map({
+        container,
+        style: MAP_STYLE_URL,
+        transformStyle: adjustMapStyle,
+        center: FALLBACK_CENTER,
+        zoom: INITIAL_ZOOM,
         maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      }).addTo(map);
-      map.attributionControl.addAttribution(
-        `<a href="${OPEN_POI_ATTRIBUTION_URL}" target="_blank" rel="noreferrer">OpenPOI API</a>`,
+        attributionControl: false,
+        // 店舗を探すのに傾きや回転はいらず、触れて向きが変わるとかえって迷う
+        dragRotate: false,
+        touchPitch: false,
+      });
+      map.touchZoomRotate.disableRotation();
+      map.keyboard.disableRotation();
+      map.addControl(
+        new maplibre.AttributionControl({
+          compact: false,
+          customAttribution: `<a href="${OPEN_POI_ATTRIBUTION_URL}" target="_blank" rel="noreferrer">OpenPOI API</a>`,
+        }),
+        "bottom-right",
       );
-      L.control.zoom({ position: "bottomright" }).addTo(map);
-      const layer = L.layerGroup().addTo(map);
-      leafletRef.current = { L, map, layer };
+      map.addControl(new maplibre.NavigationControl({ showCompass: false }), "bottom-right");
+      mapRef.current = { maplibre, map };
       // ダイアログが開く動きの途中で作ると大きさを読み違えるので、大きさが変わるたびに測り直す
-      const observer = new ResizeObserver(() => map.invalidateSize());
+      const observer = new ResizeObserver(() => map.resize());
       observer.observe(container);
       cleanup = () => {
         observer.disconnect();
         map.remove();
-        leafletRef.current = null;
+        mapRef.current = null;
       };
       setReady(true);
     });
@@ -215,25 +233,26 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
 
   // 施設の印を置き直す。選んだ施設は大きく色を変える
   useEffect(() => {
-    const leaflet = leafletRef.current;
-    if (!ready || leaflet === null) return;
-    leaflet.layer.clearLayers();
-    for (const poi of result.pois) {
+    const current = mapRef.current;
+    if (!ready || current === null) return;
+    const markers = result.pois.map((poi) => {
       const isSelected = poi === selected;
-      leaflet.L.circleMarker(
-        toLatLng(poi.position),
-        isSelected ? SELECTED_MARKER_STYLE : MARKER_STYLE,
-      )
-        .bindTooltip(poi.name, { permanent: isSelected, direction: "top", offset: [0, -8] })
-        .on("click", () => setSelected(poi))
-        .addTo(leaflet.layer);
-    }
+      const element = createMarkerElement(poi.name, {
+        className: isSelected ? SELECTED_MARKER_CLASS : MARKER_CLASS,
+        showName: isSelected,
+      });
+      element.addEventListener("click", () => setSelected(poi));
+      return new current.maplibre.Marker({ element }).setLngLat(poi.position).addTo(current.map);
+    });
+    return () => {
+      for (const marker of markers) marker.remove();
+    };
   }, [ready, result, selected]);
 
   // 一覧で選んだ施設を地図の真ん中に出し、地図で選んだ施設を一覧で見える所まで送る
   useEffect(() => {
     if (selected === null) return;
-    leafletRef.current?.map.panTo(toLatLng(selected.position));
+    mapRef.current?.map.panTo(selected.position);
     listRef.current
       ?.querySelector(`[data-poi-index="${result.pois.indexOf(selected)}"]`)
       ?.scrollIntoView({ block: "nearest" });
