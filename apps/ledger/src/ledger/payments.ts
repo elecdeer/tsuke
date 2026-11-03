@@ -9,6 +9,7 @@ import {
   transactions,
 } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
+import { PlaceDetailSchema, placeDetailColumns } from "./placeDetail.ts";
 
 const TextSchema = v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(200)));
 
@@ -17,6 +18,7 @@ export const PaymentInputSchema = v.object({
   date: v.pipe(v.string(), v.isoDate()),
   fromAccountId: v.nullable(v.pipe(v.number(), v.integer())),
   placeName: TextSchema,
+  placeDetail: v.optional(v.nullable(PlaceDetailSchema)),
   items: v.pipe(
     v.array(
       v.object({
@@ -101,9 +103,12 @@ export const createPayment = async (
       ? { ok: false, error: "取引を作れませんでした" }
       : { ok: true, id: created.id };
   }
-  const insertPlace = db.insert(places).values({ name: placeName }).onConflictDoNothing({
-    target: places.name,
-  });
+  const insertPlace = db
+    .insert(places)
+    .values({ name: placeName, ...placeDetailColumns(input.placeDetail) })
+    .onConflictDoNothing({
+      target: places.name,
+    });
   const [, [created]] = await db.batch([insertPlace, insertTransaction, insertItems]);
   return created === undefined
     ? { ok: false, error: "取引を作れませんでした" }

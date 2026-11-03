@@ -302,11 +302,12 @@ const ReceiptReview = ({
   accounts,
   categories,
   placeNames,
+  chainNames,
   onChange,
   onRetry,
   onDiscard,
   onRegistered,
-}: Pick<Props, "accounts" | "categories" | "placeNames"> & {
+}: Pick<Props, "accounts" | "categories" | "placeNames" | "chainNames"> & {
   entry: ReceiptEntry;
   draft: TransactionDraft;
   onChange: (draft: TransactionDraft) => void;
@@ -399,8 +400,10 @@ const ReceiptReview = ({
                 <PlaceInput
                   id={ids.place}
                   value={draft.placeName}
+                  detail={draft.placeDetail}
                   placeNames={placeNames}
-                  onChange={(placeName) => update({ placeName })}
+                  chainNames={chainNames}
+                  onChange={(placeName, placeDetail) => update({ placeName, placeDetail })}
                 />
               </FormField>
             </div>
@@ -463,11 +466,11 @@ const RegisteredNotice = ({ transactionId }: { transactionId: number }) => (
  * 撮った写真はキューに溜まり、裏で AI が順に読み取る。読み取れたものから 1 枚ずつ確かめて登録し、
  * 登録すると次のレシートへ進む。キューは端末の IndexedDB に保存し、台帳には写真を保存しない。
  */
-const ReceiptNewPage = ({ accounts, categories, placeNames, today }: Props) => {
+const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }: Props) => {
   const toDraft = (extracted: ExtractedPayment | null): TransactionDraft =>
     extracted === null
       ? emptyPaymentDraft(today)
-      : draftFromExtracted(extracted, { categories, accounts, today });
+      : draftFromExtracted(extracted, { categories, accounts, placeNames, chainNames, today });
   const queue = useReceiptQueue({
     read: (image) => ledgerApi()("/api/receipts/extract", "POST", { body: { image } }),
     toDraft,
@@ -549,6 +552,7 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, today }: Props) => {
           accounts={accounts}
           categories={categories}
           placeNames={placeNames}
+          chainNames={chainNames}
           onChange={(draft) => queue.updateDraft(selected.id, draft)}
           onRetry={() => queue.retry(selected.id)}
           onDiscard={() => removeSelected(selected.id)}

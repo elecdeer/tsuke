@@ -11,6 +11,7 @@ export const transactionsHref = (filter: TransactionFilter, selected?: number): 
   if (filter.categoryId !== undefined) params.set("categoryId", String(filter.categoryId));
   if (filter.genreId !== undefined) params.set("genreId", String(filter.genreId));
   if (filter.placeId !== undefined) params.set("placeId", String(filter.placeId));
+  if (filter.chain !== undefined) params.set("chain", filter.chain);
   if (selected !== undefined) params.set("selected", String(selected));
   return `/transactions?${params}`;
 };
@@ -23,4 +24,5 @@ export const isFiltered = (filter: TransactionFilter): boolean =>
   filter.accountId !== undefined ||
   filter.categoryId !== undefined ||
   filter.genreId !== undefined ||
-  filter.placeId !== undefined;
+  filter.placeId !== undefined ||
+  filter.chain !== undefined;

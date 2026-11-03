@@ -151,6 +151,22 @@ describe("updateTransaction", () => {
     expect((await getTransaction(db, id))?.placeName).toBe("八百屋");
   });
 
+  test("編集で入れた新しい店舗にチェーンを保存する", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+    const id = insertPayment(sqlite, m);
+
+    await updateTransaction(
+      db,
+      id,
+      paymentUpdate(m, { placeName: "八百屋 駅前店", placeDetail: { chain: "八百屋", poi: null } }),
+    );
+
+    expect(sqlite.prepare("SELECT chain FROM places WHERE name = '八百屋 駅前店'").get()).toEqual({
+      chain: "八百屋",
+    });
+  });
+
   test("内訳のない品目は、入力のカテゴリをそのまま持つ", async () => {
     const { db, sqlite } = createTestLedgerDb();
     const m = seedMasters(sqlite);

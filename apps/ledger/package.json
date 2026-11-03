@@ -21,8 +21,8 @@
     "clsx": "catalog:",
     "drizzle-orm": "catalog:",
     "hono": "^4.13.14",
-    "leaflet": "catalog:",
     "lucide-react": "catalog:",
+    "maplibre-gl": "catalog:",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "tailwind-merge": "catalog:",
@@ -31,7 +31,6 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",
-    "@types/leaflet": "catalog:",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@void/react": "catalog:",

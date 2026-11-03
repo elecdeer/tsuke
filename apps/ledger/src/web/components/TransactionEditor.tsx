@@ -178,6 +178,7 @@ export type TransactionEditorProps = {
   accounts: AccountOption[];
   categories: { payment: CategoryWithGenres[]; income: CategoryWithGenres[] };
   placeNames: string[];
+  chainNames: string[];
   /** 保存したか。作り直しても「保存しました」を出し続けられるよう、親が持つ */
   saved: boolean;
   onSavedChange: (saved: boolean) => void;
@@ -198,6 +199,7 @@ export const TransactionEditor = ({
   accounts,
   categories,
   placeNames,
+  chainNames,
   saved,
   onSavedChange,
   onSave,
@@ -275,8 +277,10 @@ export const TransactionEditor = ({
               <PlaceInput
                 id={ids.place}
                 value={draft.placeName}
+                detail={draft.placeDetail}
                 placeNames={placeNames}
-                onChange={(placeName) => update({ placeName })}
+                chainNames={chainNames}
+                onChange={(placeName, placeDetail) => update({ placeName, placeDetail })}
               />
             </FormField>
           )}

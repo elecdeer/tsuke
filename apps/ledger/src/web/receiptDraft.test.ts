@@ -14,6 +14,8 @@ const context = {
     { id: 2, name: "日用品", genres: [{ id: 21, name: "消耗品" }] },
   ],
   accounts: [{ id: 3 }, { id: 4 }],
+  placeNames: ["ミドリマート"],
+  chainNames: ["ミドリ"],
   today: "2026-10-29",
 };
 
@@ -36,12 +38,21 @@ describe("emptyPaymentDraft", () => {
       fromAccountId: "",
       toAccountId: "",
       placeName: "",
+      placeDetail: null,
       items: [{ key: 0, category: "", name: "", memo: "", amount: "" }],
     });
   });
 });
 
 describe("draftFromExtracted", () => {
+  test("読み取った店舗が一覧になければ、新しい店舗としてチェーンを推測する", () => {
+    const draft = draftFromExtracted(
+      { ...extracted, placeName: "ミドリ 新宿店" },
+      { ...context, chainNames: [] },
+    );
+    expect(draft.placeDetail).toEqual({ chain: "ミドリ", poi: null });
+  });
+
   test("読み取った値をフォームの文字列にし、内訳はカテゴリと合わせた選択肢の値にする", () => {
     expect(draftFromExtracted(extracted, context)).toEqual({
       date: "2026-10-27",
@@ -49,6 +60,7 @@ describe("draftFromExtracted", () => {
       fromAccountId: "4",
       toAccountId: "",
       placeName: "ミドリマート",
+      placeDetail: null,
       items: [
         { key: 0, category: "g:1:11", name: "牛乳", memo: "", amount: "248" },
         { key: 1, category: "g:2:21", name: "洗剤", memo: "詰め替え", amount: "328" },
@@ -93,6 +105,7 @@ describe("paymentFromDraft", () => {
     fromAccountId: "4",
     toAccountId: "",
     placeName: "ミドリマート",
+    placeDetail: null,
     items: [item],
   };
 
@@ -103,6 +116,7 @@ describe("paymentFromDraft", () => {
         date: "2026-10-27",
         fromAccountId: 4,
         placeName: "ミドリマート",
+        placeDetail: null,
         items: [{ genreId: 11, name: "牛乳", memo: "", amount: 1248 }],
       },
     });

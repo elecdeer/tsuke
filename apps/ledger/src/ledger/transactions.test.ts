@@ -223,6 +223,32 @@ describe("listTransactions", () => {
     expect(listed.map((transaction) => transaction.id)).toEqual([atStore]);
   });
 
+  test("チェーンで絞り込むと、そのチェーンの支店の取引を返す", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+    const shinjuku = insert(
+      sqlite,
+      "INSERT INTO places (name, chain) VALUES ('新宿店', 'ローソン')",
+    );
+    const shibuya = insert(
+      sqlite,
+      "INSERT INTO places (name, chain) VALUES ('渋谷店', 'ローソン')",
+    );
+    const inChain = [shinjuku, shibuya].map((placeId, index) =>
+      insertTransaction(sqlite, { date: `2026-10-0${index + 1}`, mode: "payment", placeId }),
+    );
+    const elsewhere = insertTransaction(sqlite, {
+      date: "2026-10-03",
+      mode: "payment",
+      placeId: m.store,
+    });
+    for (const id of [...inChain, elsewhere]) insertItem(sqlite, id, { amount: 100 });
+
+    const listed = await listTransactions(db, { month: "2026-10", chain: "ローソン" });
+
+    expect(listed.map((transaction) => transaction.id).sort((a, b) => a - b)).toEqual(inChain);
+  });
+
   test("内訳で絞り込むと、その内訳の品目を含む取引を、ほかの品目も付けて返す", async () => {
     const { db, sqlite } = createTestLedgerDb();
     const m = seedMasters(sqlite);

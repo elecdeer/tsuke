@@ -46,6 +46,8 @@ vp run dev
 
 店舗の入力欄の地図のボタンから、現在地の周りの店舗を地図で選べる。店舗は [OpenPOI API](https://docs.openpoiapi.com/)（キー不要・CORS 可）をブラウザから直接呼んで探し、地図は Leaflet と OpenStreetMap のタイルで出す。OpenPOI のデータを出すときは「OpenPOI API」と書いて[出典のページ](https://openpoiapi.com/attribution.html)へリンクする決まりなので、地図の帰属表示に入れている。
 
+新しい店舗を入れると、入力欄の下に登録済みの似た店舗と OpenPOI の候補を出す。候補は押したときだけ反映し、押さなければ入れた名前のまま登録する。OpenPOI には施設の ID がなく、同じチェーンでも表記が揺れるので、自動ではまとめない。店舗は支店ごとに持ち、`places.chain` で支店をまとめて見る（取引の一覧をチェーンで絞り込める）。登録済みの店舗の整理と、拡張機能からの登録は対象外。
+
 - UI 部品は拡張機能と同じ shadcn（base-ui 版）と Tailwind CSS。`apps/ledger` で `pnpm exec shadcn add <名前>` を実行すると `src/components/ui/` に入る。shadcn の CLI が `cn` パッケージを入れて `from "cn"` と書くので、`@/lib/utils` に直して `cn` パッケージは外す
 - 表示するデータはページの `loader`、変更はページの `actions` で扱い、`/api/*`（拡張機能のための API）には足さない
 - ローカルの D1 に本物の記録を取り込んでいる場合は、架空のデータで画面を確かめられる。`LEDGER_PERSIST_TO` に別の場所を指定して開発サーバーを起動すると、ローカルの D1 などがそこに作られる（マイグレーションも適用される）。そこに `scripts/sample-data.sql` を入れる

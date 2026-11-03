@@ -38,7 +38,8 @@ const Filters = ({
   accounts,
   categories,
   placeName,
-}: Pick<Props, "filter" | "accounts" | "categories" | "placeName">) => {
+  chainNames,
+}: Pick<Props, "filter" | "accounts" | "categories" | "placeName" | "chainNames">) => {
   const router = useRouter();
   const visit = (next: Partial<TransactionFilter>) => {
     void router.visit(transactionsHref({ ...filter, ...next }), { preserveScroll: true });
@@ -52,6 +53,11 @@ const Filters = ({
     "": "すべてのカテゴリ",
     ...categoryLabels(categories.payment),
     ...categoryLabels(categories.income),
+  };
+
+  const chainItems: Record<string, string> = {
+    "": "すべてのチェーン",
+    ...Object.fromEntries(chainNames.map((chain) => [chain, chain])),
   };
 
   return (
@@ -112,6 +118,27 @@ const Filters = ({
           <CategoryOptions label="収入" categories={categories.income} />
         </SelectContent>
       </Select>
+      {chainNames.length > 0 && (
+        <Select
+          items={chainItems}
+          value={filter.chain ?? ""}
+          onValueChange={(value) =>
+            visit({ chain: value === null || value === "" ? undefined : value })
+          }
+        >
+          <SelectTrigger size="sm" aria-label="チェーン">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">すべてのチェーン</SelectItem>
+            {chainNames.map((chain) => (
+              <SelectItem key={chain} value={chain}>
+                {chain}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
       {filter.placeId !== undefined && (
         <span className="flex h-7 items-center gap-1 border-b border-foreground text-sm">
           {placeName ?? "（削除された店舗）"}
@@ -309,7 +336,8 @@ const SidePanel = ({
   closing,
   accounts,
   categories,
-}: Pick<Props, "filter" | "accounts" | "categories"> & {
+  chainNames,
+}: Pick<Props, "filter" | "accounts" | "categories" | "chainNames"> & {
   selected: NonNullable<Props["selected"]>;
   /** 閉じるアニメーションの間だけ、閉じる前の取引を出しておく。操作はさせない */
   closing: boolean;
@@ -355,6 +383,7 @@ const SidePanel = ({
         accounts={accounts}
         categories={categories}
         placeNames={selected.placeNames}
+        chainNames={chainNames}
         saved={savedId === transaction.id}
         onSavedChange={(saved) => setSavedId(saved ? transaction.id : null)}
         onSave={(input) =>
@@ -387,6 +416,7 @@ const TransactionsPage = ({
   accounts,
   categories,
   placeName,
+  chainNames,
   selected,
 }: Props) => {
   // パネルを閉じても列が縮みきるまでは中身を残すため、最後に開いた取引を持っておく
@@ -425,6 +455,7 @@ const TransactionsPage = ({
               accounts={accounts}
               categories={categories}
               placeName={placeName}
+              chainNames={chainNames}
             />
             <ListTotals transactions={transactions} />
           </div>
@@ -475,6 +506,7 @@ const TransactionsPage = ({
             closing={selected === null}
             accounts={accounts}
             categories={categories}
+            chainNames={chainNames}
           />
         )}
       </div>

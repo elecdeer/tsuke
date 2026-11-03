@@ -101,7 +101,7 @@ describe("runExtractReceipt", () => {
     );
   });
 
-  test("待ち時間を短くするため推論量を low にして送る", async () => {
+  test("待ち時間を短くするため推論量を none にして送る", async () => {
     const ai = {
       run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
     };
@@ -110,7 +110,7 @@ describe("runExtractReceipt", () => {
 
     expect(ai.run).toHaveBeenCalledWith(
       "test-model",
-      expect.objectContaining({ reasoning_effort: "low" }),
+      expect.objectContaining({ reasoning_effort: "none" }),
       { signal: undefined },
     );
   });

@@ -1,5 +1,14 @@
 import { sql } from "void/db";
-import { foreignKey, index, integer, sqliteTable, text, unique, uniqueIndex } from "void/schema-d1";
+import {
+  foreignKey,
+  index,
+  integer,
+  real,
+  sqliteTable,
+  text,
+  unique,
+  uniqueIndex,
+} from "void/schema-d1";
 
 /**
  * 作成・更新日時（ISO 8601、UTC、ミリ秒まで）。
@@ -62,10 +71,22 @@ export const genres = sqliteTable(
   ],
 );
 
-/** 店舗・取引先。支出のお店と収入の支払元の両方を入れる */
+/**
+ * 店舗・取引先。支出のお店と収入の支払元の両方を入れる。支店は別の店舗にし、chain でまとめて見る。
+ *
+ * address 以降は OpenPOI の施設から作ったときだけ入る。OpenPOI には施設の ID がなく後から引き直せないので、
+ * 使っていない項目も含めて、出典（licenses・attributions）と一緒に手元へ写して持つ。
+ */
 export const places = sqliteTable("places", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull().unique(),
+  chain: text("chain"),
+  address: text("address"),
+  lng: real("lng"),
+  lat: real("lat"),
+  poiCategory: text("poi_category"),
+  poiLicenses: text("poi_licenses", { mode: "json" }).$type<string[]>(),
+  poiAttributions: text("poi_attributions", { mode: "json" }).$type<string[]>(),
   ...masterColumns(),
   ...timestamps(),
 });
