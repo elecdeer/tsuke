@@ -1,6 +1,14 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { ExtractedPayment } from "../llm/extractPayment.ts";
-import { nextToRead, restoreEntries, upsertEntry, type ReceiptEntry } from "./receiptQueue.ts";
+import type { ReceiptReadQuality } from "../llm/extractReceipt.ts";
+import {
+  markReadFailed,
+  nextToRead,
+  requestAccurateRead,
+  restoreEntries,
+  upsertEntry,
+  type ReceiptEntry,
+} from "./receiptQueue.ts";
 import { createReceiptQueueStore } from "./receiptQueueStore.ts";
 import type { TransactionDraft } from "./transactionDraft.ts";
 
@@ -19,6 +27,8 @@ export type ReceiptQueue = {
   updateDraft: (id: string, draft: TransactionDraft) => void;
   /** 読み取れなかったものを読み直す */
   retry: (id: string) => void;
+  /** 読み取れたものを、より正確なモデルで読み直す */
+  rereadAccurately: (id: string) => void;
   /** 登録した、または捨てたレシートをキューから外す */
   remove: (id: string) => void;
 };
@@ -43,7 +53,7 @@ export const useReceiptQueue = ({
   read,
   toDraft,
 }: {
-  read: (image: string) => Promise<ExtractedPayment>;
+  read: (image: string, quality: ReceiptReadQuality) => Promise<ExtractedPayment>;
   toDraft: (extracted: ExtractedPayment | null) => TransactionDraft;
 }): ReceiptQueue => {
   // サーバーで描くときは IndexedDB がないが、開くのは effect の中だけなので作るだけなら問題ない
@@ -95,11 +105,13 @@ export const useReceiptQueue = ({
     const image = images.get(entry.id);
     save({ ...entry, status: "reading" });
     const reading =
-      image === undefined ? Promise.reject(new Error("写真が見つかりません")) : read(image);
+      image === undefined
+        ? Promise.reject(new Error("写真が見つかりません"))
+        : read(image, entry.quality ?? "fast");
     reading
       .then(
         (extracted) => patch(entry.id, { status: "read", extracted, draft: toDraft(extracted) }),
-        () => patch(entry.id, { status: "failed", extracted: null, draft: toDraft(null) }),
+        () => patch(entry.id, markReadFailed(entry, toDraft(null))),
       )
       .finally(() => started.current.delete(entry.id));
   });
@@ -130,7 +142,11 @@ export const useReceiptQueue = ({
       store.addEntry(entry, image).catch(ignoreStoreError);
     },
     updateDraft: (id, draft) => patch(id, { draft }),
-    retry: (id) => patch(id, { status: "waiting", extracted: null, draft: null }),
+    retry: (id) => patch(id, { status: "waiting" }),
+    rereadAccurately: (id) => {
+      const current = entriesRef.current.find((entry) => entry.id === id);
+      if (current !== undefined) save(requestAccurateRead(current));
+    },
     remove: (id) => {
       commit(entriesRef.current.filter((entry) => entry.id !== id));
       setImages((current) => {

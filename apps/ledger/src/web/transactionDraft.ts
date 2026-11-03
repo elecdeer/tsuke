@@ -58,6 +58,12 @@ export const draftFromTransaction = (transaction: TransactionDetail): Transactio
   })),
 });
 
+/**
+ * 入力中の値が元の値から変わったかを返す。どちらも同じ関数で作るので、項目の並びは揃っている。
+ */
+export const isDraftEdited = (draft: TransactionDraft, original: TransactionDraft): boolean =>
+  JSON.stringify(draft) !== JSON.stringify(original);
+
 const AMOUNT_PATTERN = /^-?\d+$/;
 
 /**

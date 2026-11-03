@@ -1,4 +1,5 @@
 import type { ExtractedPayment } from "../llm/extractPayment.ts";
+import type { ReceiptReadQuality } from "../llm/extractReceipt.ts";
 import type { TransactionDraft } from "./transactionDraft.ts";
 
 /**
@@ -7,7 +8,7 @@ import type { TransactionDraft } from "./transactionDraft.ts";
  * - `waiting`：AI の読み取りを待っている
  * - `reading`：AI が読み取っている
  * - `read`：読み取れた。確かめて登録するのを待っている
- * - `failed`：読み取れなかった。読み直すか、手で入力して登録する
+ * - `failed`：読み取れなかった。読み直すか、前の結果や手の入力のまま登録する
  */
 export type ReceiptStatus = "waiting" | "reading" | "read" | "failed";
 
@@ -19,7 +20,9 @@ export type ReceiptEntry = {
   /** 撮った時刻（ms）。キューはこの順に並べる */
   createdAt: number;
   status: ReceiptStatus;
-  /** AI が読み取った結果。読み取る前と、読み取れなかったときは null */
+  /** 読み取りの優先。ないものは fast（この項目を足す前に端末へ保存されたレシートにはない） */
+  quality?: ReceiptReadQuality;
+  /** AI が読み取った結果。読み取る前と、一度も読み取れていないときは null */
   extracted: ExtractedPayment | null;
   /** 確かめているフォームの値。読み取り（または失敗）が済むまでは null */
   draft: TransactionDraft | null;
@@ -57,6 +60,27 @@ export const restoreEntries = (entries: ReceiptEntry[]): ReceiptEntry[] =>
   sortEntries(entries).map((entry) =>
     entry.status === "reading" ? { ...entry, status: "waiting" } : entry,
   );
+
+/**
+ * より正確なモデルで読み直すのを頼む。読み直せるまでは前の結果を残し、失敗しても失わないようにする。
+ */
+export const requestAccurateRead = (entry: ReceiptEntry): ReceiptEntry => ({
+  ...entry,
+  status: "waiting",
+  quality: "accurate",
+});
+
+/**
+ * 読み取りの失敗を記録する。読み直しの失敗なら、前の結果と入力中の値を残す。
+ */
+export const markReadFailed = (
+  entry: ReceiptEntry,
+  emptyDraft: TransactionDraft,
+): ReceiptEntry => ({
+  ...entry,
+  status: "failed",
+  draft: entry.draft ?? emptyDraft,
+});
 
 /**
  * 確かめる対象として選ぶレシートを決める。選んでいたものがなくなっていれば、キューの先頭にする。
