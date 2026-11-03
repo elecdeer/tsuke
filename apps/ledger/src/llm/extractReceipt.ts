@@ -15,6 +15,7 @@ import {
   type ExtractedPayment,
   type ExtractPaymentContext,
 } from "./extractPayment.ts";
+import { READ_SETTINGS, type ReadQuality } from "./readQuality.ts";
 import {
   runStructuredChat,
   type AiRunner,
@@ -27,14 +28,6 @@ import {
  * ふつうは 1MB に届かない。縮めずに送られた写真を AI に渡さないための上限
  */
 const RECEIPT_IMAGE_MAX_LENGTH = 4_000_000;
-
-/**
- * レシートの読み取りでの推論量。既定のままだと出力の 3/4 ほどが推論トークンで、読み取りに 10 秒ほどかかっていた。
- * low でも推論トークンが 150〜400 出て 5〜10 秒かかり、none で 2.5 秒ほどに縮んだ（品名・金額・日付の読み取りは同じだった）。
- * 読み取った値は登録前に画面で確かめて直せるので、精度より待ち時間を優先する。
- * 推論しない Clairic・Clef（Workers AI の抽出・判定モデル）も試したが、Clairic は画像の日本語を読み落とすので使えなかった
- */
-const RECEIPT_REASONING_EFFORT = "none";
 
 /** レシートの画像（JPEG・PNG・WebP の data URL） */
 export const ReceiptImageSchema = v.pipe(
@@ -101,18 +94,18 @@ export const buildReceiptPrompt = (input: ExtractReceiptContext): StructuredProm
  */
 export const runExtractReceipt = (params: {
   ai: AiRunner;
-  model: string;
+  quality: ReadQuality;
   input: ExtractReceiptContext;
   abortSignal?: AbortSignal;
 }): Promise<{ object: ExtractedPayment; usage: unknown; timing: ExtractTiming }> =>
   runStructuredChat({
     ai: params.ai,
-    model: params.model,
+    model: READ_SETTINGS[params.quality].model,
     buildPrompt: () => buildReceiptPrompt(params.input),
     schemaName: "ExtractedPayment",
     jsonSchema: EXTRACTED_PAYMENT_JSON_SCHEMA,
     schema: ExtractedPaymentSchema,
-    reasoningEffort: RECEIPT_REASONING_EFFORT,
+    reasoningEffort: READ_SETTINGS[params.quality].reasoningEffort,
     abortSignal: params.abortSignal,
   }).then((result) => ({
     ...result,

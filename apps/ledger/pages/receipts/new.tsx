@@ -37,7 +37,7 @@ import {
   type ReceiptEntry,
   type ReceiptStatus,
 } from "@/web/receiptQueue";
-import type { TransactionDraft } from "@/web/transactionDraft";
+import { isDraftEdited, type TransactionDraft } from "@/web/transactionDraft";
 import { useReceiptQueue } from "@/web/useReceiptQueue";
 import { cn } from "@/lib/utils";
 import type { Props } from "./new.server";
@@ -306,6 +306,7 @@ const ReceiptReview = ({
   chainNames,
   onChange,
   onRetry,
+  onReread,
   onDiscard,
   onRegistered,
 }: Pick<Props, "accounts" | "categories" | "placeNames" | "chainNames"> & {
@@ -315,6 +316,7 @@ const ReceiptReview = ({
   draft: TransactionDraft;
   onChange: (draft: TransactionDraft) => void;
   onRetry: () => void;
+  onReread: () => void;
   onDiscard: () => void;
   onRegistered: (transactionId: number) => void;
 }) => {
@@ -379,7 +381,18 @@ const ReceiptReview = ({
               </Button>
             </div>
           ) : (
-            entry.extracted !== null && <ConfidenceNote extracted={entry.extracted} />
+            <>
+              {entry.extracted !== null && <ConfidenceNote extracted={entry.extracted} />}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <Button type="button" variant="outline" size="sm" onClick={onReread}>
+                  <RotateCw />
+                  もう一度読み取る
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  少し時間はかかりますが、より正確に読み取ります
+                </span>
+              </div>
+            </>
           )}
           {ready && (
             <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
@@ -477,7 +490,8 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }:
       ? emptyPaymentDraft(today)
       : draftFromExtracted(extracted, { categories, accounts, placeNames, chainNames, today });
   const queue = useReceiptQueue({
-    read: (image) => ledgerApi()("/api/receipts/extract", "POST", { body: { image } }),
+    read: (image, quality) =>
+      ledgerApi()("/api/receipts/extract", "POST", { body: { image, quality } }),
     toDraft,
   });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -507,6 +521,18 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }:
   const removeSelected = (id: string) => {
     setSelectedId(nextAfterRemoval(queue.entries, id));
     queue.remove(id);
+  };
+
+  /** より正確なモデルで読み直す。読み取り結果で置き換わるので、直した内容があれば先に確かめる */
+  const reread = (entry: ReceiptEntry) => {
+    const edited =
+      entry.draft !== null &&
+      entry.extracted !== null &&
+      isDraftEdited(entry.draft, toDraft(entry.extracted));
+    if (edited && !window.confirm("直した内容は読み取りの結果に置き換わります。読み直しますか？")) {
+      return;
+    }
+    queue.rereadAccurately(entry.id);
   };
 
   const image = selected === null ? undefined : queue.images.get(selected.id);
@@ -561,6 +587,7 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }:
           chainNames={chainNames}
           onChange={(draft) => queue.updateDraft(selected.id, draft)}
           onRetry={() => queue.retry(selected.id)}
+          onReread={() => reread(selected)}
           onDiscard={() => removeSelected(selected.id)}
           onRegistered={(transactionId) => {
             setRegisteredId(transactionId);

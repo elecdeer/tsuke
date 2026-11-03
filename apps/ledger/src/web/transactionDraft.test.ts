@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vite-plus/test";
 import {
   draftFromTransaction,
+  emptyItem,
+  isDraftEdited,
   moveItem,
   updateFromDraft,
   type TransactionDraft,
@@ -87,5 +89,26 @@ describe("moveItem", () => {
 
   test("範囲の外へは動かさない", () => {
     expect(moveItem(["a", "b"], 0, -1)).toEqual(["a", "b"]);
+  });
+});
+
+describe("isDraftEdited", () => {
+  const original: TransactionDraft = {
+    date: "2026-11-03",
+    aggregation: "always",
+    fromAccountId: "",
+    toAccountId: "",
+    placeName: "スーパーA",
+    placeDetail: null,
+    items: [{ ...emptyItem(0), name: "牛乳", amount: "248" }],
+  };
+
+  test("同じ値なら直していないと判定する", () => {
+    expect(isDraftEdited(structuredClone(original), original)).toBe(false);
+  });
+
+  test("品目の金額を変えたら直したと判定する", () => {
+    const edited = { ...original, items: [{ ...emptyItem(0), name: "牛乳", amount: "300" }] };
+    expect(isDraftEdited(edited, original)).toBe(true);
   });
 });

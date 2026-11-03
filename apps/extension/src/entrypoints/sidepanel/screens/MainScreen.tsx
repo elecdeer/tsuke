@@ -162,15 +162,18 @@ export default function MainScreen({ serverUrl }: Props) {
     setDuplicatesByItemId({});
   }, [date, itemsSignature]);
 
+  // 読み直しに失敗しても前の結果はフォームに残るので、読み直せるようボタンを出し続ける
+  const [autofilled, setAutofilled] = useState(false);
+
   const extractMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (quality: "fast" | "accurate") => {
       const pageContent = await collectPageContent();
       // 内訳から親カテゴリを引くためにカテゴリの一覧も使う。カテゴリの選択欄が読み込み済みならキャッシュを使う
       const [extracted, { categories }] = await Promise.all([
         withErrorMessage(
           "自動入力",
           createServerClient(serverUrl)("/api/transactions/extract", "POST", {
-            body: { pageContent },
+            body: { pageContent, quality },
           }),
         ),
         withErrorMessage("カテゴリの取得", categoriesQuery.prefetch(serverUrl)),
@@ -178,6 +181,7 @@ export default function MainScreen({ serverUrl }: Props) {
       return { extracted, categories };
     },
     onSuccess: ({ extracted, categories }) => {
+      setAutofilled(true);
       if (extracted.date !== null) setDate(extracted.date);
       if (extracted.accountId !== null) setAccountId(extracted.accountId);
       if (extracted.placeName !== null) setPlaceName(extracted.placeName);
@@ -217,6 +221,7 @@ export default function MainScreen({ serverUrl }: Props) {
       );
     },
     onSuccess: () => {
+      setAutofilled(false);
       setItems([newItem()]);
       setDate(localDateString());
       setAccountId(null);
@@ -287,10 +292,26 @@ export default function MainScreen({ serverUrl }: Props) {
           type="button"
           variant="secondary"
           disabled={extractMutation.isPending || mutation.isPending}
-          onClick={() => extractMutation.mutate()}
+          onClick={() => extractMutation.mutate("fast")}
         >
           {extractMutation.isPending ? "自動入力中…" : "このページから自動入力"}
         </Button>
+        {autofilled && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={extractMutation.isPending || mutation.isPending}
+              onClick={() => extractMutation.mutate("accurate")}
+            >
+              もう一度読み取る
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              少し時間はかかりますが、より正確に読み取ります
+            </span>
+          </div>
+        )}
         {extractMutation.isError && (
           <p role="alert" className="text-sm font-medium text-destructive">
             {extractMutation.error instanceof Error
