@@ -1,3 +1,4 @@
+import type { PlaceDetail } from "../ledger/placeDetail.ts";
 import type { TransactionDetail, TransactionUpdate } from "../ledger/transactionEdit.ts";
 import { categoryValueOf, parseCategoryValue } from "./categoryValue.ts";
 
@@ -6,6 +7,7 @@ import { categoryValueOf, parseCategoryValue } from "./categoryValue.ts";
  *
  * - 口座は口座の ID、なければ空文字
  * - 品目の `category` は、カテゴリだけなら `c:カテゴリID`、内訳なら `g:カテゴリID:内訳ID`、なければ空文字
+ * - `placeDetail` は、このフォームで新しい店舗を入れたときだけ持つ（文字列にはしない）
  */
 export type TransactionDraft = {
   date: string;
@@ -13,6 +15,7 @@ export type TransactionDraft = {
   fromAccountId: string;
   toAccountId: string;
   placeName: string;
+  placeDetail: PlaceDetail | null;
   items: ItemDraft[];
 };
 
@@ -45,6 +48,7 @@ export const draftFromTransaction = (transaction: TransactionDetail): Transactio
   fromAccountId: transaction.fromAccountId === null ? "" : String(transaction.fromAccountId),
   toAccountId: transaction.toAccountId === null ? "" : String(transaction.toAccountId),
   placeName: transaction.placeName ?? "",
+  placeDetail: null,
   items: transaction.items.map((item, index) => ({
     key: index,
     category: categoryValueOf(item.categoryId, item.genreId),
@@ -85,6 +89,7 @@ export const updateFromDraft = (
       fromAccountId: draft.fromAccountId === "" ? null : Number(draft.fromAccountId),
       toAccountId: draft.toAccountId === "" ? null : Number(draft.toAccountId),
       placeName: draft.placeName,
+      placeDetail: draft.placeDetail,
       items,
     },
   };

@@ -2,6 +2,7 @@ import type { CategoryWithGenres } from "../ledger/masters.ts";
 import type { DuplicateCheckInput, PaymentInput } from "../ledger/payments.ts";
 import type { ExtractedPayment } from "../llm/extractPayment.ts";
 import { categoryValueOf, parseCategoryValue } from "./categoryValue.ts";
+import { placeDetailFor, type PlaceMasters } from "./placeMatching.ts";
 import { emptyItem, updateFromDraft, type TransactionDraft } from "./transactionDraft.ts";
 
 /**
@@ -13,6 +14,7 @@ export const emptyPaymentDraft = (today: string): TransactionDraft => ({
   fromAccountId: "",
   toAccountId: "",
   placeName: "",
+  placeDetail: null,
   items: [emptyItem(0)],
 });
 
@@ -34,7 +36,7 @@ const genreValues = (categories: CategoryWithGenres[]): Map<number, string> =>
  */
 export const draftFromExtracted = (
   extracted: ExtractedPayment,
-  context: {
+  context: PlaceMasters & {
     categories: CategoryWithGenres[];
     accounts: { id: number }[];
     today: string;
@@ -55,6 +57,7 @@ export const draftFromExtracted = (
     fromAccountId: accountKnown ? String(extracted.accountId) : "",
     toAccountId: "",
     placeName: extracted.placeName ?? "",
+    placeDetail: placeDetailFor(extracted.placeName ?? "", context),
     items: items.length === 0 ? [emptyItem(0)] : items,
   };
 };
@@ -80,6 +83,7 @@ export const paymentFromDraft = (
       date: parsed.input.date,
       fromAccountId: parsed.input.fromAccountId,
       placeName: parsed.input.placeName,
+      placeDetail: parsed.input.placeDetail,
       items,
     },
   };

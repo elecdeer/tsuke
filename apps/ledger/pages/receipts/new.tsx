@@ -191,7 +191,7 @@ const ConfidenceNote = ({ extracted }: { extracted: Extracted }) =>
  * 写真を撮ると AI が読み取ってフォームに入れる。内容を確かめて直してから登録する。
  * 写真はこの画面の中にだけ持ち、台帳には保存しない。
  */
-const ReceiptNewPage = ({ accounts, categories, placeNames, today }: Props) => {
+const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }: Props) => {
   const [image, setImage] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
   const [extracted, setExtracted] = useState<Extracted | null>(null);
@@ -214,7 +214,7 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, today }: Props) => {
         body: { image: resized },
       });
       setExtracted(result);
-      setDraft(draftFromExtracted(result, { categories, accounts, today }));
+      setDraft(draftFromExtracted(result, { categories, accounts, placeNames, chainNames, today }));
     } catch {
       setError("レシートを読み取れませんでした。撮り直すか、手で入力してください");
     } finally {
@@ -274,8 +274,10 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, today }: Props) => {
               <PlaceInput
                 id={ids.place}
                 value={draft.placeName}
+                detail={draft.placeDetail}
                 placeNames={placeNames}
-                onChange={(placeName) => update({ placeName })}
+                chainNames={chainNames}
+                onChange={(placeName, placeDetail) => update({ placeName, placeDetail })}
               />
             </FormField>
           </div>

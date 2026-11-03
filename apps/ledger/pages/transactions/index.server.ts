@@ -4,7 +4,7 @@ import { defineHandler, defineHead, type InferProps } from "void";
 import { db } from "void/db";
 import { places } from "@schema";
 import { formatMonth, monthOf, todayInTokyo } from "../../src/ledger/dates.ts";
-import { listAccounts, listCategories, listPlaces } from "../../src/ledger/masters.ts";
+import { listAccounts, listCategories, listChains, listPlaces } from "../../src/ledger/masters.ts";
 import {
   deleteTransaction,
   getTransaction,
@@ -23,6 +23,7 @@ const TransactionsQuerySchema = v.object({
   categoryId: OptionalIdSchema,
   genreId: OptionalIdSchema,
   placeId: OptionalIdSchema,
+  chain: v.optional(v.pipe(v.string(), v.maxLength(200))),
   /** 広い画面のサイドパネルで開いている取引 */
   selected: OptionalIdSchema,
 });
@@ -52,7 +53,7 @@ export const loader = defineHandler.withValidator({ query: TransactionsQuerySche
   { query },
 ) => {
   const filter = filterOf(query);
-  const [transactions, accounts, paymentCategories, incomeCategories, place, selected] =
+  const [transactions, accounts, paymentCategories, incomeCategories, place, selected, chainNames] =
     await Promise.all([
       listTransactions(db, filter),
       listAccounts(db),
@@ -66,6 +67,7 @@ export const loader = defineHandler.withValidator({ query: TransactionsQuerySche
             .where(eq(places.id, filter.placeId))
             .get(),
       loadSelected(query.selected),
+      listChains(db),
     ]);
   return {
     filter,
@@ -73,6 +75,7 @@ export const loader = defineHandler.withValidator({ query: TransactionsQuerySche
     accounts,
     categories: { payment: paymentCategories, income: incomeCategories },
     placeName: place?.name ?? null,
+    chainNames,
     selected,
   };
 });

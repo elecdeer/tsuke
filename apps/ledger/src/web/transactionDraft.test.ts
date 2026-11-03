@@ -26,6 +26,7 @@ describe("draftFromTransaction", () => {
       fromAccountId: "3",
       toAccountId: "",
       placeName: "",
+      placeDetail: null,
       items: [{ key: 0, category: "g:1:2", name: "", memo: "メモ", amount: "-50" }],
     });
   });
@@ -39,6 +40,7 @@ describe("updateFromDraft", () => {
     fromAccountId: "3",
     toAccountId: "",
     placeName: "スーパー",
+    placeDetail: { chain: "スーパーチェーン", poi: null },
     items: [item],
   };
 
@@ -51,6 +53,7 @@ describe("updateFromDraft", () => {
         fromAccountId: 3,
         toAccountId: null,
         placeName: "スーパー",
+        placeDetail: { chain: "スーパーチェーン", poi: null },
         items: [{ categoryId: 1, genreId: 2, name: "牛乳", memo: "", amount: 1280 }],
       },
     });
