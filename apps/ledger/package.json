@@ -35,6 +35,7 @@
     "@types/react-dom": "^19.2.3",
     "@void/react": "catalog:",
     "csv-parse": "catalog:",
+    "fake-indexeddb": "catalog:",
     "shadcn": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
