@@ -105,13 +105,21 @@ export const useReceiptQueue = ({
     started.current.add(entry.id);
     const image = images.get(entry.id);
     save({ ...entry, status: "reading" });
+    // 順番待ちの時間は読み取りの速さと関係がないので、読み取りを始めてから測る
+    const startedAt = performance.now();
     const reading =
       image === undefined
         ? Promise.reject(new Error("写真が見つかりません"))
         : read(image, entry.quality ?? "fast");
     reading
       .then(
-        (extracted) => patch(entry.id, { status: "read", extracted, draft: toDraft(extracted) }),
+        (extracted) =>
+          patch(entry.id, {
+            status: "read",
+            extracted,
+            draft: toDraft(extracted),
+            readMs: performance.now() - startedAt,
+          }),
         () => patch(entry.id, markReadFailed(entry, toDraft(null))),
       )
       .finally(() => started.current.delete(entry.id));

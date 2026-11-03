@@ -27,6 +27,8 @@ export type ReceiptEntry = {
   quality?: ReadQuality;
   /** AI が読み取った結果。読み取る前と、一度も読み取れていないときは null */
   extracted: ReadReceipt | null;
+  /** 最後に読み取れたときにかかった時間（ms）。この項目を足す前に端末へ保存されたレシートにはない */
+  readMs?: number;
   /** 確かめているフォームの値。読み取り（または失敗）が済むまでは null */
   draft: TransactionDraft | null;
 };
@@ -84,6 +86,11 @@ export const markReadFailed = (
   status: "failed",
   draft: entry.draft ?? emptyDraft,
 });
+
+/**
+ * 読み取りにかかった時間を、画面に出す文言にする。
+ */
+export const formatReadTime = (readMs: number): string => `${(readMs / 1000).toFixed(1)} 秒`;
 
 /**
  * 確かめる対象として選ぶレシートを決める。選んでいたものがなくなっていれば、キューの先頭にする。
