@@ -77,6 +77,10 @@ describe("suggestQueries", () => {
     ]);
   });
 
+  test("AI が区切った名前は、区切ったままの語を先に、詰めた語も続けて試す", () => {
+    expect(suggestQueries("無印良品 銀座店")).toEqual(["無印良品 銀座店", "無印良品銀座"]);
+  });
+
   test("カタカナと漢字が何度も入れ替わる名前は、境目ごとに区切る", () => {
     expect(suggestQueries("成城石井アトレ恵比寿店").at(-1)).toBe("成城石井 アトレ 恵比寿");
   });

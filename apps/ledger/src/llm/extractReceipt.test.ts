@@ -73,6 +73,11 @@ describe("buildReceiptPrompt", () => {
     expect(system).toContain("Do NOT make items from subtotal, total, tax, tendered");
   });
 
+  test("読み取った店舗名はチェーン名と支店名を空白で区切るよう指示する", () => {
+    const { system } = buildReceiptPrompt(baseInput());
+    expect(system).toContain("one half-width space between the chain name and the branch name");
+  });
+
   test("品目のメモに金額の内訳を入れないよう指示する", () => {
     const { system } = buildReceiptPrompt(baseInput());
     expect(system).toContain("Never put prices or their breakdown");
