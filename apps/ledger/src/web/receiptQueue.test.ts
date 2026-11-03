@@ -1,7 +1,10 @@
 import { describe, expect, test } from "vite-plus/test";
+import { emptyPaymentDraft } from "./receiptDraft.ts";
 import {
+  markReadFailed,
   nextAfterRemoval,
   nextToRead,
+  requestAccurateRead,
   restoreEntries,
   selectedEntry,
   sortEntries,
@@ -110,5 +113,37 @@ describe("upsertEntry", () => {
       "b",
       "c",
     ]);
+  });
+});
+
+describe("requestAccurateRead", () => {
+  test("正確なモデルで読むよう待ちに戻し、前の結果と入力中の値は残す", () => {
+    const draft = emptyPaymentDraft("2026-11-03");
+    const reading = requestAccurateRead({ ...entry("a", 1, "read"), draft });
+    expect(reading).toMatchObject({ status: "waiting", quality: "accurate", draft });
+    expect(ids(nextToRead([reading], 1))).toEqual(["a"]);
+  });
+});
+
+describe("markReadFailed", () => {
+  const empty = emptyPaymentDraft("2026-11-03");
+
+  test("初めての読み取りの失敗なら、空のフォームにする", () => {
+    expect(markReadFailed(entry("a", 1, "reading"), empty)).toMatchObject({
+      status: "failed",
+      draft: empty,
+    });
+  });
+
+  test("読み直しの失敗なら、入力中の値を残す", () => {
+    const draft = { ...empty, placeName: "スーパーA" };
+    expect(markReadFailed({ ...entry("a", 1, "reading"), draft }, empty).draft).toBe(draft);
+  });
+});
+
+describe("restoreEntries の読み取りの優先", () => {
+  test("読み直しの途中で閉じても、正確なモデルで読み直す", () => {
+    const [restored] = restoreEntries([{ ...entry("a", 1, "reading"), quality: "accurate" }]);
+    expect(restored).toMatchObject({ status: "waiting", quality: "accurate" });
   });
 });

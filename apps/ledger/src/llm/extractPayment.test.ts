@@ -102,6 +102,25 @@ describe("buildPrompt", () => {
 });
 
 describe("runExtractPayment", () => {
+  test("推論量を指定すると、そのまま送る", async () => {
+    const ai = {
+      run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
+    };
+
+    await runExtractPayment({
+      ai,
+      model: "test-model",
+      reasoningEffort: "low",
+      input: baseInput(),
+    });
+
+    expect(ai.run).toHaveBeenCalledWith(
+      "test-model",
+      expect.objectContaining({ reasoning_effort: "low" }),
+      { signal: undefined },
+    );
+  });
+
   test("choices のメッセージの JSON を抽出結果として返す", async () => {
     const ai = {
       run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),

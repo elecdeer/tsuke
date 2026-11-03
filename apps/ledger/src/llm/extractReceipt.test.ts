@@ -80,11 +80,11 @@ describe("runExtractReceipt", () => {
       run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
     };
 
-    const { object } = await runExtractReceipt({ ai, model: "test-model", input: baseInput() });
+    const { object } = await runExtractReceipt({ ai, quality: "fast", input: baseInput() });
 
     expect(object).toEqual(extracted);
     expect(ai.run).toHaveBeenCalledWith(
-      "test-model",
+      "google/gemini-3.1-flash-lite",
       expect.objectContaining({
         messages: [
           expect.objectContaining({ role: "system" }),
@@ -101,16 +101,30 @@ describe("runExtractReceipt", () => {
     );
   });
 
-  test("待ち時間を短くするため推論量を none にして送る", async () => {
+  test("fast は速いモデルを使い、推論量を送らない", async () => {
     const ai = {
       run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
     };
 
-    await runExtractReceipt({ ai, model: "test-model", input: baseInput() });
+    await runExtractReceipt({ ai, quality: "fast", input: baseInput() });
 
     expect(ai.run).toHaveBeenCalledWith(
-      "test-model",
-      expect.objectContaining({ reasoning_effort: "none" }),
+      "google/gemini-3.1-flash-lite",
+      expect.not.objectContaining({ reasoning_effort: expect.anything() }),
+      { signal: undefined },
+    );
+  });
+
+  test("accurate は正確なモデルを使い、推論量を low にして送る", async () => {
+    const ai = {
+      run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
+    };
+
+    await runExtractReceipt({ ai, quality: "accurate", input: baseInput() });
+
+    expect(ai.run).toHaveBeenCalledWith(
+      "google/gemini-3.8-flash",
+      expect.objectContaining({ reasoning_effort: "low" }),
       { signal: undefined },
     );
   });
