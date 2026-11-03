@@ -29,8 +29,11 @@ import type { CategoryWithGenres } from "@/ledger/masters";
 import type { TransactionMode } from "@/ledger/transactions";
 import { categoryLabels, categoryValueOf } from "@/web/categoryValue";
 import { CategoryOptions } from "@/web/components/CategoryOptions";
+import { PlaceCandidates } from "@/web/components/PlaceCandidates";
 import { PlaceMapDialog } from "@/web/components/PlaceMapDialog";
 import { formatAmount } from "@/web/format";
+import type { PlaceDetail } from "@/ledger/placeDetail";
+import { placeDetailFor } from "@/web/placeMatching";
 import { placeOptions, type PlaceOption } from "@/web/placeOptions";
 import { emptyItem, moveItem, type ItemDraft } from "@/web/transactionDraft";
 import { cn } from "@/lib/utils";
@@ -121,67 +124,85 @@ export const AccountSelect = ({
 export const PlaceInput = ({
   id,
   value,
+  detail,
   placeNames,
+  chainNames,
   onChange,
 }: {
   id: string;
   value: string;
+  detail: PlaceDetail | null;
   placeNames: string[];
-  onChange: (value: string) => void;
+  chainNames: string[];
+  onChange: (value: string, detail: PlaceDetail | null) => void;
 }) => {
   const [query, setQuery] = useState("");
   const { contains } = ComboboxPrimitive.useFilter();
   const selected: PlaceOption | null = value === "" ? null : { name: value, isNew: false };
+  const masters = { placeNames, chainNames };
 
   return (
-    <Combobox
-      items={placeOptions(placeNames, query)}
-      value={selected}
-      onValueChange={(next: PlaceOption | null) => onChange(next?.name ?? "")}
-      inputValue={query}
-      onInputValueChange={setQuery}
-      isItemEqualToValue={(a: PlaceOption, b: PlaceOption) => a.name === b.name}
-      itemToStringLabel={(option: PlaceOption) => option.name}
-      // 追加の候補は入力した名前そのものなので、絞り込みに関わらず常に出す
-      filter={(option: PlaceOption, q: string) => option.isNew || contains(option.name, q)}
-    >
-      <div className="flex min-w-0 items-center gap-0.5">
-        <ComboboxTrigger
-          id={id}
-          data-size="default"
-          className={cn(selectTriggerClassName, "w-full font-normal")}
-        >
-          <span
-            className={cn("line-clamp-1 flex-1 text-left", value === "" && "text-muted-foreground")}
+    <div className="flex min-w-0 flex-col gap-3">
+      <Combobox
+        items={placeOptions(placeNames, query)}
+        value={selected}
+        onValueChange={(next: PlaceOption | null) => {
+          const name = next?.name ?? "";
+          onChange(name, placeDetailFor(name, masters));
+        }}
+        inputValue={query}
+        onInputValueChange={setQuery}
+        isItemEqualToValue={(a: PlaceOption, b: PlaceOption) => a.name === b.name}
+        itemToStringLabel={(option: PlaceOption) => option.name}
+        // 追加の候補は入力した名前そのものなので、絞り込みに関わらず常に出す
+        filter={(option: PlaceOption, q: string) => option.isNew || contains(option.name, q)}
+      >
+        <div className="flex min-w-0 items-center gap-0.5">
+          <ComboboxTrigger
+            id={id}
+            data-size="default"
+            className={cn(selectTriggerClassName, "w-full font-normal")}
           >
-            {value === "" ? "なし" : value}
-          </span>
-        </ComboboxTrigger>
-        {value !== "" && (
-          <ComboboxClear
-            render={<Button variant="ghost" size="icon-sm" aria-label="店舗を消す" />}
-          />
-        )}
-        <PlaceMapDialog onSelect={onChange} />
-      </div>
-      <ComboboxContent>
-        <ComboboxInput placeholder="検索・追加" showTrigger={false} />
-        <ComboboxEmpty>過去の店舗はありません</ComboboxEmpty>
-        <ComboboxList>
-          {(option: PlaceOption) => (
-            <ComboboxItem key={`${option.isNew}:${option.name}`} value={option}>
-              {option.isNew ? (
-                <>
-                  <Plus aria-hidden="true" />「{option.name}」を追加
-                </>
-              ) : (
-                option.name
+            <span
+              className={cn(
+                "line-clamp-1 flex-1 text-left",
+                value === "" && "text-muted-foreground",
               )}
-            </ComboboxItem>
+            >
+              {value === "" ? "なし" : value}
+            </span>
+          </ComboboxTrigger>
+          {value !== "" && (
+            <ComboboxClear
+              render={<Button variant="ghost" size="icon-sm" aria-label="店舗を消す" />}
+            />
           )}
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
+          <PlaceMapDialog
+            onSelect={(poi) => onChange(poi.name, placeDetailFor(poi.name, masters, poi))}
+          />
+        </div>
+        <ComboboxContent>
+          <ComboboxInput placeholder="検索・追加" showTrigger={false} />
+          <ComboboxEmpty>過去の店舗はありません</ComboboxEmpty>
+          <ComboboxList>
+            {(option: PlaceOption) => (
+              <ComboboxItem key={`${option.isNew}:${option.name}`} value={option}>
+                {option.isNew ? (
+                  <>
+                    <Plus aria-hidden="true" />「{option.name}」を追加
+                  </>
+                ) : (
+                  option.name
+                )}
+              </ComboboxItem>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+      {detail !== null && (
+        <PlaceCandidates name={value} detail={detail} masters={masters} onChange={onChange} />
+      )}
+    </div>
   );
 };
 

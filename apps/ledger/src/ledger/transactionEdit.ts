@@ -9,6 +9,7 @@ import {
   transactions,
 } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
+import { PlaceDetailSchema, placeDetailColumns } from "./placeDetail.ts";
 import type { Aggregation, TransactionMode } from "./transactions.ts";
 
 export type TransactionDetail = {
@@ -76,6 +77,7 @@ export const TransactionUpdateSchema = v.object({
   fromAccountId: IdSchema,
   toAccountId: IdSchema,
   placeName: TextSchema,
+  placeDetail: v.optional(v.nullable(PlaceDetailSchema)),
   items: v.pipe(
     v.array(
       v.object({
@@ -266,9 +268,12 @@ export const updateTransaction = async (
   if (placeName === null) {
     await db.batch([updateTransactionRow, deleteItems, insertItems]);
   } else {
-    const insertPlace = db.insert(places).values({ name: placeName }).onConflictDoNothing({
-      target: places.name,
-    });
+    const insertPlace = db
+      .insert(places)
+      .values({ name: placeName, ...placeDetailColumns(input.placeDetail) })
+      .onConflictDoNothing({
+        target: places.name,
+      });
     await db.batch([insertPlace, updateTransactionRow, deleteItems, insertItems]);
   }
   return { ok: true };

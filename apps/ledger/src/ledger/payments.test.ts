@@ -74,6 +74,71 @@ describe("createPayment", () => {
     ]);
   });
 
+  test("新しい店舗にはチェーンと施設の情報を保存する", async () => {
+    await createPayment(
+      db,
+      payment({
+        placeName: "ローソン新宿店",
+        placeDetail: {
+          chain: "ローソン",
+          poi: {
+            address: "東京都新宿区",
+            lng: 139.7,
+            lat: 35.7,
+            category: "convenience_store",
+            licenses: ["Apache-2.0"],
+            attributions: ["Overture"],
+          },
+        },
+      }),
+    );
+
+    expect(
+      sqlite
+        .prepare(
+          "SELECT name, chain, address, lng, lat, poi_category, poi_licenses, poi_attributions FROM places",
+        )
+        .all(),
+    ).toEqual([
+      {
+        name: "ローソン新宿店",
+        chain: "ローソン",
+        address: "東京都新宿区",
+        lng: 139.7,
+        lat: 35.7,
+        poi_category: "convenience_store",
+        poi_licenses: '["Apache-2.0"]',
+        poi_attributions: '["Overture"]',
+      },
+    ]);
+  });
+
+  test("既存の店舗の情報は、同じ名前で入れても書き換えない", async () => {
+    insert(sqlite, "INSERT INTO places (name) VALUES ('セブンイレブン')");
+
+    await createPayment(
+      db,
+      payment({
+        placeName: "セブンイレブン",
+        placeDetail: {
+          chain: "セブンイレブン",
+          poi: {
+            address: "別の支店の住所",
+            lng: 139,
+            lat: 35,
+            category: "",
+            licenses: [],
+            attributions: [],
+          },
+        },
+      }),
+    );
+
+    expect(sqlite.prepare("SELECT chain, address FROM places").all()).toEqual([
+      { chain: null, address: null },
+    ]);
+  });
+
   test("既存の店舗は名前で使い回し、なければ作る", async () => {
     insert(sqlite, "INSERT INTO places (name) VALUES ('スーパー')");
 

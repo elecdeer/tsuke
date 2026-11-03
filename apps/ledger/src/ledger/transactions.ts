@@ -25,6 +25,8 @@ export type TransactionFilter = {
   /** この内訳の品目を 1 つでも含む取引 */
   genreId?: number | undefined;
   placeId?: number | undefined;
+  /** このチェーンの店舗の取引 */
+  chain?: string | undefined;
 };
 
 export type TransactionListItem = {
@@ -68,6 +70,14 @@ const filterConditions = (db: LedgerDb, filter: TransactionFilter): SQL[] => {
     if (accountCondition !== undefined) conditions.push(accountCondition);
   }
   if (filter.placeId !== undefined) conditions.push(eq(transactions.placeId, filter.placeId));
+  if (filter.chain !== undefined) {
+    conditions.push(
+      inArray(
+        transactions.placeId,
+        db.select({ id: places.id }).from(places).where(eq(places.chain, filter.chain)),
+      ),
+    );
+  }
 
   const itemConditions: SQL[] = [];
   if (filter.categoryId !== undefined) {

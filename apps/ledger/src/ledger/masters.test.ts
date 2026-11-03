@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 import { createTestLedgerDb, insert } from "../../db/testing.ts";
-import { listAccounts, listCategories, listPlaces } from "./masters.ts";
+import { listAccounts, listCategories, listChains, listPlaces } from "./masters.ts";
 
 describe("listAccounts", () => {
   test("アーカイブしていない口座を sort、id の順で返す", async () => {
@@ -83,5 +83,21 @@ describe("listPlaces", () => {
       { id: 4, name: "カフェ", lastUsedOn: null, useCount: 0 },
       { id: 3, name: "本屋", lastUsedOn: null, useCount: 0 },
     ]);
+  });
+});
+
+describe("listChains", () => {
+  test("アーカイブしていない店舗のチェーンを、重複なく名前順で返す", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    insert(sqlite, "INSERT INTO places (name, chain) VALUES ('ローソン新宿店', 'ローソン')");
+    insert(sqlite, "INSERT INTO places (name, chain) VALUES ('ローソン渋谷店', 'ローソン')");
+    insert(sqlite, "INSERT INTO places (name, chain) VALUES ('イオン幕張店', 'イオン')");
+    insert(sqlite, "INSERT INTO places (name) VALUES ('喫茶店')");
+    insert(
+      sqlite,
+      "INSERT INTO places (name, chain, archived) VALUES ('閉店', '閉じたチェーン', 1)",
+    );
+
+    expect(await listChains(db)).toEqual(["イオン", "ローソン"]);
   });
 });

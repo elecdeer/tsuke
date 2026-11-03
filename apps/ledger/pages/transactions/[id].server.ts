@@ -3,7 +3,7 @@ import * as v from "valibot";
 import { defineHandler, defineHead, type InferProps } from "void";
 import { db } from "void/db";
 import { monthOf } from "../../src/ledger/dates.ts";
-import { listAccounts, listCategories, listPlaces } from "../../src/ledger/masters.ts";
+import { listAccounts, listCategories, listChains, listPlaces } from "../../src/ledger/masters.ts";
 import {
   deleteTransaction,
   getTransaction,
@@ -23,13 +23,15 @@ export const loader = defineHandler.withValidator({ params: ParamsSchema })(asyn
   _c,
   { params },
 ) => {
-  const [transaction, accounts, paymentCategories, incomeCategories, places] = await Promise.all([
-    getTransaction(db, params.id),
-    listAccounts(db),
-    listCategories(db, "payment"),
-    listCategories(db, "income"),
-    listPlaces(db),
-  ]);
+  const [transaction, accounts, paymentCategories, incomeCategories, places, chainNames] =
+    await Promise.all([
+      getTransaction(db, params.id),
+      listAccounts(db),
+      listCategories(db, "payment"),
+      listCategories(db, "income"),
+      listPlaces(db),
+      listChains(db),
+    ]);
   if (transaction === undefined) {
     throw new HTTPException(404, { message: "取引が見つかりません" });
   }
@@ -38,6 +40,7 @@ export const loader = defineHandler.withValidator({ params: ParamsSchema })(asyn
     accounts,
     categories: { payment: paymentCategories, income: incomeCategories },
     placeNames: places.map((place) => place.name),
+    chainNames,
   };
 });
 

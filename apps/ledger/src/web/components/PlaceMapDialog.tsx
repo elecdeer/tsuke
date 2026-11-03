@@ -148,7 +148,7 @@ type Status =
 /**
  * ダイアログの中身。開いている間だけ置き、MapLibre はブラウザで開いたときに読み込む。
  */
-const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
+const PlaceMap = ({ onSelect }: { onSelect: (poi: Poi) => void }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<{ maplibre: MapLibre; map: MapLibreMap } | null>(null);
   const currentMarkerRef = useRef<Marker | null>(null);
@@ -510,7 +510,7 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
             selected.name
           )}
         </span>
-        <Button disabled={selected === null} onClick={() => selected && onSelect(selected.name)}>
+        <Button disabled={selected === null} onClick={() => selected && onSelect(selected)}>
           この店舗にする
         </Button>
       </div>
@@ -519,9 +519,9 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
 };
 
 /**
- * 地図から店舗を選ぶボタンとダイアログ。選んだ施設の名前を店舗の名前として渡す。
+ * 地図から店舗を選ぶボタンとダイアログ。選んだ施設を渡す。
  */
-export const PlaceMapDialog = ({ onSelect }: { onSelect: (name: string) => void }) => {
+export const PlaceMapDialog = ({ onSelect }: { onSelect: (poi: Poi) => void }) => {
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -539,8 +539,8 @@ export const PlaceMapDialog = ({ onSelect }: { onSelect: (name: string) => void 
         </DialogHeader>
         {open && (
           <PlaceMap
-            onSelect={(name) => {
-              onSelect(name);
+            onSelect={(poi) => {
+              onSelect(poi);
               setOpen(false);
             }}
           />

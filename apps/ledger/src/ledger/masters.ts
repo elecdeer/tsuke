@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, max, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, max, sql } from "drizzle-orm";
 import { accounts, categories, genres, places, transactions } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
 
@@ -89,4 +89,16 @@ export const listPlaces = async (db: LedgerDb): Promise<PlaceWithUsage[]> => {
     .leftJoin(usage, eq(usage.placeId, places.id))
     .where(eq(places.archived, false))
     .orderBy(sql`${usage.lastUsedOn} IS NULL`, desc(usage.lastUsedOn), asc(places.name));
+};
+
+/**
+ * アーカイブしていない店舗に付いているチェーンの名前を、名前順で返す。
+ */
+export const listChains = async (db: LedgerDb): Promise<string[]> => {
+  const rows = await db
+    .selectDistinct({ chain: places.chain })
+    .from(places)
+    .where(and(isNotNull(places.chain), eq(places.archived, false)))
+    .orderBy(asc(places.chain));
+  return rows.flatMap(({ chain }) => (chain === null ? [] : [chain]));
 };
