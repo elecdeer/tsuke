@@ -14,6 +14,20 @@ export const listAccounts = async (db: LedgerDb): Promise<{ id: number; name: st
     .where(eq(accounts.archived, false))
     .orderBy(asc(accounts.sort), asc(accounts.id));
 
+export type AccountWithHint = { id: number; name: string; aiHint: string | null };
+
+/**
+ * アーカイブしていない口座を、AI の読み取りに渡すヒントを付けて並び順で返す。
+ *
+ * listAccounts と分けるのは、拡張機能が読む `GET /api/accounts` の形を変えないため。
+ */
+export const listAccountsWithHint = async (db: LedgerDb): Promise<AccountWithHint[]> =>
+  db
+    .select({ id: accounts.id, name: accounts.name, aiHint: accounts.aiHint })
+    .from(accounts)
+    .where(eq(accounts.archived, false))
+    .orderBy(asc(accounts.sort), asc(accounts.id));
+
 export type CategoryWithGenres = {
   id: number;
   name: string;

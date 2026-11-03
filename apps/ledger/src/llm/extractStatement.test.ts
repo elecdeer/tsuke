@@ -2,6 +2,7 @@
  * buildStatementPrompt のフォーマット回帰テストと、明細抽出の Workers AI 呼び出しのテスト。
  */
 import { describe, expect, test, vi } from "vite-plus/test";
+import { ACCOUNT_NOTES_RULE } from "./extractPayment.ts";
 import {
   buildStatementPrompt,
   resolveStatementPlaceName,
@@ -52,6 +53,16 @@ describe("buildStatementPrompt", () => {
     expect(prompt).toContain("101=食費: 10101=食料品");
     expect(prompt).toContain("2=カードA");
     expect(prompt).toContain("row: 5/10 ｽｰﾊﾟｰA 1,000");
+  });
+});
+
+describe("口座のヒント", () => {
+  test("口座のヒントを口座の行に添え、読み方を指示する", () => {
+    const { system, prompt } = buildStatementPrompt(
+      baseInput({ accounts: [{ id: 2, name: "カードA", aiHint: "明細の末尾 1234 はこのカード" }] }),
+    );
+    expect(system).toContain(ACCOUNT_NOTES_RULE);
+    expect(prompt).toContain("2=カードA; hint: 明細の末尾 1234 はこのカード");
   });
 });
 

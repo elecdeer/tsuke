@@ -3,6 +3,7 @@
  */
 import * as v from "valibot";
 import { describe, expect, test, vi } from "vite-plus/test";
+import { ACCOUNT_NOTES_RULE } from "./extractPayment.ts";
 import {
   buildReceiptPrompt,
   ReceiptImageSchema,
@@ -45,8 +46,16 @@ describe("buildReceiptPrompt", () => {
     const { prompt } = buildReceiptPrompt(baseInput());
     expect(prompt).toContain("Today: 2026-10-29\n");
     expect(prompt).toContain("101=食費: 10101=食料品");
-    expect(prompt).toContain("1=現金, 2=楽天カード");
+    expect(prompt).toContain("1=現金\n2=楽天カード");
     expect(prompt).toContain("スーパーA [5x, 2026-10-20]");
+  });
+
+  test("口座のヒントを口座の行に添え、読み方を指示する", () => {
+    const { system, prompt } = buildReceiptPrompt(
+      baseInput({ accounts: [{ id: 2, name: "楽天カード", aiHint: "VISA 1234 はこのカード" }] }),
+    );
+    expect(system).toContain(ACCOUNT_NOTES_RULE);
+    expect(prompt).toContain("2=楽天カード; hint: VISA 1234 はこのカード");
   });
 
   test("キャッシュが効くよう、変わりにくい候補を前に、日付と店舗を後ろに並べる", () => {

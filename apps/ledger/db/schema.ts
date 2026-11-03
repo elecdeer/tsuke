@@ -35,6 +35,8 @@ const masterColumns = () => ({
 export const accounts = sqliteTable("accounts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull().unique(),
+  /** AI の読み取りに渡す、この口座についての補足 */
+  aiHint: text("ai_hint"),
   ...masterColumns(),
   ...timestamps(),
 });

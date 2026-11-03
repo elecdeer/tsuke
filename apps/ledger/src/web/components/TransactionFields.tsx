@@ -3,7 +3,14 @@
  */
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react";
-import { useId, useState, type ReactNode } from "react";
+import {
+  useId,
+  useRef,
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -15,6 +22,14 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from "@/components/ui/combobox";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -25,6 +40,7 @@ import {
   selectTriggerClassName,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import type { CategoryWithGenres } from "@/ledger/masters";
 import type { TransactionMode } from "@/ledger/transactions";
 import { categoryLabels, categoryValueOf } from "@/web/categoryValue";
@@ -35,7 +51,7 @@ import { formatAmount } from "@/web/format";
 import type { PlaceDetail } from "@/ledger/placeDetail";
 import { placeDetailFor } from "@/web/placeMatching";
 import { placeOptions, type PlaceOption } from "@/web/placeOptions";
-import { emptyItem, moveItem, type ItemDraft } from "@/web/transactionDraft";
+import { emptyItem, moveItem, toSingleLine, type ItemDraft } from "@/web/transactionDraft";
 import { cn } from "@/lib/utils";
 
 export type AccountOption = { id: number; name: string };
@@ -60,13 +76,15 @@ export const FormField = ({
   children,
   htmlFor,
   labelClassName,
+  className,
 }: {
   label: string;
   htmlFor: string;
   children: ReactNode;
   labelClassName?: string;
+  className?: string;
 }) => (
-  <div className="flex min-w-0 flex-col gap-0.5">
+  <div className={cn("flex min-w-0 flex-col gap-0.5", className)}>
     <Label
       htmlFor={htmlFor}
       className={cn("text-xs font-normal text-muted-foreground", labelClassName)}
@@ -206,8 +224,110 @@ export const PlaceInput = ({
   );
 };
 
+/** モーダルで編集する品目の欄 */
+type ItemTextField = "name" | "memo";
+
+/**
+ * 品目名・メモの欄。長い文字列は省略して出し、押すとモーダルを開く。全文はホバーでも読める。
+ */
+const ItemTextButton = ({
+  id,
+  value,
+  onClick,
+}: {
+  id: string;
+  value: string;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    id={id}
+    data-size="default"
+    title={value === "" ? undefined : value}
+    className={cn(selectTriggerClassName, "w-full")}
+    onClick={onClick}
+  >
+    <span className="min-w-0 flex-1 truncate text-left">{value}</span>
+  </button>
+);
+
+/**
+ * 品目名・メモを編集するモーダル。入力はそのまま品目に反映し、`initialFocus` の欄にフォーカスを当てて開く。
+ *
+ * 1 行の値だが、長くても全文を読めるよう折り返して出す。改行は入らないようにする。
+ */
+const ItemTextDialog = ({
+  open,
+  initialFocus,
+  item,
+  onOpenChange,
+  onChange,
+}: {
+  open: boolean;
+  initialFocus: ItemTextField;
+  item: ItemDraft;
+  onOpenChange: (open: boolean) => void;
+  onChange: (patch: Partial<ItemDraft>) => void;
+}) => {
+  const ids = { name: useId(), memo: useId() };
+  const nameRef = useRef<HTMLTextAreaElement>(null);
+  const memoRef = useRef<HTMLTextAreaElement>(null);
+  // 開いた直後のカーソルが先頭に来ると、続きを打つときに動かす手間がかかる
+  const moveCaretToEnd = (event: FocusEvent<HTMLTextAreaElement>) => {
+    const { length } = event.target.value;
+    event.target.setSelectionRange(length, length);
+  };
+  const closeOnEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    // 変換を確定する Enter では閉じない
+    if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        initialFocus={initialFocus === "name" ? nameRef : memoRef}
+        className="sm:max-w-lg"
+      >
+        <DialogHeader>
+          <DialogTitle>品目を編集</DialogTitle>
+        </DialogHeader>
+        <FormField label="品目名" htmlFor={ids.name}>
+          <Textarea
+            ref={nameRef}
+            id={ids.name}
+            enterKeyHint="done"
+            value={item.name}
+            onChange={(event) => onChange({ name: toSingleLine(event.target.value) })}
+            onFocus={moveCaretToEnd}
+            onKeyDown={closeOnEnter}
+          />
+        </FormField>
+        <FormField label="メモ" htmlFor={ids.memo}>
+          <Textarea
+            ref={memoRef}
+            id={ids.memo}
+            enterKeyHint="done"
+            value={item.memo}
+            onChange={(event) => onChange({ memo: toSingleLine(event.target.value) })}
+            onFocus={moveCaretToEnd}
+            onKeyDown={closeOnEnter}
+          />
+        </FormField>
+        <DialogFooter>
+          <DialogClose render={<Button />}>完了</DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 /**
  * 品目 1 件の入力欄。支出と収入ではカテゴリも選ぶ。
+ *
+ * 狭いところでは内訳と金額を横に並べ、品目名とメモに両列を使う。
+ * 内訳のない種類では金額の隣が空くので、メモと金額を横に並べる。
  */
 const ItemFields = ({
   mode,
@@ -229,6 +349,7 @@ const ItemFields = ({
   onRemove: () => void;
 }) => {
   const ids = { category: useId(), name: useId(), memo: useId(), amount: useId() };
+  const [editing, setEditing] = useState<ItemTextField | null>(null);
   const hasCategory = mode === "payment" || mode === "income";
   const known =
     item.category === "" ||
@@ -251,6 +372,7 @@ const ItemFields = ({
           label={mode === "payment" ? "内訳" : "カテゴリ"}
           htmlFor={ids.category}
           labelClassName="@xl:sr-only"
+          className="order-first @xl:order-none"
         >
           <Select
             items={{
@@ -281,21 +403,28 @@ const ItemFields = ({
           </Select>
         </FormField>
       )}
-      <FormField label="品目名" htmlFor={ids.name} labelClassName="@xl:sr-only">
-        <Input
-          id={ids.name}
-          value={item.name}
-          onChange={(event) => onChange({ name: event.target.value })}
-        />
+      <FormField
+        label="品目名"
+        htmlFor={ids.name}
+        labelClassName="@xl:sr-only"
+        className="col-span-2 @xl:col-span-1"
+      >
+        <ItemTextButton id={ids.name} value={item.name} onClick={() => setEditing("name")} />
       </FormField>
-      <FormField label="メモ" htmlFor={ids.memo} labelClassName="@xl:sr-only">
-        <Input
-          id={ids.memo}
-          value={item.memo}
-          onChange={(event) => onChange({ memo: event.target.value })}
-        />
+      <FormField
+        label="メモ"
+        htmlFor={ids.memo}
+        labelClassName="@xl:sr-only"
+        className={cn(hasCategory && "col-span-2 @xl:col-span-1")}
+      >
+        <ItemTextButton id={ids.memo} value={item.memo} onClick={() => setEditing("memo")} />
       </FormField>
-      <FormField label="金額" htmlFor={ids.amount} labelClassName="@xl:sr-only">
+      <FormField
+        label="金額"
+        htmlFor={ids.amount}
+        labelClassName="@xl:sr-only"
+        className={cn(hasCategory && "order-first @xl:order-none")}
+      >
         <Input
           id={ids.amount}
           inputMode="numeric"
@@ -335,6 +464,15 @@ const ItemFields = ({
           </Button>
         </div>
       )}
+      <ItemTextDialog
+        open={editing !== null}
+        initialFocus={editing ?? "name"}
+        item={item}
+        onOpenChange={(open) => {
+          if (!open) setEditing(null);
+        }}
+        onChange={onChange}
+      />
     </div>
   );
 };
