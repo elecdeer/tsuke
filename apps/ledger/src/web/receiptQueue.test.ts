@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 import { emptyPaymentDraft } from "./receiptDraft.ts";
 import {
+  formatReadTime,
   markReadFailed,
   nextAfterRemoval,
   nextToRead,
@@ -122,6 +123,16 @@ describe("requestAccurateRead", () => {
     const reading = requestAccurateRead({ ...entry("a", 1, "read"), draft });
     expect(reading).toMatchObject({ status: "waiting", quality: "accurate", draft });
     expect(ids(nextToRead([reading], 1))).toEqual(["a"]);
+  });
+});
+
+describe("formatReadTime", () => {
+  test.each([
+    [3240, "3.2 秒"],
+    [860, "0.9 秒"],
+    [12000, "12.0 秒"],
+  ])("%d ms を %s にする", (readMs, expected) => {
+    expect(formatReadTime(readMs)).toBe(expected);
   });
 });
 

@@ -32,6 +32,7 @@ import {
 } from "@/web/receiptDraft";
 import { resizeReceiptImage } from "@/web/receiptImage";
 import {
+  formatReadTime,
   nextAfterRemoval,
   selectedEntry,
   type ReceiptEntry,
@@ -338,7 +339,11 @@ const ReceiptReview = ({
     setPending(true);
     try {
       const { id } = await ledgerApi()("/api/transactions", "POST", {
-        body: { ...parsed.input, receiptImage: image },
+        body: {
+          ...parsed.input,
+          placePhone: entry.extracted?.placePhone ?? null,
+          receiptImage: image,
+        },
       });
       onRegistered(id);
     } catch (registerError) {
@@ -382,6 +387,11 @@ const ReceiptReview = ({
             </div>
           ) : (
             <>
+              {entry.readMs !== undefined && (
+                <p className="text-xs text-muted-foreground">
+                  読み取りにかかった時間: {formatReadTime(entry.readMs)}
+                </p>
+              )}
               {entry.extracted !== null && <ConfidenceNote extracted={entry.extracted} />}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <Button type="button" variant="outline" size="sm" onClick={onReread}>

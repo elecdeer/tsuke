@@ -10,7 +10,8 @@ import {
 } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
 import { PlaceDetailSchema, placeDetailColumns } from "./placeDetail.ts";
-import { upsertPlaceByName } from "./places.ts";
+import { PlacePhoneSchema } from "./placePhone.ts";
+import { rememberPlacePhone, upsertPlaceByName } from "./places.ts";
 
 const TextSchema = v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(200)));
 
@@ -20,6 +21,8 @@ export const PaymentInputSchema = v.object({
   fromAccountId: v.nullable(v.pipe(v.number(), v.integer())),
   placeName: TextSchema,
   placeDetail: v.optional(v.nullable(PlaceDetailSchema)),
+  /** レシートから読み取った店舗の電話番号 */
+  placePhone: v.optional(v.nullable(PlacePhoneSchema)),
   items: v.pipe(
     v.array(
       v.object({
@@ -107,8 +110,9 @@ export const createPayment = async (
       ? { ok: false, error: "取引を作れませんでした" }
       : { ok: true, id: created.id };
   }
-  const [, [created]] = await db.batch([
+  const [, , [created]] = await db.batch([
     upsertPlaceByName(db, placeName, input.placeDetail),
+    rememberPlacePhone(db, placeName, input.placePhone ?? null),
     insertTransaction,
     insertItems,
   ]);

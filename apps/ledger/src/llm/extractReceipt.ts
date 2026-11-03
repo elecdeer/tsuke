@@ -3,18 +3,19 @@
  *
  * 出力はページからの抽出（extractPayment.ts）と同じ形にして、確認フォームへの入れ方をそろえる。
  */
+import { toJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
+import { normalizePhone } from "../ledger/placePhone.ts";
 import {
   ACCOUNT_NOTES_RULE,
-  EXTRACTED_PAYMENT_JSON_SCHEMA,
   ExtractedPaymentSchema,
+  findPlaceName,
   formatAccountsForPrompt,
   formatCategoriesForPrompt,
   formatRecentPlacesForPrompt,
   PLACE_NOTES_RULE,
-  resolvePlaceAlias,
-  type ExtractedPayment,
   type ExtractPaymentContext,
+  type PlaceForPrompt,
 } from "./extractPayment.ts";
 import { READ_SETTINGS, type ReadQuality } from "./readQuality.ts";
 import {
@@ -45,6 +46,17 @@ export type ExtractReceiptContext = Omit<ExtractPaymentContext, "pageContent"> &
   today: string;
 };
 
+/** レシートの読み取りの出力。ページからの抽出の項目に、店舗の電話番号を足す */
+export const ExtractedReceiptSchema = v.strictObject({
+  ...ExtractedPaymentSchema.entries,
+  placePhone: v.nullable(v.string()),
+});
+
+export type ExtractedReceipt = v.InferOutput<typeof ExtractedReceiptSchema>;
+
+/** `ExtractedReceiptSchema` を OpenAI 互換の JSON Schema に変換した結果 */
+const EXTRACTED_RECEIPT_JSON_SCHEMA = toJsonSchema(ExtractedReceiptSchema);
+
 /**
  * LLM へ渡す system / prompt / 画像を構築する。
  */
@@ -55,7 +67,8 @@ export const buildReceiptPrompt = (input: ExtractReceiptContext): StructuredProm
     "Rules:",
     `- \`accountId\` must be one of the provided account IDs; otherwise null. Infer it from the payment method printed on the receipt (cash, card brand, e-money, QR payment). ${ACCOUNT_NOTES_RULE}`,
     '- `date`: "YYYY-MM-DD". Convert Japanese era years (令和8年 = 2026) and two-digit years; when the year is missing, use the year of "Today".',
-    `- \`placeName\`: use a recent store name as is when it clearly fits, else the store name printed on the receipt (include the branch name). ${PLACE_NOTES_RULE}`,
+    `- \`placeName\`: use a recent store name as is when it clearly fits, else the store name printed on the receipt (include the branch name). When writing a printed name, put one half-width space between the chain name and the branch name (e.g. \`ローソン 新宿西口店\`); use no space when there is no branch. ${PLACE_NOTES_RULE}`,
+    "- `placePhone`: the store's phone number printed on the receipt (TEL, 電話), as printed; null when there is none. Do not use fax numbers.",
     "- `confidence`: high/medium/low based on how legible the receipt is.",
     "- `reasoning`: 1-3 sentences justifying your choices.",
     "",
@@ -63,7 +76,7 @@ export const buildReceiptPrompt = (input: ExtractReceiptContext): StructuredProm
     "- `amount` is the price actually paid for the line in JPY (integer), tax included. When prices are tax-exclusive (外税/税抜), add the tax so the items sum to the receipt total.",
     "- Discounts (値引, 割引, クーポン) are separate items with negative amounts.",
     "- Do NOT make items from subtotal, total, tax, tendered (お預り), change (お釣り), or points lines.",
-    "- `name` is the product name as printed, without codes or tax marks (※, 軽, *); `memo` is a short note (e.g. quantity × unit price) only when helpful.",
+    "- `name` is the product name as printed, without codes or tax marks (※, 軽, *); `memo` is a short note (e.g. variant) only when helpful, else null. Never put prices or their breakdown (unit price, quantity × unit price, tax, discount) in `memo`.",
     "- `genreId` is the per-item genre. Must be one of the provided genre IDs; otherwise null.",
     "  Pick the genre by its parent category context — the listing shows `categoryId=name: genreId=name, ...` so you can see which genres belong to which category.",
     "  Choose the most fitting genre for each item independently; different items in the same purchase may have different genres.",
@@ -90,6 +103,42 @@ export const buildReceiptPrompt = (input: ExtractReceiptContext): StructuredProm
   return { system, prompt, images: [input.image] };
 };
 
+/** 短い名前は無関係な店舗の名前にも含まれやすいので、部分一致はこの文字数以上の名前でだけ見る */
+const PARTIAL_MATCH_MIN_LENGTH = 3;
+
+/**
+ * レシートから読み取った店舗名を、既存の店舗の名前に直す。当たらなければそのまま返す。
+ *
+ * 名前と別名で当たらなければ電話番号で探し、それでも当たらなければ、読み取った語がすべて店舗名に含まれる店舗を探す。
+ * 店舗名は OpenPOI の施設から作ると空白を含むので、空白を落として比べる。
+ * 本部の番号を印字するチェーンや同じチェーンの別の支店に付けないよう、どちらも 1 つに決まるときだけ直す。
+ */
+export const resolveReceiptPlaceName = (
+  placeName: string | null,
+  places: PlaceForPrompt[],
+  phone: string | null = null,
+): string | null => {
+  const known = placeName === null ? undefined : findPlaceName(placeName, places);
+  if (known !== undefined) return known;
+
+  const [samePhone, ...otherPhones] =
+    phone === null ? [] : places.filter((place) => place.phone === phone);
+  if (samePhone !== undefined && otherPhones.length === 0) return samePhone.name;
+  if (placeName === null) return null;
+
+  const words = placeName
+    .normalize("NFKC")
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((word) => word !== "");
+  if (words.join("").length < PARTIAL_MATCH_MIN_LENGTH) return placeName;
+  const [match, ...others] = places.filter((place) => {
+    const name = place.name.normalize("NFKC").toLowerCase().replace(/\s/g, "");
+    return words.every((word) => name.includes(word));
+  });
+  return match !== undefined && others.length === 0 ? match.name : placeName;
+};
+
 /**
  * Workers AI binding を使ってレシートの写真から支払い情報を抽出する。
  */
@@ -98,20 +147,28 @@ export const runExtractReceipt = (params: {
   quality: ReadQuality;
   input: ExtractReceiptContext;
   abortSignal?: AbortSignal;
-}): Promise<{ object: ExtractedPayment; usage: unknown; timing: ExtractTiming }> =>
+}): Promise<{ object: ExtractedReceipt; usage: unknown; timing: ExtractTiming }> =>
   runStructuredChat({
     ai: params.ai,
     model: READ_SETTINGS[params.quality].model,
     buildPrompt: () => buildReceiptPrompt(params.input),
-    schemaName: "ExtractedPayment",
-    jsonSchema: EXTRACTED_PAYMENT_JSON_SCHEMA,
-    schema: ExtractedPaymentSchema,
+    schemaName: "ExtractedReceipt",
+    jsonSchema: EXTRACTED_RECEIPT_JSON_SCHEMA,
+    schema: ExtractedReceiptSchema,
     reasoningEffort: READ_SETTINGS[params.quality].reasoningEffort,
     abortSignal: params.abortSignal,
-  }).then((result) => ({
-    ...result,
-    object: {
-      ...result.object,
-      placeName: resolvePlaceAlias(result.object.placeName, params.input.places),
-    },
-  }));
+  }).then((result) => {
+    const placePhone = normalizePhone(result.object.placePhone);
+    return {
+      ...result,
+      object: {
+        ...result.object,
+        placePhone,
+        placeName: resolveReceiptPlaceName(
+          result.object.placeName,
+          params.input.places,
+          placePhone,
+        ),
+      },
+    };
+  });

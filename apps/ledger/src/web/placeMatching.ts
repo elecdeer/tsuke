@@ -62,11 +62,18 @@ export const inferChain = (name: string, chainNames: string[], brand = ""): stri
   return brand;
 };
 
+/** カタカナ（長音を含む）と漢字が入れ替わる位置 */
+const SCRIPT_BOUNDARY =
+  /(?<=[\p{Script=Katakana}ー])(?=\p{Script=Han})|(?<=\p{Script=Han})(?=[\p{Script=Katakana}ー])/gu;
+
 /**
  * OpenPOI の入力補完に順に投げる語を作る。
  *
  * 入力補完は空白で区切った語をすべて名前や住所に含む施設を探すので、「ローソン 新宿西口店」は当たらず
  * 「ローソン新宿西口」なら当たる。そこで、そのままの名前の次に、区切りと末尾の「店」を落とした語を試す。
+ *
+ * 逆に施設の名前が「マックスバリュエクスプレス 船堀駅前店」と空白で区切られていると、詰めた語では当たらない。
+ * 最後に、カタカナと漢字の境目で区切った語を試す。チェーン名と支店名の境目であることが多い。
  */
 export const suggestQueries = (name: string): string[] => {
   const trimmed = name.trim();
@@ -74,7 +81,10 @@ export const suggestQueries = (name: string): string[] => {
     .normalize("NFKC")
     .replace(/[\s\-‐‑–—―−]/g, "")
     .replace(/店$/, "");
-  return trimmed === "" ? [] : [...new Set([trimmed, compact])].filter((query) => query !== "");
+  const split = compact.replace(SCRIPT_BOUNDARY, " ");
+  return trimmed === ""
+    ? []
+    : [...new Set([trimmed, compact, split])].filter((query) => query !== "");
 };
 
 /**

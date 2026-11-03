@@ -96,6 +96,8 @@ export const places = sqliteTable("places", {
     .default(sql`'[]'`),
   /** AI の読み取りに渡す、この店についての補足 */
   aiHint: text("ai_hint"),
+  /** レシートに印字された電話番号（数字だけ）。読み取りで既存の店舗に紐付けるのに使い、登録のたびに覚え直す */
+  phone: text("phone"),
   ...masterColumns(),
   ...timestamps(),
 });

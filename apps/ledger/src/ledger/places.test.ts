@@ -136,6 +136,20 @@ describe("店舗の管理", () => {
       expect(await placeOf("ヒントなし")).toMatchObject({ aiHint: "元のヒント" });
     });
 
+    test("統合先に電話番号がなければ統合元から引き継ぎ、あれば統合先のものを残す", async () => {
+      const sourceId = insertPlace("元");
+      const emptyId = insertPlace("番号なし");
+      sqlite.prepare("UPDATE places SET phone = '0311111111' WHERE id = ?").run(sourceId);
+
+      await mergePlace(db, sourceId, emptyId);
+      expect(await placeOf("番号なし")).toMatchObject({ phone: "0311111111" });
+
+      const sourceId2 = insertPlace("元2");
+      sqlite.prepare("UPDATE places SET phone = '0322222222' WHERE id = ?").run(sourceId2);
+      await mergePlace(db, sourceId2, emptyId);
+      expect(await placeOf("番号なし")).toMatchObject({ phone: "0311111111" });
+    });
+
     test("統合先にチェーンや施設の情報がなければ統合元から引き継ぐ", async () => {
       const sourceId = insertPlace("元");
       const targetId = insertPlace("先");
