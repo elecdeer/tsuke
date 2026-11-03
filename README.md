@@ -88,6 +88,7 @@ CF_ACCESS_TOKEN="$(cf access token https://tsuke.<subdomain>.workers.dev)" pnpm 
 
 - 認証は Worker の手前の [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/applications/) が行う。Access アプリケーションは Worker 単位（destination の type が `worker`）で作り、ポリシーで自分のメールアドレスだけを許可する
 - 拡張機能は Access のセッション Cookie（`CF_Authorization`）を送り、未ログイン時の Access のログイン画面へのリダイレクトを 401 として扱う（`apps/extension/src/lib/serverClient.ts`）
+- `CF_Authorization` は SameSite=None で別サイトからのリクエストにも付くので、書き込みのリクエストは `Origin` が自分自身か許可先（拡張機能、`http://localhost`、`http://127.0.0.1`）でなければ 403 を返す（`apps/ledger/middleware/04.origin.ts`）
 - ログインは拡張機能の設定オーバーレイから行う（`/auth/launch` を開くと Access のログインを経て拡張機能に戻る）。ログアウトは `/logout` から Access のログアウトへリダイレクトする
 - Void のアプリは静的アセットを持つため、Access のルーターが `ctx.access` を Worker に渡さない。本番では常に `Cf-Access-Jwt-Assertion` の JWT 検証で認証するので、`ACCESS_AUD` シークレットが必須（未設定だと全リクエストが 401 になる）
 

@@ -19,3 +19,22 @@ export const isAllowedCorsOrigin = (origin: string): boolean => {
     (url.protocol === "http:" && LOCAL_HOSTNAMES.has(url.hostname))
   );
 };
+
+/** サーバーの状態を変えないメソッド */
+const SAFE_METHODS: ReadonlySet<string> = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * 書き込みのリクエストを受け付けてよい送信元か判定する。
+ *
+ * CORS は応答を読ませないだけで送信は止めないので、別サイトからの書き込みはここで拒否する。
+ * Content-Type を JSON に限る方法だと、プリフライトを Access が止めることに頼る形になるので Origin で判定する。
+ * ブラウザは書き込みのリクエストに必ず Origin を付けるので、Origin がないのはブラウザ以外のクライアントとして通す。
+ */
+export const isAllowedWriteRequest = (request: {
+  method: string;
+  url: string;
+  origin: string | undefined;
+}): boolean => {
+  if (SAFE_METHODS.has(request.method) || request.origin === undefined) return true;
+  return request.origin === new URL(request.url).origin || isAllowedCorsOrigin(request.origin);
+};

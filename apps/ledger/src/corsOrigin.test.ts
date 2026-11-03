@@ -1,5 +1,39 @@
 import { describe, expect, test } from "vite-plus/test";
-import { isAllowedCorsOrigin } from "./corsOrigin.ts";
+import { isAllowedCorsOrigin, isAllowedWriteRequest } from "./corsOrigin.ts";
+
+describe("isAllowedWriteRequest", () => {
+  const url = "https://tsuke.example.workers.dev/api/transactions";
+
+  test.each(["POST", "PUT", "PATCH", "DELETE"])("別サイトからの %s は拒否する", (method) => {
+    expect(isAllowedWriteRequest({ method, url, origin: "https://evil.example.com" })).toBe(false);
+  });
+
+  test.each([
+    "http://localhost.example.com",
+    "https://tsuke.example.workers.dev.example.com",
+    "http://tsuke.example.workers.dev",
+    "null",
+    "",
+  ])("自分自身や許可先に似ているだけの Origin %j からの書き込みは拒否する", (origin) => {
+    expect(isAllowedWriteRequest({ method: "POST", url, origin })).toBe(false);
+  });
+
+  test.each([
+    "https://tsuke.example.workers.dev",
+    "chrome-extension://abcdefghijklmnopabcdefghijklmnop",
+    "http://localhost:5173",
+  ])("自分自身と許可先の %s からの書き込みは通す", (origin) => {
+    expect(isAllowedWriteRequest({ method: "POST", url, origin })).toBe(true);
+  });
+
+  test("Origin のない書き込みはブラウザ以外からのものとして通す", () => {
+    expect(isAllowedWriteRequest({ method: "POST", url, origin: undefined })).toBe(true);
+  });
+
+  test.each(["GET", "HEAD", "OPTIONS"])("%s は別サイトからでも通す", (method) => {
+    expect(isAllowedWriteRequest({ method, url, origin: "https://evil.example.com" })).toBe(true);
+  });
+});
 
 describe("isAllowedCorsOrigin", () => {
   test.each([
