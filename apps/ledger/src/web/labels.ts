@@ -1,5 +1,8 @@
 import type { Aggregation, TransactionMode } from "../ledger/transactions.ts";
 
+/** 取引の種類の並び */
+export const TRANSACTION_MODES: TransactionMode[] = ["payment", "income", "transfer", "adjustment"];
+
 /** 取引の種類の表示名 */
 export const MODE_LABELS: Record<TransactionMode, string> = {
   payment: "支出",

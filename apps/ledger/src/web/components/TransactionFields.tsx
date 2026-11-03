@@ -1,5 +1,5 @@
 /**
- * 取引の入力欄の部品。取引の編集画面とレシートの登録画面で共有する。
+ * 取引の入力欄の部品。取引の編集・手入力の登録・レシートの登録の画面で共有する。
  */
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react";
@@ -47,11 +47,19 @@ import { categoryLabels, categoryValueOf } from "@/web/categoryValue";
 import { CategoryOptions } from "@/web/components/CategoryOptions";
 import { PlaceCandidates } from "@/web/components/PlaceCandidates";
 import { PlaceMapDialog } from "@/web/components/PlaceMapDialog";
+import { Section } from "@/web/components/Section";
 import { formatAmount } from "@/web/format";
+import { AGGREGATION_LABELS } from "@/web/labels";
 import type { PlaceDetail } from "@/ledger/placeDetail";
 import { placeDetailFor } from "@/web/placeMatching";
 import { placeOptions, type PlaceOption } from "@/web/placeOptions";
-import { emptyItem, moveItem, toSingleLine, type ItemDraft } from "@/web/transactionDraft";
+import {
+  emptyItem,
+  moveItem,
+  toSingleLine,
+  type ItemDraft,
+  type TransactionDraft,
+} from "@/web/transactionDraft";
 import { cn } from "@/lib/utils";
 
 export type AccountOption = { id: number; name: string };
@@ -550,6 +558,201 @@ export const ItemsFields = ({
           {formatAmount(total)}
         </span>
       </div>
+    </>
+  );
+};
+
+/** 残高調整の向きの選択肢の名前 */
+const DIRECTION_LABELS = { increase: "残高を増やす", decrease: "残高を減らす" } as const;
+
+/**
+ * 残高調整の口座の入力欄。「増やす / 減らす」と口座で入れ、増やすなら入金先、減らすなら支払元に入れる。
+ *
+ * 向きは口座を選ぶ前にも選べるよう、入力中の値とは別に持つ（口座が空だと入力中の値からは向きが分からない）。
+ */
+const AdjustmentFields = ({
+  draft,
+  accounts,
+  update,
+}: {
+  draft: TransactionDraft;
+  accounts: AccountOption[];
+  update: (patch: Partial<TransactionDraft>) => void;
+}) => {
+  const directionId = useId();
+  const accountId = useId();
+  const [increases, setIncreases] = useState(draft.toAccountId !== "");
+  const account = increases ? draft.toAccountId : draft.fromAccountId;
+  const setAdjustment = (nextIncreases: boolean, nextAccount: string) => {
+    setIncreases(nextIncreases);
+    update(
+      nextIncreases
+        ? { toAccountId: nextAccount, fromAccountId: "" }
+        : { fromAccountId: nextAccount, toAccountId: "" },
+    );
+  };
+  return (
+    <>
+      <FormField label="向き" htmlFor={directionId}>
+        <Select
+          items={DIRECTION_LABELS}
+          value={increases ? "increase" : "decrease"}
+          onValueChange={(value) => setAdjustment(value === "increase", account)}
+        >
+          <SelectTrigger id={directionId} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="increase">{DIRECTION_LABELS.increase}</SelectItem>
+            <SelectItem value="decrease">{DIRECTION_LABELS.decrease}</SelectItem>
+          </SelectContent>
+        </Select>
+      </FormField>
+      <FormField label="口座" htmlFor={accountId}>
+        <AccountSelect
+          id={accountId}
+          value={account}
+          accounts={accounts}
+          allowEmpty={false}
+          onChange={(value) => setAdjustment(increases, value)}
+        />
+      </FormField>
+    </>
+  );
+};
+
+/**
+ * 種類ごとの口座の入力欄。
+ */
+const AccountFields = ({
+  mode,
+  draft,
+  accounts,
+  update,
+}: {
+  mode: TransactionMode;
+  draft: TransactionDraft;
+  accounts: AccountOption[];
+  update: (patch: Partial<TransactionDraft>) => void;
+}) => {
+  const fromId = useId();
+  const toId = useId();
+
+  if (mode === "adjustment") {
+    return <AdjustmentFields draft={draft} accounts={accounts} update={update} />;
+  }
+
+  return (
+    <>
+      {(mode === "payment" || mode === "transfer") && (
+        <FormField label="支払元" htmlFor={fromId}>
+          <AccountSelect
+            id={fromId}
+            value={draft.fromAccountId}
+            accounts={accounts}
+            allowEmpty={mode === "payment"}
+            onChange={(value) => update({ fromAccountId: value })}
+          />
+        </FormField>
+      )}
+      {(mode === "income" || mode === "transfer") && (
+        <FormField label="入金先" htmlFor={toId}>
+          <AccountSelect
+            id={toId}
+            value={draft.toAccountId}
+            accounts={accounts}
+            allowEmpty={mode === "income"}
+            onChange={(value) => update({ toAccountId: value })}
+          />
+        </FormField>
+      )}
+    </>
+  );
+};
+
+/**
+ * 取引の入力欄ひとそろい（日付・集計の設定・口座・店舗と品目）。編集と手入力の登録で使う。
+ */
+export const TransactionDraftFields = ({
+  mode,
+  heading,
+  draft,
+  accounts,
+  categories,
+  placeNames,
+  chainNames,
+  update,
+}: {
+  mode: TransactionMode;
+  heading: ReactNode;
+  draft: TransactionDraft;
+  accounts: AccountOption[];
+  categories: { payment: CategoryWithGenres[]; income: CategoryWithGenres[] };
+  placeNames: string[];
+  chainNames: string[];
+  update: (patch: Partial<TransactionDraft>) => void;
+}) => {
+  const ids = { date: useId(), place: useId(), aggregation: useId() };
+  return (
+    <>
+      <Section label={heading}>
+        <div className="grid gap-x-6 gap-y-4 border-t border-foreground pt-3 @md:grid-cols-2">
+          <FormField label="日付" htmlFor={ids.date}>
+            <Input
+              id={ids.date}
+              type="date"
+              required
+              value={draft.date}
+              onChange={(event) => update({ date: event.target.value })}
+            />
+          </FormField>
+          <FormField label="集計の設定" htmlFor={ids.aggregation}>
+            <Select
+              items={AGGREGATION_LABELS}
+              value={draft.aggregation}
+              onValueChange={(next) => {
+                const aggregation = (["always", "never", "yearly_only"] as const).find(
+                  (value) => value === next,
+                );
+                if (aggregation !== undefined) update({ aggregation });
+              }}
+            >
+              <SelectTrigger id={ids.aggregation} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(["always", "never", "yearly_only"] as const).map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {AGGREGATION_LABELS[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+          <AccountFields mode={mode} draft={draft} accounts={accounts} update={update} />
+          {(mode === "payment" || mode === "income") && (
+            <FormField label={mode === "payment" ? "店舗" : "取引先"} htmlFor={ids.place}>
+              <PlaceInput
+                id={ids.place}
+                value={draft.placeName}
+                detail={draft.placeDetail}
+                placeNames={placeNames}
+                chainNames={chainNames}
+                onChange={(placeName, placeDetail) => update({ placeName, placeDetail })}
+              />
+            </FormField>
+          )}
+        </div>
+      </Section>
+
+      <Section label="品目">
+        <ItemsFields
+          mode={mode}
+          items={draft.items}
+          categories={mode === "income" ? categories.income : categories.payment}
+          onChange={(items) => update({ items })}
+        />
+      </Section>
     </>
   );
 };

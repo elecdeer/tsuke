@@ -542,6 +542,12 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }:
       <Section label={<h1 className="text-2xl font-semibold">レシート</h1>}>
         <div className="flex flex-col gap-3 border-t border-foreground pt-3">
           <PhotoPicker adding={adding} onPick={(files) => void add(files)} />
+          <Link
+            href="/transactions/new"
+            className="self-start text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+          >
+            レシートなしで手で入力する
+          </Link>
           {addError !== null && <ErrorMessage message={addError} />}
           {registeredId !== null && <RegisteredNotice transactionId={registeredId} />}
           {unconfirmed > 0 && (

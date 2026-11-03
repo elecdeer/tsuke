@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import * as v from "valibot";
 import {
   accounts,
@@ -99,6 +99,14 @@ export const TransactionUpdateSchema = v.object({
 });
 
 export type TransactionUpdate = v.InferOutput<typeof TransactionUpdateSchema>;
+
+/** 手入力の登録の入力。編集の入力に種類を足したもの */
+export const TransactionCreateSchema = v.object({
+  ...TransactionUpdateSchema.entries,
+  mode: v.picklist(["payment", "income", "transfer", "adjustment"]),
+});
+
+export type TransactionCreate = v.InferOutput<typeof TransactionCreateSchema>;
 
 /**
  * 前後の空白を取り除いた後の空文字を null にする。
@@ -216,6 +224,79 @@ const accountsExist = async (db: LedgerDb, ids: (number | null)[]): Promise<bool
   return rows.length === wanted.length;
 };
 
+/**
+ * 店舗名から取引の place_id の値を作る。同じ batch で作る店舗も引けるよう、ID ではなく名前で参照する。
+ */
+const placeIdOf = (placeName: string | null): SQL | null =>
+  placeName === null
+    ? null
+    : sql`(SELECT ${places.id} FROM ${places} WHERE ${places.name} = ${placeName})`;
+
+/**
+ * 品目を transaction_items の行にする。並び順は入力の順。
+ */
+const itemRows = (transactionId: number | SQL, items: TransactionUpdate["items"]) =>
+  items.map((item, index) => ({
+    transactionId,
+    categoryId: item.categoryId,
+    genreId: item.genreId,
+    name: blankToNull(item.name),
+    memo: blankToNull(item.memo),
+    amount: item.amount,
+    sort: index,
+  }));
+
+/**
+ * 手入力の取引を登録する。種類ごとの決まりは編集と同じ。
+ *
+ * 店舗の作成・取引・品目を 1 回の batch で入れるので、途中で失敗しても一部だけが残ることはない。
+ * batch の中では作った行の ID を受け渡せないので、品目は直前に入れた取引を MAX(id) で参照する
+ * （batch はトランザクションで流れ、AUTOINCREMENT なので直前の取引の ID が最大になる）。
+ */
+export const createTransaction = async (
+  db: LedgerDb,
+  input: TransactionCreate,
+): Promise<{ ok: true; id: number } | { ok: false; status: 400; error: string }> => {
+  const ruleError = checkModeRules(input.mode, input);
+  if (ruleError !== null) return { ok: false, status: 400, error: ruleError };
+  if (!(await accountsExist(db, [input.fromAccountId, input.toAccountId]))) {
+    return { ok: false, status: 400, error: "口座が見つかりません" };
+  }
+  const resolved = await resolveItemCategories(db, input.mode, input.items);
+  if (!resolved.ok) return { ok: false, status: 400, error: resolved.error };
+
+  const placeName = blankToNull(input.placeName);
+  const insertTransaction = db
+    .insert(transactions)
+    .values({
+      date: input.date,
+      mode: input.mode,
+      aggregation: input.aggregation,
+      fromAccountId: input.fromAccountId,
+      toAccountId: input.toAccountId,
+      placeId: placeIdOf(placeName),
+      source: "manual",
+    })
+    .returning({ id: transactions.id });
+  const insertItems = db
+    .insert(transactionItems)
+    .values(itemRows(sql`(SELECT MAX(${transactions.id}) FROM ${transactions})`, resolved.items));
+
+  const created =
+    placeName === null
+      ? (await db.batch([insertTransaction, insertItems]))[0][0]
+      : (
+          await db.batch([
+            upsertPlaceByName(db, placeName, input.placeDetail),
+            insertTransaction,
+            insertItems,
+          ])
+        )[1][0];
+  return created === undefined
+    ? { ok: false, status: 400, error: "取引を作れませんでした" }
+    : { ok: true, id: created.id };
+};
+
 export type EditResult = { ok: true } | { ok: false; status: 400 | 404; error: string };
 
 /**
@@ -252,24 +333,11 @@ export const updateTransaction = async (
       aggregation: input.aggregation,
       fromAccountId: input.fromAccountId,
       toAccountId: input.toAccountId,
-      placeId:
-        placeName === null
-          ? null
-          : sql`(SELECT ${places.id} FROM ${places} WHERE ${places.name} = ${placeName})`,
+      placeId: placeIdOf(placeName),
     })
     .where(eq(transactions.id, id));
   const deleteItems = db.delete(transactionItems).where(eq(transactionItems.transactionId, id));
-  const insertItems = db.insert(transactionItems).values(
-    resolved.items.map((item, index) => ({
-      transactionId: id,
-      categoryId: item.categoryId,
-      genreId: item.genreId,
-      name: blankToNull(item.name),
-      memo: blankToNull(item.memo),
-      amount: item.amount,
-      sort: index,
-    })),
-  );
+  const insertItems = db.insert(transactionItems).values(itemRows(id, resolved.items));
 
   // 店舗を変えていないときは作らない。過去の取引を直しただけでアーカイブ済みの店舗が元に戻らないようにするため
   if (placeName === null || placeName === current.placeName) {

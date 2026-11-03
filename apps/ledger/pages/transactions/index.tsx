@@ -1,7 +1,8 @@
 import { Link, useRouter } from "@void/react";
 import { type TransitionEvent, useState } from "react";
 import { submitAction } from "void/pages-client";
-import { Maximize2, RotateCcw, TriangleAlert, X } from "lucide-react";
+import { Maximize2, Plus, RotateCcw, TriangleAlert, X } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -23,11 +24,9 @@ import { MonthHeading } from "@/web/components/MonthHeading";
 import { MonthSwipe } from "@/web/components/MonthSwipe";
 import { formatAmount, formatDayOfMonth } from "@/web/format";
 import { groupByDate } from "@/web/groupByDate";
-import { MODE_LABELS } from "@/web/labels";
+import { MODE_LABELS, TRANSACTION_MODES } from "@/web/labels";
 import { isFiltered, transactionsHref } from "@/web/transactionsHref";
 import type { Props } from "./index.server";
-
-const MODES: TransactionMode[] = ["payment", "income", "transfer", "adjustment"];
 
 /**
  * 種類・口座・カテゴリの絞り込み。選ぶとすぐにその条件の一覧へ移る。
@@ -66,7 +65,7 @@ const Filters = ({
         items={modeItems}
         value={filter.mode ?? ""}
         onValueChange={(value) => {
-          const mode = MODES.find((candidate) => candidate === value);
+          const mode = TRANSACTION_MODES.find((candidate) => candidate === value);
           visit({ mode });
         }}
       >
@@ -75,7 +74,7 @@ const Filters = ({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="">すべての種類</SelectItem>
-          {MODES.map((mode) => (
+          {TRANSACTION_MODES.map((mode) => (
             <SelectItem key={mode} value={mode}>
               {MODE_LABELS[mode]}
             </SelectItem>
@@ -457,7 +456,16 @@ const TransactionsPage = ({
               placeName={placeName}
               chainNames={chainNames}
             />
-            <ListTotals transactions={transactions} />
+            <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
+              <ListTotals transactions={transactions} />
+              <Link
+                href="/transactions/new"
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+              >
+                <Plus aria-hidden="true" />
+                追加
+              </Link>
+            </div>
           </div>
         </div>
         {transactions.length === 0 ? (
