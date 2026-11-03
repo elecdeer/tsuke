@@ -93,6 +93,50 @@ describe("adjustMapStyle", () => {
     expect(adjustMapStyle(undefined, styleOf(road)).layers).toEqual([road]);
   });
 
+  const line = (id: string): LayerSpecification => ({
+    id,
+    type: "line",
+    source: "openmaptiles",
+    "source-layer": "transportation",
+    paint: { "line-color": "#fea", "line-width": 2 },
+  });
+
+  test("大きい道路を普通の道路と同じ色にし、太さは保つ", () => {
+    const layers = adjustMapStyle(
+      undefined,
+      styleOf(
+        line("road_trunk_primary"),
+        line("bridge_motorway"),
+        line("road_trunk_primary_casing"),
+      ),
+    ).layers;
+
+    expect(layers.map((layer) => (layer.type === "line" ? layer.paint : null))).toEqual([
+      { "line-color": "#fff", "line-width": 2 },
+      { "line-color": "#fff", "line-width": 2 },
+      { "line-color": "#cfcdca", "line-width": 2 },
+    ]);
+  });
+
+  test("地上と高架の鉄道を濃く太くする", () => {
+    const [layer] = adjustMapStyle(undefined, styleOf(line("bridge_transit_rail"))).layers;
+
+    expect(layer).toMatchObject({ paint: { "line-color": "#666" } });
+    expect(layer).not.toMatchObject({ paint: { "line-width": 2 } });
+  });
+
+  test("鉄道の枕木は色だけ変え、間隔を決める太さは保つ", () => {
+    const [layer] = adjustMapStyle(undefined, styleOf(line("road_major_rail_hatching"))).layers;
+
+    expect(layer).toMatchObject({ paint: { "line-color": "#666", "line-width": 2 } });
+  });
+
+  test("地下の鉄道と普通の道路は変えない", () => {
+    const layers = [line("tunnel_major_rail"), line("road_minor")];
+
+    expect(adjustMapStyle(undefined, styleOf(...layers)).layers).toEqual(layers);
+  });
+
   test("レイヤー以外の設定はそのまま保つ", () => {
     const style = { ...styleOf(), glyphs: "https://example.com/{fontstack}/{range}" };
 

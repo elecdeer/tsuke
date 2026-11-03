@@ -42,6 +42,43 @@ const hideBusStops = (layer: LayerSpecification): LayerSpecification => {
   return { ...layer, filter: ["all", layer.filter, notBus] as FilterSpecification };
 };
 
+const MAJOR_ROAD_LAYER =
+  /^(road|bridge|tunnel)_(motorway_link|link|secondary_tertiary|trunk_primary|motorway)(_casing)?$/;
+const RAIL_LAYER = /^(road|bridge)_(major|transit)_rail$/;
+const RAIL_HATCHING_LAYER = /^(road|bridge)_(major|transit)_rail_hatching$/;
+
+const ROAD_COLOR = "#fff";
+const ROAD_CASING_COLOR = "#cfcdca";
+const RAIL_COLOR = "#666";
+
+/**
+ * 大きい道路を普通の道路（road_minor）と同じ色にする。太さは残すので、道の大きさは見分けられる。
+ */
+const flattenRoadColors = (layer: LayerSpecification): LayerSpecification => {
+  if (layer.type !== "line" || !MAJOR_ROAD_LAYER.test(layer.id)) return layer;
+  const color = layer.id.endsWith("_casing") ? ROAD_CASING_COLOR : ROAD_COLOR;
+  return { ...layer, paint: { ...layer.paint, "line-color": color } };
+};
+
+/**
+ * 地上と高架の鉄道の線を濃く太くする。地下の線は見えない所を通るので、目立たないままにする。
+ */
+const emphasizeRails = (layer: LayerSpecification): LayerSpecification => {
+  if (layer.type !== "line") return layer;
+  if (RAIL_HATCHING_LAYER.test(layer.id)) {
+    return { ...layer, paint: { ...layer.paint, "line-color": RAIL_COLOR } };
+  }
+  if (!RAIL_LAYER.test(layer.id)) return layer;
+  return {
+    ...layer,
+    paint: {
+      ...layer.paint,
+      "line-color": RAIL_COLOR,
+      "line-width": ["interpolate", ["exponential", 1.4], ["zoom"], 10, 0.6, 14, 1.2, 20, 3.5],
+    },
+  };
+};
+
 /**
  * 配信されたスタイルを、店舗を選ぶ地図向けに手直しする。
  */
@@ -53,5 +90,7 @@ export const adjustMapStyle = (
   layers: next.layers
     .filter((layer) => !HIDDEN_LAYER_IDS.has(layer.id))
     .map(useLocalName)
-    .map(hideBusStops),
+    .map(hideBusStops)
+    .map(flattenRoadColors)
+    .map(emphasizeRails),
 });

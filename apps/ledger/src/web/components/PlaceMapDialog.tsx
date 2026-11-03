@@ -42,8 +42,10 @@ const SEARCH_DELAY = 300;
 const INITIAL_ZOOM = 16;
 
 /** 施設の印の見た目 */
-const MARKER_CLASS = "size-3.5 border-2 border-white bg-violet-600";
-const SELECTED_MARKER_CLASS = "z-20 size-5 border-2 border-white bg-primary";
+const MARKER_CLASS = "size-3.5 border-2 border-white bg-red-600";
+/** 色は同じまま、大きさと黒い縁で選んだことを示す */
+const SELECTED_MARKER_CLASS =
+  "z-20 size-6 border-[3px] border-white bg-red-600 ring-2 ring-neutral-900";
 const CURRENT_MARKER_CLASS = "size-3 border-[3px] border-white bg-blue-600";
 
 /**
