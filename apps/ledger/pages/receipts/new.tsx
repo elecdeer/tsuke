@@ -42,6 +42,7 @@ import {
 } from "@/web/receiptDraft";
 import { resizeReceiptImage } from "@/web/receiptImage";
 import {
+  formatReadTime,
   nextAfterRemoval,
   selectedEntry,
   type ReceiptEntry,
@@ -395,7 +396,11 @@ const ReceiptReview = ({
     setPending(true);
     try {
       const { id } = await ledgerApi()("/api/transactions", "POST", {
-        body: { ...parsed.input, receiptImage: image },
+        body: {
+          ...parsed.input,
+          placePhone: entry.extracted?.placePhone ?? null,
+          receiptImage: image,
+        },
       });
       onRegistered(id);
     } catch (registerError) {
@@ -515,15 +520,22 @@ const ReceiptReview = ({
         <div className="flex flex-col items-start gap-3">
           {/* 結果を写真と見比べた後に使うものなので、見比べる品目より後ろに置く */}
           {entry.status === "read" && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <Button type="button" variant="outline" size="sm" onClick={onReread}>
-                <RotateCw />
-                もう一度読み取る
-              </Button>
-              <span className="text-xs text-muted-foreground">
-                少し時間はかかりますが、より正確に読み取ります
-              </span>
-            </div>
+            <>
+              {entry.readMs !== undefined && (
+                <p className="text-xs text-muted-foreground">
+                  読み取りにかかった時間: {formatReadTime(entry.readMs)}
+                </p>
+              )}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <Button type="button" variant="outline" size="sm" onClick={onReread}>
+                  <RotateCw />
+                  もう一度読み取る
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  少し時間はかかりますが、より正確に読み取ります
+                </span>
+              </div>
+            </>
           )}
           <Button
             type="button"

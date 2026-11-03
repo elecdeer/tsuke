@@ -125,6 +125,7 @@ export const listChains = async (db: LedgerDb): Promise<string[]> => {
 export type ManagedPlace = PlaceWithUsage & {
   aliases: string[];
   aiHint: string | null;
+  phone: string | null;
   archived: boolean;
 };
 
@@ -141,6 +142,7 @@ export const listManagedPlaces = async (db: LedgerDb): Promise<ManagedPlace[]> =
       useCount: sql<number>`coalesce(${usage.useCount}, 0)`,
       aliases: places.aliases,
       aiHint: places.aiHint,
+      phone: places.phone,
       archived: places.archived,
     })
     .from(places)
