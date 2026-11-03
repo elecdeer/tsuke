@@ -1,5 +1,13 @@
 import { describe, expect, test } from "vite-plus/test";
-import { distance, poisFromResponse, searchUrl } from "./openPoi.ts";
+import {
+  boundsOfPois,
+  distance,
+  mergePoisInView,
+  poiKey,
+  poisFromResponse,
+  searchUrl,
+  uniquePois,
+} from "./openPoi.ts";
 
 const paramsOf = (url: string) => Object.fromEntries(new URL(url).searchParams);
 
@@ -13,6 +21,13 @@ describe("searchUrl", () => {
   test("キーワードは前後の空白を落として送る", () => {
     const url = searchUrl(" コンビニ ", { center: { lng: 139, lat: 35 }, radius: 500 }, 10);
     expect(paramsOf(url).q).toBe("コンビニ");
+  });
+
+  test("範囲がなければキーワードだけで全国から探す", () => {
+    expect(paramsOf(searchUrl("スターバックス", null, 200))).toEqual({
+      q: "スターバックス",
+      limit: "200",
+    });
   });
 
   test("表示範囲は API が受け付ける範囲に収めて送る", () => {
@@ -73,5 +88,80 @@ describe("distance", () => {
     const meters = distance({ lng: 139.7671, lat: 35.6812 }, { lng: 139.7528, lat: 35.6852 });
     expect(meters).toBeGreaterThan(1200);
     expect(meters).toBeLessThan(1500);
+  });
+});
+
+describe("poiKey", () => {
+  const poi = {
+    name: "テスト食堂",
+    kind: "",
+    address: "",
+    position: { lng: 139.76, lat: 35.68 },
+  };
+
+  test("名前と座標が同じなら、別のオブジェクトでも同じキーになる", () => {
+    expect(poiKey({ ...poi, position: { ...poi.position } })).toBe(poiKey(poi));
+  });
+
+  test("同じ建物の別の店は違うキーになる", () => {
+    expect(poiKey({ ...poi, name: "テスト喫茶" })).not.toBe(poiKey(poi));
+  });
+});
+
+describe("mergePoisInView", () => {
+  const bbox = { minLng: 139, minLat: 35, maxLng: 140, maxLat: 36 };
+  const poiAt = (name: string, lng: number, lat: number) => ({
+    name,
+    kind: "",
+    address: "",
+    position: { lng, lat },
+  });
+
+  test("両方の検索に出た施設は 1 件にまとめる", () => {
+    const shared = poiAt("両方の店", 139.5, 35.5);
+    const pois = mergePoisInView(
+      bbox,
+      [shared, poiAt("範囲の店", 139.1, 35.1)],
+      [{ ...shared }, poiAt("近くの店", 139.6, 35.6)],
+    );
+    expect(pois.map((poi) => poi.name)).toEqual(["両方の店", "範囲の店", "近くの店"]);
+  });
+
+  test("範囲の外の施設は除き、範囲の端の施設は残す", () => {
+    const pois = mergePoisInView(bbox, [poiAt("外の店", 141, 35.5), poiAt("端の店", 140, 36)]);
+    expect(pois.map((poi) => poi.name)).toEqual(["端の店"]);
+  });
+});
+
+describe("boundsOfPois", () => {
+  const poiAt = (lng: number, lat: number) => ({
+    name: "店",
+    kind: "",
+    address: "",
+    position: { lng, lat },
+  });
+
+  test("すべての施設が入る範囲を返す", () => {
+    expect(boundsOfPois([poiAt(139.7, 35.6), poiAt(135.5, 34.7), poiAt(141.3, 43.1)])).toEqual({
+      minLng: 135.5,
+      minLat: 34.7,
+      maxLng: 141.3,
+      maxLat: 43.1,
+    });
+  });
+
+  test("施設がなければ null を返す", () => {
+    expect(boundsOfPois([])).toBeNull();
+  });
+});
+
+describe("uniquePois", () => {
+  test("名前と座標が同じ施設は 1 件にし、同じ建物の別の店は残す", () => {
+    const position = { lng: 139.76, lat: 35.68 };
+    const poi = { name: "テスト食堂", kind: "", address: "", position };
+
+    const pois = uniquePois([poi, { ...poi }, { ...poi, name: "テスト喫茶" }]);
+
+    expect(pois.map(({ name }) => name)).toEqual(["テスト食堂", "テスト喫茶"]);
   });
 });
