@@ -41,7 +41,7 @@
     "@wxt-dev/module-react": "^1.2.2",
     "msw": "catalog:",
     "msw-storybook-addon": "catalog:",
-    "playwright": "^1.60.0",
+    "playwright": "^1.64.1",
     "shadcn": "catalog:",
     "storybook": "^10.4.1",
     "tailwindcss": "^4.2.4",

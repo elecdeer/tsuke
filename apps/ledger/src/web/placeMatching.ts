@@ -101,16 +101,3 @@ export const placeDetailFor = (
           },
   };
 };
-
-/**
- * 同じ施設の重複を除く。OpenPOI は 1 つの施設を業種ごとに別のレコードで返すことがある。
- */
-export const uniquePois = (pois: Poi[]): Poi[] => {
-  const seen = new Set<string>();
-  return pois.filter((poi) => {
-    const key = `${poi.name}\n${poi.address}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-};

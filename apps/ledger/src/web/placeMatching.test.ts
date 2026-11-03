@@ -6,7 +6,6 @@ import {
   placeKey,
   similarPlaces,
   suggestQueries,
-  uniquePois,
 } from "./placeMatching.ts";
 
 const poi: Poi = {
@@ -118,12 +117,5 @@ describe("placeDetailFor", () => {
 
   test("名前だけで作るときは施設を持たない", () => {
     expect(placeDetailFor("喫茶ひだまり", masters)).toEqual({ chain: "", poi: null });
-  });
-});
-
-describe("uniquePois", () => {
-  test("名前と住所が同じレコードは 1 件にする", () => {
-    const other = { ...poi, address: "別の住所" };
-    expect(uniquePois([poi, { ...poi, kind: "restaurant" }, other])).toEqual([poi, other]);
   });
 });

@@ -8,12 +8,11 @@ import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { PlaceDetail } from "@/ledger/placeDetail";
-import { OPEN_POI_ATTRIBUTION_URL, suggestPois, type Poi } from "@/web/openPoi";
+import { OPEN_POI_ATTRIBUTION_URL, poiKey, suggestPois, uniquePois, type Poi } from "@/web/openPoi";
 import {
   placeDetailFor,
   similarPlaces,
   suggestQueries,
-  uniquePois,
   type PlaceMasters,
 } from "@/web/placeMatching";
 
@@ -124,7 +123,7 @@ export const PlaceCandidates = ({
           )}
           <ul>
             {pois.map((poi) => (
-              <li key={`${poi.name}\n${poi.address}`}>
+              <li key={poiKey(poi)}>
                 <CandidateButton
                   name={poi.name}
                   note={poi.address}

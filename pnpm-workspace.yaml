@@ -31,8 +31,7 @@ catalog:
   drizzle-orm: 0.45.4
   "@tailwindcss/vite": ^4.2.4
   tailwindcss: ^4.2.4
-  leaflet: ^1.9.4
-  "@types/leaflet": ^1.9.22
+  maplibre-gl: ^6.16.0
 
 catalogMode: prefer
 overrides:
