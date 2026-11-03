@@ -29,7 +29,7 @@ import {
   type LngLat,
   type Poi,
 } from "@/web/openPoi";
-import { PoiKindIcon } from "@/web/components/PoiKindIcon";
+import { poiKindColor, PoiKindIcon } from "@/web/components/PoiKindIcon";
 import { adjustMapStyle, MAP_STYLE_URL } from "@/web/mapStyle";
 import { cn } from "@/lib/utils";
 
@@ -76,7 +76,8 @@ const PoiPin = ({ poi, selected }: { poi: Poi; selected: boolean }) => (
     <span
       className={cn(
         // しずくの先は四角を回したぶん箱の外へ出るので、その分を余白で取り、先を土台の下端に合わせる
-        "flex -rotate-45 items-center justify-center rounded-[50%_50%_50%_0] border border-white bg-red-600 shadow-md",
+        "flex -rotate-45 items-center justify-center rounded-[50%_50%_50%_0] border border-white shadow-md",
+        poiKindColor(poi.kind).pin,
         selected ? "mb-2 size-9 ring-2 ring-neutral-900" : "mb-[5px] size-6",
       )}
     >
@@ -483,7 +484,7 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
                   >
                     <PoiKindIcon
                       kind={poi.kind}
-                      className="size-4 shrink-0 text-muted-foreground"
+                      className={cn("size-4 shrink-0", poiKindColor(poi.kind).text)}
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{poi.name}</span>
