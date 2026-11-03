@@ -65,10 +65,10 @@ export type PlaceWithUsage = {
 };
 
 /**
- * アーカイブしていない店舗を、最後に使った日の新しい順で返す。使ったことのない店舗は後ろに名前順で並べる。
+ * 店舗ごとの最終利用日と利用回数を集計するサブクエリを作る。
  */
-export const listPlaces = async (db: LedgerDb): Promise<PlaceWithUsage[]> => {
-  const usage = db
+const placeUsage = (db: LedgerDb) =>
+  db
     .select({
       placeId: transactions.placeId,
       lastUsedOn: max(transactions.date).as("last_used_on"),
@@ -78,6 +78,11 @@ export const listPlaces = async (db: LedgerDb): Promise<PlaceWithUsage[]> => {
     .groupBy(transactions.placeId)
     .as("usage");
 
+/**
+ * アーカイブしていない店舗を、最後に使った日の新しい順で返す。使ったことのない店舗は後ろに名前順で並べる。
+ */
+export const listPlaces = async (db: LedgerDb): Promise<PlaceWithUsage[]> => {
+  const usage = placeUsage(db);
   return db
     .select({
       id: places.id,
@@ -102,3 +107,35 @@ export const listChains = async (db: LedgerDb): Promise<string[]> => {
     .orderBy(asc(places.chain));
   return rows.flatMap(({ chain }) => (chain === null ? [] : [chain]));
 };
+
+export type ManagedPlace = PlaceWithUsage & {
+  aliases: string[];
+  aiHint: string | null;
+  archived: boolean;
+};
+
+/**
+ * 管理画面に出す店舗を返す。別名とヒントを付け、アーカイブ済みの店舗も含める。並びは listPlaces と同じ。
+ */
+export const listManagedPlaces = async (db: LedgerDb): Promise<ManagedPlace[]> => {
+  const usage = placeUsage(db);
+  return db
+    .select({
+      id: places.id,
+      name: places.name,
+      lastUsedOn: usage.lastUsedOn,
+      useCount: sql<number>`coalesce(${usage.useCount}, 0)`,
+      aliases: places.aliases,
+      aiHint: places.aiHint,
+      archived: places.archived,
+    })
+    .from(places)
+    .leftJoin(usage, eq(usage.placeId, places.id))
+    .orderBy(sql`${usage.lastUsedOn} IS NULL`, desc(usage.lastUsedOn), asc(places.name));
+};
+
+/**
+ * AI の読み取りに渡す店舗を返す。別名とヒントを付け、アーカイブ済みの店舗は候補にしない。
+ */
+export const listPlacesForExtraction = async (db: LedgerDb): Promise<ManagedPlace[]> =>
+  (await listManagedPlaces(db)).filter((place) => !place.archived);

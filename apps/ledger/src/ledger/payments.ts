@@ -10,6 +10,7 @@ import {
 } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
 import { PlaceDetailSchema, placeDetailColumns } from "./placeDetail.ts";
+import { upsertPlaceByName } from "./places.ts";
 
 const TextSchema = v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(200)));
 
@@ -103,13 +104,11 @@ export const createPayment = async (
       ? { ok: false, error: "取引を作れませんでした" }
       : { ok: true, id: created.id };
   }
-  const insertPlace = db
-    .insert(places)
-    .values({ name: placeName, ...placeDetailColumns(input.placeDetail) })
-    .onConflictDoNothing({
-      target: places.name,
-    });
-  const [, [created]] = await db.batch([insertPlace, insertTransaction, insertItems]);
+  const [, [created]] = await db.batch([
+    upsertPlaceByName(db, placeName, input.placeDetail),
+    insertTransaction,
+    insertItems,
+  ]);
   return created === undefined
     ? { ok: false, error: "取引を作れませんでした" }
     : { ok: true, id: created.id };
