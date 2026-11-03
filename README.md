@@ -44,6 +44,8 @@ vp run dev
 
 登録されている店舗は設定の下の `/settings/places` で整理する（名前の変更・統合・未使用の店舗の削除、AI の読み取り用の別名とヒント）。設計は [places-design.md](apps/ledger/docs/places-design.md)。
 
+口座の AI の読み取り用のヒントは設定の下の `/settings/accounts` で編集する。
+
 紙のレシートは `/receipts/new` で撮影して登録する。続けて何枚でも撮れ、AI が裏で順に読み取ったものを 1 枚ずつ確かめて登録する。読み取りに誤りが目立つときは、より正確なモデルでもう一度読み取れる。スマートフォンではホーム画面に追加すると、この画面から開く（PWA）。設計は [phase5-design.md](apps/ledger/docs/phase5-design.md)。
 
 店舗の入力欄の地図のボタンから、現在地の周りの店舗を地図で選べる。店舗は [OpenPOI API](https://docs.openpoiapi.com/)（キー不要・CORS 可）をブラウザから直接呼んで探し、地図は Leaflet と OpenStreetMap のタイルで出す。OpenPOI のデータを出すときは「OpenPOI API」と書いて[出典のページ](https://openpoiapi.com/attribution.html)へリンクする決まりなので、地図の帰属表示に入れている。

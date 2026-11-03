@@ -28,6 +28,15 @@ const SettingsPage = () => {
         <ul className="border-t border-foreground">
           <li className="border-b">
             <Link
+              href="/settings/accounts"
+              className="grid grid-cols-[minmax(0,1fr)_1rem] items-baseline gap-x-4 py-2.5 hover:bg-muted/60"
+            >
+              <span>口座</span>
+              <span className="text-xs text-muted-foreground">→</span>
+            </Link>
+          </li>
+          <li className="border-b">
+            <Link
               href="/settings/places"
               className="grid grid-cols-[minmax(0,1fr)_1rem] items-baseline gap-x-4 py-2.5 hover:bg-muted/60"
             >

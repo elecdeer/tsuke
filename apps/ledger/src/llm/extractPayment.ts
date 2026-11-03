@@ -28,12 +28,19 @@ export type PlaceForPrompt = PlaceWithUsage & {
   aiHint?: string | null;
 };
 
+/** プロンプトに渡す口座。ヒントは設定してある口座にだけある */
+export type AccountForPrompt = {
+  id: number;
+  name: string;
+  aiHint?: string | null;
+};
+
 /** プロンプトに渡す、ページの内容と台帳の候補 */
 export type ExtractPaymentContext = {
   pageContent: PageContent;
   /** 支出のカテゴリ */
   categories: CategoryWithGenres[];
-  accounts: { id: number; name: string }[];
+  accounts: AccountForPrompt[];
   places: PlaceForPrompt[];
 };
 
@@ -74,6 +81,10 @@ export type ExtractedPayment = v.InferOutput<typeof ExtractedPaymentSchema>;
 export const PLACE_NOTES_RULE =
   "A store line may add `aka:` (other names the same store goes by; answer with the store name, not the alias) and `hint:` (the user's note on how to recognize or treat the store; follow it).";
 
+/** 口座の一覧のヒントの読み方。口座の一覧を渡すプロンプトで共通に使う */
+export const ACCOUNT_NOTES_RULE =
+  "An account line may add `hint:` (the user's note on how to recognize or when to choose the account; follow it).";
+
 const ARIA_SNAPSHOT_MAX_CHARS = 16000;
 const RECENT_PLACES_LIMIT = 20;
 
@@ -92,11 +103,18 @@ export const formatCategoriesForPrompt = (categories: CategoryWithGenres[]): str
 };
 
 /**
- * 口座一覧をプロンプト用にフォーマットする。
+ * 口座一覧をプロンプト用に 1 口座 1 行でフォーマットする。ヒントに読点やカンマが入っても区切りと紛れないようにするため。
  */
 export const formatAccountsForPrompt = (accounts: ExtractPaymentContext["accounts"]): string => {
   if (accounts.length === 0) return "(none)";
-  return accounts.map((account) => `${account.id}=${account.name}`).join(", ");
+  return accounts
+    .map((account) =>
+      [
+        `${account.id}=${account.name}`,
+        ...((account.aiHint ?? null) !== null ? [`hint: ${account.aiHint}`] : []),
+      ].join("; "),
+    )
+    .join("\n");
 };
 
 /** 別名かヒントが設定してあれば true を返す */
@@ -164,7 +182,7 @@ export const buildPrompt = (input: ExtractPaymentContext): { system: string; pro
     "Extract payment info from a web page accessibility snapshot (receipt, order confirmation, invoice, transaction history, etc.) for a household ledger.",
     "",
     "Rules:",
-    "- `accountId` must be one of the provided account IDs; otherwise null.",
+    `- \`accountId\` must be one of the provided account IDs; otherwise null. ${ACCOUNT_NOTES_RULE}`,
     '- `date`: "YYYY-MM-DD"; prefer the order/purchase date when several exist.',
     `- \`placeName\`: use a recent store name as is when it clearly fits, else extract the merchant name from the page. ${PLACE_NOTES_RULE}`,
     "- `confidence`: high/medium/low based on how clearly the page conveys the payment.",
@@ -193,7 +211,7 @@ export const buildPrompt = (input: ExtractPaymentContext): { system: string; pro
     "## Categories (format: `categoryId=name: genreId=name, ...`)",
     formatCategoriesForPrompt(input.categories),
     "",
-    "## Accounts (format: `accountId=name, ...`)",
+    "## Accounts (format: `accountId=name`)",
     formatAccountsForPrompt(input.accounts),
     "",
     "## Recent stores (format: `name [count, lastUsedOn]`)",

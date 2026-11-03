@@ -5,6 +5,7 @@
  */
 import * as v from "valibot";
 import {
+  ACCOUNT_NOTES_RULE,
   EXTRACTED_PAYMENT_JSON_SCHEMA,
   ExtractedPaymentSchema,
   formatAccountsForPrompt,
@@ -52,7 +53,7 @@ export const buildReceiptPrompt = (input: ExtractReceiptContext): StructuredProm
     "Extract payment info from a photo of a Japanese paper receipt for a household ledger.",
     "",
     "Rules:",
-    "- `accountId` must be one of the provided account IDs; otherwise null. Infer it from the payment method printed on the receipt (cash, card brand, e-money, QR payment).",
+    `- \`accountId\` must be one of the provided account IDs; otherwise null. Infer it from the payment method printed on the receipt (cash, card brand, e-money, QR payment). ${ACCOUNT_NOTES_RULE}`,
     '- `date`: "YYYY-MM-DD". Convert Japanese era years (令和8年 = 2026) and two-digit years; when the year is missing, use the year of "Today".',
     `- \`placeName\`: use a recent store name as is when it clearly fits, else the store name printed on the receipt (include the branch name). ${PLACE_NOTES_RULE}`,
     "- `confidence`: high/medium/low based on how legible the receipt is.",
@@ -77,7 +78,7 @@ export const buildReceiptPrompt = (input: ExtractReceiptContext): StructuredProm
     "## Categories (format: `categoryId=name: genreId=name, ...`)",
     formatCategoriesForPrompt(input.categories),
     "",
-    "## Accounts (format: `accountId=name, ...`)",
+    "## Accounts (format: `accountId=name`)",
     formatAccountsForPrompt(input.accounts),
     "",
     `Today: ${input.today}`,

@@ -4,6 +4,7 @@
 import { toJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import {
+  ACCOUNT_NOTES_RULE,
   findPlaceName,
   formatAccountsForPrompt,
   formatCategoriesForPrompt,
@@ -75,7 +76,7 @@ export const buildStatementPrompt = (
     "- Skip refunds, cancellations, credits and negative amounts, as well as totals, subtotals and rows that are not individual transactions.",
     "- `genreId`: the most fitting genre ID for each merchant. Must be one of the provided genre IDs; otherwise null.",
     "  The listing shows `categoryId=name: genreId=name, ...` so you can see which genres belong to which category.",
-    "- `accountId`: the account that matches the card shown on the page. Must be one of the provided account IDs; otherwise null.",
+    `- \`accountId\`: the account that matches the card shown on the page. Must be one of the provided account IDs; otherwise null. ${ACCOUNT_NOTES_RULE}`,
     "- `confidence`: high/medium/low based on how clearly the page conveys the transactions.",
     "- `reasoning`: 1-3 sentences justifying your choices.",
     "- Use null for fields that cannot be determined. `rows` may be empty when the page has no transactions.",
@@ -91,7 +92,7 @@ export const buildStatementPrompt = (
     "## Categories (format: `categoryId=name: genreId=name, ...`)",
     formatCategoriesForPrompt(input.categories),
     "",
-    "## Accounts (format: `accountId=name, ...`)",
+    "## Accounts (format: `accountId=name`)",
     formatAccountsForPrompt(input.accounts),
     "",
     "## Stores (format: `name [count, lastUsedOn]`)",
