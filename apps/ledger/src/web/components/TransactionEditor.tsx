@@ -23,10 +23,10 @@ import type { CategoryWithGenres } from "@/ledger/masters";
 import type { getTransaction, TransactionUpdate } from "@/ledger/transactionEdit";
 import type { TransactionMode } from "@/ledger/transactions";
 import { actionErrorMessage } from "@/web/actionError";
+import { ErrorMessage } from "@/web/components/ErrorMessage";
 import { Section } from "@/web/components/Section";
 import {
   AccountSelect,
-  ErrorMessage,
   FormField,
   ItemsFields,
   PlaceInput,

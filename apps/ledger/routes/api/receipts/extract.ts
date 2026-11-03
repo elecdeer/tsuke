@@ -1,12 +1,19 @@
 import * as v from "valibot";
 import { defineHandler } from "void";
 import { db } from "void/db";
-import { env } from "void/env";
 import { todayInTokyo } from "../../../src/ledger/dates.ts";
-import { listAccounts, listCategories, listPlaces } from "../../../src/ledger/masters.ts";
+import {
+  listAccounts,
+  listCategories,
+  listPlacesForExtraction,
+} from "../../../src/ledger/masters.ts";
 import { ReceiptImageSchema, runExtractReceipt } from "../../../src/llm/extractReceipt.ts";
+import { READ_SETTINGS, ReadQualitySchema } from "../../../src/llm/readQuality.ts";
 
-const ExtractBodySchema = v.object({ image: ReceiptImageSchema });
+const ExtractBodySchema = v.object({
+  image: ReceiptImageSchema,
+  quality: v.optional(ReadQualitySchema, "fast"),
+});
 
 /**
  * レシートの写真から支出の入力値を推論する。画像は AI に渡すだけで保存しない。
@@ -21,16 +28,17 @@ export const POST = defineHandler.withValidator({ body: ExtractBodySchema })(asy
   const [categories, accounts, places] = await Promise.all([
     listCategories(db, "payment"),
     listAccounts(db),
-    listPlaces(db),
+    listPlacesForExtraction(db),
   ]);
   try {
     const { object, usage, timing } = await runExtractReceipt({
       ai: c.env.AI,
-      model: env.LLM_MODEL,
+      quality: body.quality,
       input: { image: body.image, today: todayInTokyo(), categories, accounts, places },
     });
     console.info("LLM extract-receipt completed", {
-      model: env.LLM_MODEL,
+      model: READ_SETTINGS[body.quality].model,
+      quality: body.quality,
       usage,
       confidence: object.confidence,
       ...timing,
@@ -38,6 +46,7 @@ export const POST = defineHandler.withValidator({ body: ExtractBodySchema })(asy
     return object;
   } catch (error) {
     console.error("LLM extract-receipt failed", {
+      quality: body.quality,
       error: error instanceof Error ? error.message : String(error),
     });
     return c.json({ error: "レシートを読み取れませんでした" }, 502);

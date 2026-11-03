@@ -4,9 +4,12 @@
 import { toJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import {
+  findPlaceName,
   formatAccountsForPrompt,
   formatCategoriesForPrompt,
   formatRecentPlacesForPrompt,
+  PLACE_NOTES_RULE,
+  resolvePlaceAlias,
   type ExtractPaymentContext,
 } from "./extractPayment.ts";
 import {
@@ -66,7 +69,8 @@ export const buildStatementPrompt = (
     "- One entry in `rows` per transaction row in the statement. Do not merge or split rows.",
     '- `date`: the usage/transaction date (利用日) as "YYYY-MM-DD", not the billing or payment date. When the year is omitted, infer it from the statement period.',
     "- `place`: the merchant name (利用先) as written on the page.",
-    "- `placeName`: the name of the store in `Stores` that is the same merchant as `place`, copied exactly. Statements often abbreviate names or use half-width katakana or romaji (e.g. ｱﾏｿﾞﾝ / AMAZON.CO.JP → Amazon.co.jp), so match by meaning, not by exact text. Use null when no store clearly matches; never invent a store name.",
+    "- `placeName`: the name of the store in `Stores` that is the same merchant as `place`, copied exactly. Statements often abbreviate names or use half-width katakana or romaji (e.g. ｱﾏｿﾞﾝ / AMAZON.CO.JP → Amazon.co.jp), so match by meaning, not by exact text. Use null when no store clearly matches; never invent a store name. " +
+      PLACE_NOTES_RULE,
     "- `amount`: the usage amount (利用金額) in JPY as a positive integer. For installment purchases use the original usage amount, not this month's installment. For foreign currency use the JPY amount.",
     "- Skip refunds, cancellations, credits and negative amounts, as well as totals, subtotals and rows that are not individual transactions.",
     "- `genreId`: the most fitting genre ID for each merchant. Must be one of the provided genre IDs; otherwise null.",
@@ -106,6 +110,19 @@ export const buildStatementPrompt = (
 const EXTRACTED_STATEMENT_JSON_SCHEMA = toJsonSchema(ExtractedStatementSchema);
 
 /**
+ * 明細の 1 行の店舗名を台帳の店舗の名前に直す。
+ *
+ * AI が店舗を選べなかった行でも、明細の表記が店舗名か別名に一致していれば店舗が決まる。
+ */
+export const resolveStatementPlaceName = (
+  row: Pick<ExtractedStatement["rows"][number], "place" | "placeName">,
+  places: ExtractStatementContext["places"],
+): string | null => {
+  if (row.placeName !== null) return resolvePlaceAlias(row.placeName, places);
+  return row.place === null ? null : (findPlaceName(row.place, places) ?? null);
+};
+
+/**
  * Workers AI binding を使って明細ページから利用行を抽出する。
  */
 export const runExtractStatement = (params: {
@@ -122,4 +139,13 @@ export const runExtractStatement = (params: {
     jsonSchema: EXTRACTED_STATEMENT_JSON_SCHEMA,
     schema: ExtractedStatementSchema,
     abortSignal: params.abortSignal,
-  });
+  }).then((result) => ({
+    ...result,
+    object: {
+      ...result.object,
+      rows: result.object.rows.map((row) => ({
+        ...row,
+        placeName: resolveStatementPlaceName(row, params.input.places),
+      })),
+    },
+  }));

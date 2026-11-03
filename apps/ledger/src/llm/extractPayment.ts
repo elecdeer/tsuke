@@ -22,13 +22,19 @@ export const PageContentSchema = v.object({
 
 export type PageContent = v.InferOutput<typeof PageContentSchema>;
 
+/** プロンプトに渡す店舗。別名とヒントは設定してある店舗にだけある */
+export type PlaceForPrompt = PlaceWithUsage & {
+  aliases?: string[];
+  aiHint?: string | null;
+};
+
 /** プロンプトに渡す、ページの内容と台帳の候補 */
 export type ExtractPaymentContext = {
   pageContent: PageContent;
   /** 支出のカテゴリ */
   categories: CategoryWithGenres[];
   accounts: { id: number; name: string }[];
-  places: PlaceWithUsage[];
+  places: PlaceForPrompt[];
 };
 
 /**
@@ -64,6 +70,10 @@ export const ExtractedPaymentSchema = v.strictObject({
 
 export type ExtractedPayment = v.InferOutput<typeof ExtractedPaymentSchema>;
 
+/** 店舗の一覧の別名とヒントの読み方。店舗の一覧を渡すプロンプトで共通に使う */
+export const PLACE_NOTES_RULE =
+  "A store line may add `aka:` (other names the same store goes by; answer with the store name, not the alias) and `hint:` (the user's note on how to recognize or treat the store; follow it).";
+
 const ARIA_SNAPSHOT_MAX_CHARS = 16000;
 const RECENT_PLACES_LIMIT = 20;
 
@@ -89,19 +99,62 @@ export const formatAccountsForPrompt = (accounts: ExtractPaymentContext["account
   return accounts.map((account) => `${account.id}=${account.name}`).join(", ");
 };
 
+/** 別名かヒントが設定してあれば true を返す */
+const hasPlaceNotes = (place: PlaceForPrompt): boolean =>
+  (place.aliases?.length ?? 0) > 0 || (place.aiHint ?? null) !== null;
+
+/**
+ * 店舗 1 件をプロンプトの 1 行にする。
+ */
+const formatPlaceForPrompt = (place: PlaceForPrompt): string => {
+  const aliases = place.aliases ?? [];
+  return [
+    `${place.name} [${place.useCount}x, ${place.lastUsedOn ?? "never"}]`,
+    ...(aliases.length > 0 ? [`aka: ${aliases.join(" / ")}`] : []),
+    ...((place.aiHint ?? null) !== null ? [`hint: ${place.aiHint}`] : []),
+  ].join("; ");
+};
+
 /**
  * 最近使った店舗をプロンプト用にフォーマットする。使ったことのない店舗は候補にしない。
+ *
+ * 別名やヒントのある店舗は、古くても未使用でも候補に入れる。ユーザーがわざわざ設定した手がかりが、
+ * 最近使った店舗の上限で切られて効かなくならないようにするため。
  */
 export const formatRecentPlacesForPrompt = (
-  places: PlaceWithUsage[],
+  places: PlaceForPrompt[],
   limit: number = RECENT_PLACES_LIMIT,
 ): string => {
   const recent = places.filter((place) => place.lastUsedOn !== null).slice(0, limit);
-  if (recent.length === 0) return "(none)";
-  return recent
-    .map((place) => `${place.name} [${place.useCount}x, ${place.lastUsedOn ?? ""}]`)
-    .join("\n");
+  const noted = places.filter((place) => hasPlaceNotes(place) && !recent.includes(place));
+  const candidates = [...recent, ...noted];
+  if (candidates.length === 0) return "(none)";
+  return candidates.map(formatPlaceForPrompt).join("\n");
 };
+
+/** 表記ゆれを比べるための形にする。半角カナや全角英数、大文字小文字の違いは同じと見なす */
+const normalizePlaceName = (name: string): string => name.normalize("NFKC").trim().toLowerCase();
+
+/**
+ * 名前か別名が一致する店舗の正式な名前を返す。なければ undefined を返す。別名より店舗名の一致を優先する。
+ */
+export const findPlaceName = (name: string, places: PlaceForPrompt[]): string | undefined => {
+  if (places.some((place) => place.name === name)) return name;
+  const wanted = normalizePlaceName(name);
+  return places.find((place) =>
+    place.aliases?.some((alias) => normalizePlaceName(alias) === wanted),
+  )?.name;
+};
+
+/**
+ * AI が返した店舗名が別名なら、その店舗の正式な名前に直す。別名でなければそのまま返す。
+ *
+ * AI が別名をそのまま返すと、登録のときに同じ表記の新しい店舗が作られてしまうため。
+ */
+export const resolvePlaceAlias = (
+  placeName: string | null,
+  places: PlaceForPrompt[],
+): string | null => (placeName === null ? null : (findPlaceName(placeName, places) ?? placeName));
 
 /**
  * LLM へ渡す system / prompt を構築する。
@@ -113,7 +166,7 @@ export const buildPrompt = (input: ExtractPaymentContext): { system: string; pro
     "Rules:",
     "- `accountId` must be one of the provided account IDs; otherwise null.",
     '- `date`: "YYYY-MM-DD"; prefer the order/purchase date when several exist.',
-    "- `placeName`: use a recent store name as is when it clearly fits, else extract the merchant name from the page.",
+    `- \`placeName\`: use a recent store name as is when it clearly fits, else extract the merchant name from the page. ${PLACE_NOTES_RULE}`,
     "- `confidence`: high/medium/low based on how clearly the page conveys the payment.",
     "- `reasoning`: 1-3 sentences justifying your choices.",
     "",
@@ -164,6 +217,8 @@ export const EXTRACTED_PAYMENT_JSON_SCHEMA = toJsonSchema(ExtractedPaymentSchema
 export const runExtractPayment = (params: {
   ai: AiRunner;
   model: string;
+  /** 推論量。受け付ける値はモデルごとに違うので、未指定ならモデルの既定に任せる */
+  reasoningEffort?: string;
   input: ExtractPaymentContext;
   abortSignal?: AbortSignal;
 }): Promise<{ object: ExtractedPayment; usage: unknown; timing: ExtractTiming }> =>
@@ -174,5 +229,12 @@ export const runExtractPayment = (params: {
     schemaName: "ExtractedPayment",
     jsonSchema: EXTRACTED_PAYMENT_JSON_SCHEMA,
     schema: ExtractedPaymentSchema,
+    reasoningEffort: params.reasoningEffort,
     abortSignal: params.abortSignal,
-  });
+  }).then((result) => ({
+    ...result,
+    object: {
+      ...result.object,
+      placeName: resolvePlaceAlias(result.object.placeName, params.input.places),
+    },
+  }));

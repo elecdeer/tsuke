@@ -10,6 +10,7 @@ import {
 } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
 import { PlaceDetailSchema, placeDetailColumns } from "./placeDetail.ts";
+import { upsertPlaceByName } from "./places.ts";
 import type { Aggregation, TransactionMode } from "./transactions.ts";
 
 export type TransactionDetail = {
@@ -225,8 +226,9 @@ export const updateTransaction = async (
   input: TransactionUpdate,
 ): Promise<EditResult> => {
   const [current] = await db
-    .select({ mode: transactions.mode })
+    .select({ mode: transactions.mode, placeName: places.name })
     .from(transactions)
+    .leftJoin(places, eq(places.id, transactions.placeId))
     .where(eq(transactions.id, id));
   if (current === undefined) return { ok: false, status: 404, error: "取引が見つかりません" };
 
@@ -265,16 +267,16 @@ export const updateTransaction = async (
     })),
   );
 
-  if (placeName === null) {
+  // 店舗を変えていないときは作らない。過去の取引を直しただけでアーカイブ済みの店舗が元に戻らないようにするため
+  if (placeName === null || placeName === current.placeName) {
     await db.batch([updateTransactionRow, deleteItems, insertItems]);
   } else {
-    const insertPlace = db
-      .insert(places)
-      .values({ name: placeName, ...placeDetailColumns(input.placeDetail) })
-      .onConflictDoNothing({
-        target: places.name,
-      });
-    await db.batch([insertPlace, updateTransactionRow, deleteItems, insertItems]);
+    await db.batch([
+      upsertPlaceByName(db, placeName, input.placeDetail),
+      updateTransactionRow,
+      deleteItems,
+      insertItems,
+    ]);
   }
   return { ok: true };
 };

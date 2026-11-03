@@ -5,7 +5,14 @@
  * カテゴリ/口座/店舗の表現が崩れていないことを確認する。
  */
 import { describe, expect, test, vi } from "vite-plus/test";
-import { buildPrompt, runExtractPayment, type ExtractPaymentContext } from "./extractPayment.ts";
+import {
+  buildPrompt,
+  formatRecentPlacesForPrompt,
+  resolvePlaceAlias,
+  runExtractPayment,
+  type ExtractPaymentContext,
+  type PlaceForPrompt,
+} from "./extractPayment.ts";
 
 const baseInput = (overrides: Partial<ExtractPaymentContext> = {}): ExtractPaymentContext => ({
   pageContent: {
@@ -95,6 +102,25 @@ describe("buildPrompt", () => {
 });
 
 describe("runExtractPayment", () => {
+  test("推論量を指定すると、そのまま送る", async () => {
+    const ai = {
+      run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
+    };
+
+    await runExtractPayment({
+      ai,
+      model: "test-model",
+      reasoningEffort: "low",
+      input: baseInput(),
+    });
+
+    expect(ai.run).toHaveBeenCalledWith(
+      "test-model",
+      expect.objectContaining({ reasoning_effort: "low" }),
+      { signal: undefined },
+    );
+  });
+
   test("choices のメッセージの JSON を抽出結果として返す", async () => {
     const ai = {
       run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
@@ -142,5 +168,60 @@ describe("runExtractPayment", () => {
     await expect(
       runExtractPayment({ ai, model: "test-model", input: baseInput() }),
     ).rejects.toThrow();
+  });
+});
+
+describe("店舗の別名とヒント", () => {
+  const place = (name: string, overrides: Partial<PlaceForPrompt> = {}): PlaceForPrompt => ({
+    id: 1,
+    name,
+    lastUsedOn: "2026-05-01",
+    useCount: 1,
+    ...overrides,
+  });
+
+  test("別名とヒントを店舗の行に添える", () => {
+    expect(
+      formatRecentPlacesForPrompt([
+        place("Amazon", { aliases: ["AMAZON.CO.JP", "ｱﾏｿﾞﾝ"], aiHint: "書籍は除く" }),
+      ]),
+    ).toBe("Amazon [1x, 2026-05-01]; aka: AMAZON.CO.JP / ｱﾏｿﾞﾝ; hint: 書籍は除く");
+  });
+
+  test("別名やヒントのある店舗は、上限を超えていても未使用でも候補に入れる", () => {
+    const lines = formatRecentPlacesForPrompt(
+      [
+        place("最近の店"),
+        place("上限の外の店"),
+        place("上限の外の別名の店", { aliases: ["別名"] }),
+        place("未使用のヒントの店", { lastUsedOn: null, useCount: 0, aiHint: "ヒント" }),
+        place("未使用の店", { lastUsedOn: null, useCount: 0 }),
+      ],
+      1,
+    ).split("\n");
+
+    expect(lines).toEqual([
+      "最近の店 [1x, 2026-05-01]",
+      "上限の外の別名の店 [1x, 2026-05-01]; aka: 別名",
+      "未使用のヒントの店 [0x, never]; hint: ヒント",
+    ]);
+  });
+
+  describe("resolvePlaceAlias", () => {
+    const places = [place("Amazon", { aliases: ["AMAZON.CO.JP", "ｱﾏｿﾞﾝ"] }), place("アマゾン")];
+
+    test("別名なら店舗名に直す。全角・半角と大文字・小文字の違いは無視する", () => {
+      expect(resolvePlaceAlias("amazon.co.jp", places)).toBe("Amazon");
+      expect(resolvePlaceAlias("ＡＭＡＺＯＮ．ＣＯ．ＪＰ", places)).toBe("Amazon");
+    });
+
+    test("店舗名と完全に一致すれば、別の店舗の別名に似ていてもそのまま返す", () => {
+      expect(resolvePlaceAlias("アマゾン", places)).toBe("アマゾン");
+    });
+
+    test("どれにも当たらなければそのまま返し、null は null のまま返す", () => {
+      expect(resolvePlaceAlias("新しい店", places)).toBe("新しい店");
+      expect(resolvePlaceAlias(null, places)).toBeNull();
+    });
   });
 });

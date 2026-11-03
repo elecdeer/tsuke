@@ -4,6 +4,7 @@
 import { describe, expect, test, vi } from "vite-plus/test";
 import {
   buildStatementPrompt,
+  resolveStatementPlaceName,
   runExtractStatement,
   type ExtractStatementContext,
 } from "./extractStatement.ts";
@@ -80,5 +81,28 @@ describe("runExtractStatement", () => {
     await expect(
       runExtractStatement({ ai, model: "test-model", input: baseInput() }),
     ).rejects.toThrow("Invalid type");
+  });
+});
+
+describe("resolveStatementPlaceName", () => {
+  const places = [
+    { id: 1, name: "Amazon", lastUsedOn: "2026-05-01", useCount: 1, aliases: ["AMAZON.CO.JP"] },
+  ];
+
+  test("AI が別名を返したら店舗名に直す", () => {
+    expect(resolveStatementPlaceName({ place: "x", placeName: "AMAZON.CO.JP" }, places)).toBe(
+      "Amazon",
+    );
+  });
+
+  test("AI が店舗を選べなくても、明細の表記が別名に一致すれば店舗が決まる", () => {
+    expect(resolveStatementPlaceName({ place: "AMAZON.CO.JP", placeName: null }, places)).toBe(
+      "Amazon",
+    );
+  });
+
+  test("明細の表記も別名に一致しなければ null のままにする", () => {
+    expect(resolveStatementPlaceName({ place: "知らない店", placeName: null }, places)).toBeNull();
+    expect(resolveStatementPlaceName({ place: null, placeName: null }, places)).toBeNull();
   });
 });

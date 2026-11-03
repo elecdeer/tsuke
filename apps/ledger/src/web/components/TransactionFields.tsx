@@ -1,7 +1,7 @@
 /**
  * 取引の入力欄の部品。取引の編集画面とレシートの登録画面で共有する。
  */
-import { ArrowDown, ArrowUp, Plus, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react";
 import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -205,16 +205,6 @@ export const PlaceInput = ({
     </div>
   );
 };
-
-/**
- * 入力の誤りや保存の失敗の知らせ。色だけに頼らず、アイコンを添える。
- */
-export const ErrorMessage = ({ message }: { message: string }) => (
-  <p role="alert" className="flex items-center gap-1.5 text-sm text-destructive">
-    <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
-    {message}
-  </p>
-);
 
 /**
  * 品目 1 件の入力欄。支出と収入ではカテゴリも選ぶ。
