@@ -20,9 +20,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { CategoryWithGenres } from "@/ledger/masters";
+import type { ReimbursementCandidate } from "@/ledger/reimbursements";
 import type { getTransaction, TransactionUpdate } from "@/ledger/transactionEdit";
 import type { TransactionMode } from "@/ledger/transactions";
 import { actionErrorMessage } from "@/web/actionError";
+import { IncomeReimbursementFields, PaymentAdvanceFields } from "@/web/components/AdvanceFields";
 import { ErrorMessage } from "@/web/components/ErrorMessage";
 import { Section } from "@/web/components/Section";
 import {
@@ -34,7 +36,9 @@ import {
 } from "@/web/components/TransactionFields";
 import { AGGREGATION_LABELS, MODE_LABELS } from "@/web/labels";
 import {
+  allocateReimbursements,
   draftFromTransaction,
+  itemsTotalOf,
   updateFromDraft,
   type TransactionDraft,
 } from "@/web/transactionDraft";
@@ -179,6 +183,8 @@ export type TransactionEditorProps = {
   categories: { payment: CategoryWithGenres[]; income: CategoryWithGenres[] };
   placeNames: string[];
   chainNames: string[];
+  /** 収入に紐付ける支出の候補 */
+  reimbursementCandidates: ReimbursementCandidate[];
   /** 保存したか。作り直しても「保存しました」を出し続けられるよう、親が持つ */
   saved: boolean;
   onSavedChange: (saved: boolean) => void;
@@ -200,6 +206,7 @@ export const TransactionEditor = ({
   categories,
   placeNames,
   chainNames,
+  reimbursementCandidates,
   saved,
   onSavedChange,
   onSave,
@@ -214,6 +221,15 @@ export const TransactionEditor = ({
   const update = (patch: Partial<TransactionDraft>) => {
     setDraft((current) => ({ ...current, ...patch }));
     onSavedChange(false);
+  };
+  /** 紐付けのある収入の金額を変えたら、支出へ充てる額も配分し直す */
+  const updateItems = (items: TransactionDraft["items"]) => {
+    const reimbursements = draft.reimbursements ?? [];
+    update(
+      reimbursements.length > 0
+        ? { items, reimbursements: allocateReimbursements(reimbursements, itemsTotalOf(items)) }
+        : { items },
+    );
   };
   const save = async () => {
     const parsed = updateFromDraft(draft);
@@ -252,6 +268,8 @@ export const TransactionEditor = ({
             <Select
               items={AGGREGATION_LABELS}
               value={draft.aggregation}
+              // 紐付いた収入は保存時に必ず「集計に含めない」になるので、選べないようにする
+              disabled={(draft.reimbursements ?? []).length > 0}
               onValueChange={(next) => {
                 const aggregation = (["always", "never", "yearly_only"] as const).find(
                   (value) => value === next,
@@ -292,9 +310,29 @@ export const TransactionEditor = ({
           mode={mode}
           items={draft.items}
           categories={mode === "income" ? categories.income : categories.payment}
-          onChange={(items) => update({ items })}
+          onChange={updateItems}
         />
       </Section>
+
+      {mode === "payment" && (
+        <Section label="立替">
+          <PaymentAdvanceFields
+            draft={draft}
+            linkedIncomes={transaction.linkedIncomes}
+            update={update}
+          />
+        </Section>
+      )}
+
+      {mode === "income" && (
+        <Section label="立替の入金">
+          <IncomeReimbursementFields
+            candidates={reimbursementCandidates}
+            draft={draft}
+            update={update}
+          />
+        </Section>
+      )}
 
       {transaction.hasReceiptImage && (
         <Section label="レシート">

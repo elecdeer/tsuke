@@ -11,6 +11,7 @@ import {
   TransactionUpdateSchema,
   updateTransaction,
 } from "../../src/ledger/transactionEdit.ts";
+import { listReimbursementCandidates } from "../../src/ledger/reimbursements.ts";
 import { listTransactions, type TransactionFilter } from "../../src/ledger/transactions.ts";
 import { OptionalIdSchema, OptionalMonthSchema } from "../../src/web/params.ts";
 
@@ -24,6 +25,7 @@ const TransactionsQuerySchema = v.object({
   genreId: OptionalIdSchema,
   placeId: OptionalIdSchema,
   chain: v.optional(v.pipe(v.string(), v.maxLength(200))),
+  advance: v.optional(v.picklist(["any", "unreceived"])),
   /** 広い画面のサイドパネルで開いている取引 */
   selected: OptionalIdSchema,
 });
@@ -45,7 +47,12 @@ const loadSelected = async (id: number | undefined) => {
   if (id === undefined) return null;
   const [transaction, placeList] = await Promise.all([getTransaction(db, id), listPlaces(db)]);
   if (transaction === undefined) return null;
-  return { transaction, placeNames: placeList.map((place) => place.name) };
+  return {
+    transaction,
+    placeNames: placeList.map((place) => place.name),
+    reimbursementCandidates:
+      transaction.mode === "income" ? await listReimbursementCandidates(db, transaction.id) : [],
+  };
 };
 
 export const loader = defineHandler.withValidator({ query: TransactionsQuerySchema })(async (
@@ -81,7 +88,10 @@ export const loader = defineHandler.withValidator({ query: TransactionsQuerySche
 });
 
 export const head = defineHead<Props>((_c, props) => ({
-  title: `${formatMonth(props.filter.month)}の取引`,
+  title:
+    props.filter.advance === "unreceived"
+      ? "未入金の立替"
+      : `${formatMonth(props.filter.month)}の取引`,
 }));
 
 const SelectedQuerySchema = v.object({
