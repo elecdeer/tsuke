@@ -30,7 +30,7 @@ vp run dev
 
 ## ledger
 
-支払いは自前の台帳 `apps/ledger` に記録する（Zaim API が 2026-12-07 に提供を終えるため、Zaim から移行した）。[Void](https://void.cloud/) で作り、Cloudflare Workers 上の D1 と Drizzle を使う。Worker `tsuke` にデプロイする。
+支払いは自前の台帳 `apps/ledger` に記録する（Zaim API が 2026-12-07 に提供を終えるため、Zaim から移行した）。[Void](https://void.cloud/) で作り、Cloudflare Workers 上の D1 と Drizzle を使う。登録したレシートの写真は R2 に置く。Worker `tsuke` にデプロイする。
 
 - URL: `https://tsuke.<subdomain>.workers.dev`
 - 拡張機能を台帳に切り替えた後に、Zaim と Cloudflare に残っているもの（`quick-zaim-server`・KV・Zaim のアプリなど）を消す。手順は [phase4-design.md](apps/ledger/docs/phase4-design.md) の「切り替えの後の手順」。2027-01-07 までに済ませる
@@ -65,7 +65,8 @@ sqlite3 "$(ls /tmp/ledger-sample/v3/d1/miniflare-D1DatabaseObject/*.sqlite | gre
 
 `main` に push すると、Worker `tsuke` に接続した Workers Builds が `pnpm -F ledger exec void deploy --platform cloudflare` でデプロイする（Workers Builds のプレビューは無効にしている）。
 
-- API トークンは Workers Builds のビルド用トークンが使われる。D1 の書き込み権限がないとマイグレーションと復元ポイントの作成で失敗する
+- API トークンは Workers Builds のビルド用トークンが使われる。D1 の書き込み権限がないとマイグレーションと復元ポイントの作成で失敗する。R2 のバケットを作るので、R2 の書き込み権限も要る
+- レシートの写真にはカード番号の下 4 桁や購入内容が写っているので、R2 のバケットの公開アクセス（r2.dev・カスタムドメイン）は有効にしない
 - デプロイ最後の準備確認を Access に通すため、ビルドのシークレットに Access のサービストークン（`CF_ACCESS_CLIENT_ID`・`CF_ACCESS_CLIENT_SECRET`）を入れている。Access アプリケーションには、そのトークンを許可する Service Auth のポリシーを付けている
 
 手元からデプロイするときは次のコマンドを使う。

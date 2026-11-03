@@ -298,6 +298,7 @@ const registerErrorMessage = (error: unknown): string => {
  */
 const ReceiptReview = ({
   entry,
+  image,
   draft,
   accounts,
   categories,
@@ -310,6 +311,8 @@ const ReceiptReview = ({
   onRegistered,
 }: Pick<Props, "accounts" | "categories" | "placeNames" | "chainNames"> & {
   entry: ReceiptEntry;
+  /** 登録する取引と一緒に保存する写真 */
+  image: string | undefined;
   draft: TransactionDraft;
   onChange: (draft: TransactionDraft) => void;
   onRetry: () => void;
@@ -334,7 +337,9 @@ const ReceiptReview = ({
     setError(null);
     setPending(true);
     try {
-      const { id } = await ledgerApi()("/api/transactions", "POST", { body: parsed.input });
+      const { id } = await ledgerApi()("/api/transactions", "POST", {
+        body: { ...parsed.input, receiptImage: image },
+      });
       onRegistered(id);
     } catch (registerError) {
       setError(registerErrorMessage(registerError));
@@ -343,7 +348,7 @@ const ReceiptReview = ({
   };
 
   const discard = () => {
-    // 写真は端末にしか残っていないので、捨てる前に確かめる
+    // 登録するまで写真は端末にしか残っていないので、捨てる前に確かめる
     if (window.confirm("このレシートを登録せずに捨てますか？")) onDiscard();
   };
 
@@ -477,7 +482,7 @@ const RegisteredNotice = ({ transactionId }: { transactionId: number }) => (
  * レシートの写真から支出を登録する画面。
  *
  * 撮った写真はキューに溜まり、裏で AI が順に読み取る。読み取れたものから 1 枚ずつ確かめて登録し、
- * 登録すると次のレシートへ進む。キューは端末の IndexedDB に保存し、台帳には写真を保存しない。
+ * 登録すると次のレシートへ進む。キューは端末の IndexedDB に保存し、写真は登録したものだけ台帳に保存する。
  */
 const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }: Props) => {
   const toDraft = (extracted: ExtractedPayment | null): TransactionDraft =>
@@ -574,6 +579,7 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }:
           // レシートを切り替えたら、エラーや重複の確かめを前のレシートから持ち越さない
           key={selected.id}
           entry={selected}
+          image={image}
           draft={selected.draft ?? emptyPaymentDraft(today)}
           accounts={accounts}
           categories={categories}

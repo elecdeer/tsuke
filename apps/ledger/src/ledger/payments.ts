@@ -47,10 +47,12 @@ const blankToNull = (value: string | null): string | null => (value === "" ? nul
  * 店舗の作成・取引・品目を 1 回の batch で入れるので、途中で失敗しても一部の品目だけが残ることはない。
  * batch の中では作った行の ID を受け渡せないので、取引は店舗を名前で、品目は直前に入れた取引を MAX(id) で
  * 参照する（batch はトランザクションで流れ、AUTOINCREMENT なので直前の取引の ID が最大になる）。
+ * receiptImageKey には、先に保存したレシートの写真のキーを渡す。
  */
 export const createPayment = async (
   db: LedgerDb,
   input: PaymentInput,
+  receiptImageKey: string | null = null,
 ): Promise<{ ok: true; id: number } | { ok: false; error: string }> => {
   const genreIds = [...new Set(input.items.map((item) => item.genreId))];
   const genreRows = await db
@@ -84,6 +86,7 @@ export const createPayment = async (
           ? null
           : sql`(SELECT ${places.id} FROM ${places} WHERE ${places.name} = ${placeName})`,
       source: "manual",
+      receiptImageKey,
     })
     .returning({ id: transactions.id });
   const insertItems = db.insert(transactionItems).values(

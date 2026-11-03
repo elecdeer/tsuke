@@ -296,6 +296,24 @@ export const TransactionEditor = ({
         />
       </Section>
 
+      {transaction.hasReceiptImage && (
+        <Section label="レシート">
+          <a
+            href={`/api/transactions/${transaction.id}/receipt-image`}
+            target="_blank"
+            rel="noreferrer"
+            className="block w-fit"
+          >
+            <img
+              src={`/api/transactions/${transaction.id}/receipt-image`}
+              alt="この取引のレシート"
+              loading="lazy"
+              className="max-h-96 border object-contain"
+            />
+          </a>
+        </Section>
+      )}
+
       <Section label="">
         <div className="flex flex-col gap-4">
           {transaction.source === "zaim_csv" && (

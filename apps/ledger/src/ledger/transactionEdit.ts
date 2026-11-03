@@ -22,6 +22,8 @@ export type TransactionDetail = {
   fromAccountId: number | null;
   toAccountId: number | null;
   placeName: string | null;
+  /** レシートの写真を保存しているか。キーは画面に要らないので渡さない */
+  hasReceiptImage: boolean;
   items: {
     categoryId: number | null;
     genreId: number | null;
@@ -48,11 +50,13 @@ export const getTransaction = async (
       fromAccountId: transactions.fromAccountId,
       toAccountId: transactions.toAccountId,
       placeName: places.name,
+      receiptImageKey: transactions.receiptImageKey,
     })
     .from(transactions)
     .leftJoin(places, eq(places.id, transactions.placeId))
     .where(eq(transactions.id, id));
   if (transaction === undefined) return undefined;
+  const { receiptImageKey, ...columns } = transaction;
 
   const items = await db
     .select({
@@ -65,7 +69,7 @@ export const getTransaction = async (
     .from(transactionItems)
     .where(eq(transactionItems.transactionId, id))
     .orderBy(asc(transactionItems.sort), asc(transactionItems.id));
-  return { ...transaction, items };
+  return { ...columns, hasReceiptImage: receiptImageKey !== null, items };
 };
 
 const TextSchema = v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(200)));
@@ -283,13 +287,20 @@ export const updateTransaction = async (
 
 /**
  * 取引を消す。品目は外部キーの on delete cascade で消える。
+ *
+ * レシートの写真は DB の外にあるので、消す相手のキーを返す。呼び出し側で `removeReceiptImage` に渡す。
  */
-export const deleteTransaction = async (db: LedgerDb, id: number): Promise<EditResult> => {
-  const deleted = await db
+export const deleteTransaction = async (
+  db: LedgerDb,
+  id: number,
+): Promise<
+  { ok: true; receiptImageKey: string | null } | { ok: false; status: 404; error: string }
+> => {
+  const [deleted] = await db
     .delete(transactions)
     .where(eq(transactions.id, id))
-    .returning({ id: transactions.id });
-  return deleted.length === 0
+    .returning({ receiptImageKey: transactions.receiptImageKey });
+  return deleted === undefined
     ? { ok: false, status: 404, error: "取引が見つかりません" }
-    : { ok: true };
+    : { ok: true, receiptImageKey: deleted.receiptImageKey };
 };

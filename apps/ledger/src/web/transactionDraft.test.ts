@@ -20,6 +20,7 @@ describe("draftFromTransaction", () => {
         fromAccountId: 3,
         toAccountId: null,
         placeName: null,
+        hasReceiptImage: false,
         items: [{ categoryId: 1, genreId: 2, name: null, memo: "メモ", amount: -50 }],
       }),
     ).toEqual({

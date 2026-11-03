@@ -2,8 +2,10 @@ import { HTTPException } from "hono/http-exception";
 import * as v from "valibot";
 import { defineHandler, defineHead, type InferProps } from "void";
 import { db } from "void/db";
+import { storage } from "void/storage";
 import { monthOf } from "../../src/ledger/dates.ts";
 import { listAccounts, listCategories, listChains, listPlaces } from "../../src/ledger/masters.ts";
+import { removeReceiptImage } from "../../src/ledger/receiptImages.ts";
 import {
   deleteTransaction,
   getTransaction,
@@ -62,6 +64,7 @@ export const actions = {
     const transaction = await getTransaction(db, params.id);
     const result = await deleteTransaction(db, params.id);
     if (!result.ok) return c.json({ error: result.error }, result.status);
+    if (result.receiptImageKey !== null) await removeReceiptImage(storage, result.receiptImageKey);
     return c.redirect(
       transaction === undefined
         ? "/transactions"
