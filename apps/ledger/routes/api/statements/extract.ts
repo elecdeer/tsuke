@@ -3,7 +3,7 @@ import { defineHandler } from "void";
 import { db } from "void/db";
 import { env } from "void/env";
 import {
-  listAccounts,
+  listAccountsWithHint,
   listCategories,
   listPlacesForExtraction,
 } from "../../../src/ledger/masters.ts";
@@ -21,7 +21,7 @@ export const POST = defineHandler.withValidator({ body: ExtractBodySchema })(asy
 ) => {
   const [categories, accounts, places] = await Promise.all([
     listCategories(db, "payment"),
-    listAccounts(db),
+    listAccountsWithHint(db),
     listPlacesForExtraction(db),
   ]);
   try {

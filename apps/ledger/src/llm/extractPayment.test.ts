@@ -6,7 +6,9 @@
  */
 import { describe, expect, test, vi } from "vite-plus/test";
 import {
+  ACCOUNT_NOTES_RULE,
   buildPrompt,
+  formatAccountsForPrompt,
   formatRecentPlacesForPrompt,
   resolvePlaceAlias,
   runExtractPayment,
@@ -60,9 +62,9 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("102=日用品: (none)");
   });
 
-  test("口座は ID=name のカンマ区切り", () => {
+  test("口座は ID=name を 1 行ずつ並べる", () => {
     const { prompt } = buildPrompt(baseInput());
-    expect(prompt).toContain("1=現金, 2=Suica");
+    expect(prompt).toContain("1=現金\n2=Suica");
   });
 
   test("店舗は使用回数・最終日とともに 1 行ずつ並べ、使ったことのない店舗は出さない", () => {
@@ -168,6 +170,26 @@ describe("runExtractPayment", () => {
     await expect(
       runExtractPayment({ ai, model: "test-model", input: baseInput() }),
     ).rejects.toThrow();
+  });
+});
+
+describe("口座のヒント", () => {
+  test("ヒントのある口座の行にだけ添える", () => {
+    expect(
+      formatAccountsForPrompt([
+        { id: 1, name: "現金", aiHint: null },
+        { id: 2, name: "楽天カード", aiHint: "VISA 1234 はこのカード" },
+      ]),
+    ).toBe("1=現金\n2=楽天カード; hint: VISA 1234 はこのカード");
+  });
+
+  test("口座が無いときは (none) を出す", () => {
+    expect(formatAccountsForPrompt([])).toBe("(none)");
+  });
+
+  test("ヒントの読み方を system プロンプトで指示する", () => {
+    const { system } = buildPrompt(baseInput());
+    expect(system).toContain(ACCOUNT_NOTES_RULE);
   });
 });
 
