@@ -217,6 +217,8 @@ export const EXTRACTED_PAYMENT_JSON_SCHEMA = toJsonSchema(ExtractedPaymentSchema
 export const runExtractPayment = (params: {
   ai: AiRunner;
   model: string;
+  /** 推論量。受け付ける値はモデルごとに違うので、未指定ならモデルの既定に任せる */
+  reasoningEffort?: string;
   input: ExtractPaymentContext;
   abortSignal?: AbortSignal;
 }): Promise<{ object: ExtractedPayment; usage: unknown; timing: ExtractTiming }> =>
@@ -227,6 +229,7 @@ export const runExtractPayment = (params: {
     schemaName: "ExtractedPayment",
     jsonSchema: EXTRACTED_PAYMENT_JSON_SCHEMA,
     schema: ExtractedPaymentSchema,
+    reasoningEffort: params.reasoningEffort,
     abortSignal: params.abortSignal,
   }).then((result) => ({
     ...result,

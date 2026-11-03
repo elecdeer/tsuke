@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { ExtractedPayment } from "../llm/extractPayment.ts";
-import type { ReceiptReadQuality } from "../llm/extractReceipt.ts";
+import type { ReadQuality } from "../llm/readQuality.ts";
 import {
   markReadFailed,
   nextToRead,
@@ -53,7 +53,7 @@ export const useReceiptQueue = ({
   read,
   toDraft,
 }: {
-  read: (image: string, quality: ReceiptReadQuality) => Promise<ExtractedPayment>;
+  read: (image: string, quality: ReadQuality) => Promise<ExtractedPayment>;
   toDraft: (extracted: ExtractedPayment | null) => TransactionDraft;
 }): ReceiptQueue => {
   // サーバーで描くときは IndexedDB がないが、開くのは effect の中だけなので作るだけなら問題ない

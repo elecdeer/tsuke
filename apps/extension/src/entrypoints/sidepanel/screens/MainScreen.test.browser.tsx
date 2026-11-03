@@ -330,7 +330,9 @@ describe("MainScreen", () => {
     });
   });
 
-  test("自動入力はページの内容だけを送り、返ってきた内容をフォームに入れる", async ({ worker }) => {
+  test("自動入力はページの内容を速さ優先で送り、返ってきた内容をフォームに入れる", async ({
+    worker,
+  }) => {
     const extractBody = vi.fn<(body: unknown) => void>();
     const extracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
       date: "2024-01-10",
@@ -365,6 +367,7 @@ describe("MainScreen", () => {
         ariaSnapshot: "heading: ご注文内容",
         collectedAt: "2024-01-10T12:00:00.000Z",
       },
+      quality: "fast",
     });
     await expect
       .element(page.getByRole("combobox", { name: "口座" }))
@@ -393,6 +396,91 @@ describe("MainScreen", () => {
     await expect
       .element(page.getByRole("alert"))
       .toMatchTextContent("自動入力に失敗しました（502）");
+  });
+
+  test("自動入力の後は、もう一度読み取ると正確さ優先で読み直してフォームを置き換える", async ({
+    worker,
+  }) => {
+    const qualities: unknown[] = [];
+    worker.use(
+      ...commonHandlers,
+      http.post(mockUrl("/api/transactions/extract"), async ({ request }) => {
+        const body = await request.json();
+        const quality =
+          typeof body === "object" && body !== null && "quality" in body ? body.quality : null;
+        qualities.push(quality);
+        const extracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
+          date: "2024-01-10",
+          accountId: null,
+          placeName: null,
+          items: [
+            {
+              name: quality === "accurate" ? "正しい品名" : "誤った品名",
+              amount: 100,
+              memo: null,
+              genreId: 1001,
+            },
+          ],
+          confidence: "high",
+          reasoning: "",
+        };
+        return HttpResponse.json(extracted);
+      }),
+    );
+
+    await render(<Default.Component />);
+
+    const reread = page.getByRole("button", { name: "もう一度読み取る" });
+    await expect.element(reread).not.toBeInTheDocument();
+
+    await page.getByRole("button", { name: "このページから自動入力" }).click();
+    const itemName = page.getByRole("button", { name: "品名を編集" }).first();
+    await expect.element(itemName).toMatchTextContent("誤った品名");
+
+    await reread.click();
+
+    await expect.element(itemName).toMatchTextContent("正しい品名");
+    expect(qualities).toEqual(["fast", "accurate"]);
+  });
+
+  test("読み直しに失敗しても、前の結果を残して読み直せる", async ({ worker }) => {
+    worker.use(
+      ...commonHandlers,
+      http.post(mockUrl("/api/transactions/extract"), async ({ request }) => {
+        const body = await request.json();
+        if (
+          typeof body === "object" &&
+          body !== null &&
+          "quality" in body &&
+          body.quality === "accurate"
+        ) {
+          return HttpResponse.json({ error: "LLM failed" }, { status: 502 });
+        }
+        const extracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
+          date: "2024-01-10",
+          accountId: null,
+          placeName: null,
+          items: [{ name: "前の品名", amount: 100, memo: null, genreId: 1001 }],
+          confidence: "high",
+          reasoning: "",
+        };
+        return HttpResponse.json(extracted);
+      }),
+    );
+
+    await render(<Default.Component />);
+
+    await page.getByRole("button", { name: "このページから自動入力" }).click();
+    const itemName = page.getByRole("button", { name: "品名を編集" }).first();
+    await expect.element(itemName).toMatchTextContent("前の品名");
+
+    await page.getByRole("button", { name: "もう一度読み取る" }).click();
+
+    await expect
+      .element(page.getByRole("alert"))
+      .toMatchTextContent("自動入力に失敗しました（502）");
+    await expect.element(itemName).toMatchTextContent("前の品名");
+    await expect.element(page.getByRole("button", { name: "もう一度読み取る" })).toBeEnabled();
   });
 
   /** 指定した店舗名を返す自動入力ハンドラー。品目は 1 件（食料品・250 円） */

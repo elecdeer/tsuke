@@ -7,16 +7,12 @@ import {
   listCategories,
   listPlacesForExtraction,
 } from "../../../src/ledger/masters.ts";
-import {
-  RECEIPT_READ_SETTINGS,
-  ReceiptImageSchema,
-  ReceiptReadQualitySchema,
-  runExtractReceipt,
-} from "../../../src/llm/extractReceipt.ts";
+import { ReceiptImageSchema, runExtractReceipt } from "../../../src/llm/extractReceipt.ts";
+import { READ_SETTINGS, ReadQualitySchema } from "../../../src/llm/readQuality.ts";
 
 const ExtractBodySchema = v.object({
   image: ReceiptImageSchema,
-  quality: v.optional(ReceiptReadQualitySchema, "fast"),
+  quality: v.optional(ReadQualitySchema, "fast"),
 });
 
 /**
@@ -41,7 +37,7 @@ export const POST = defineHandler.withValidator({ body: ExtractBodySchema })(asy
       input: { image: body.image, today: todayInTokyo(), categories, accounts, places },
     });
     console.info("LLM extract-receipt completed", {
-      model: RECEIPT_READ_SETTINGS[body.quality].model,
+      model: READ_SETTINGS[body.quality].model,
       quality: body.quality,
       usage,
       confidence: object.confidence,

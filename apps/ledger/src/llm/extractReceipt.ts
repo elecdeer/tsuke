@@ -15,6 +15,7 @@ import {
   type ExtractedPayment,
   type ExtractPaymentContext,
 } from "./extractPayment.ts";
+import { READ_SETTINGS, type ReadQuality } from "./readQuality.ts";
 import {
   runStructuredChat,
   type AiRunner,
@@ -27,30 +28,6 @@ import {
  * ふつうは 1MB に届かない。縮めずに送られた写真を AI に渡さないための上限
  */
 const RECEIPT_IMAGE_MAX_LENGTH = 4_000_000;
-
-/** レシートの読み取りで、速さと正確さのどちらを優先するか */
-export const ReceiptReadQualitySchema = v.picklist(["fast", "accurate"]);
-
-export type ReceiptReadQuality = v.InferOutput<typeof ReceiptReadQualitySchema>;
-
-/**
- * 読み取りの優先ごとのモデルと推論量。受け付ける推論量はモデルごとに違うので、組にして持つ。
- *
- * まず fast で読み、誤りが目立つときだけ画面から accurate で読み直す。レシート 5 枚で比べると、
- * fast は 2 秒ほどだが値引きのある税抜のレシートの合計を誤り、accurate は 4 秒ほどかかるが品名・金額とも誤らなかった。
- * gpt-6-luna は 3.8 秒ほどかかるうえ、印字にない品名を書くことが多く、推論量を上げても直りきらなかったのでやめた。
- * 推論しない Clairic・Clef（Workers AI の抽出・判定モデル）も試したが、Clairic は画像の日本語を読み落とすので使えなかった。
- *
- * - fast：推論量を送らない。Gemini は none を受け付けず、minimal や low は推論トークンが増えても精度が上がらなかった
- * - accurate：low を送る。送らないと推論トークンが 3000 を超え、20 秒以上かかることがあった
- */
-export const RECEIPT_READ_SETTINGS: Record<
-  ReceiptReadQuality,
-  { model: string; reasoningEffort?: string }
-> = {
-  fast: { model: "google/gemini-3.1-flash-lite" },
-  accurate: { model: "google/gemini-3.8-flash", reasoningEffort: "low" },
-};
 
 /** レシートの画像（JPEG・PNG・WebP の data URL） */
 export const ReceiptImageSchema = v.pipe(
@@ -117,18 +94,18 @@ export const buildReceiptPrompt = (input: ExtractReceiptContext): StructuredProm
  */
 export const runExtractReceipt = (params: {
   ai: AiRunner;
-  quality: ReceiptReadQuality;
+  quality: ReadQuality;
   input: ExtractReceiptContext;
   abortSignal?: AbortSignal;
 }): Promise<{ object: ExtractedPayment; usage: unknown; timing: ExtractTiming }> =>
   runStructuredChat({
     ai: params.ai,
-    model: RECEIPT_READ_SETTINGS[params.quality].model,
+    model: READ_SETTINGS[params.quality].model,
     buildPrompt: () => buildReceiptPrompt(params.input),
     schemaName: "ExtractedPayment",
     jsonSchema: EXTRACTED_PAYMENT_JSON_SCHEMA,
     schema: ExtractedPaymentSchema,
-    reasoningEffort: RECEIPT_READ_SETTINGS[params.quality].reasoningEffort,
+    reasoningEffort: READ_SETTINGS[params.quality].reasoningEffort,
     abortSignal: params.abortSignal,
   }).then((result) => ({
     ...result,

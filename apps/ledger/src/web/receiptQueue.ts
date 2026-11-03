@@ -1,5 +1,5 @@
 import type { ExtractedPayment } from "../llm/extractPayment.ts";
-import type { ReceiptReadQuality } from "../llm/extractReceipt.ts";
+import type { ReadQuality } from "../llm/readQuality.ts";
 import type { TransactionDraft } from "./transactionDraft.ts";
 
 /**
@@ -21,7 +21,7 @@ export type ReceiptEntry = {
   createdAt: number;
   status: ReceiptStatus;
   /** 読み取りの優先。ないものは fast（この項目を足す前に端末へ保存されたレシートにはない） */
-  quality?: ReceiptReadQuality;
+  quality?: ReadQuality;
   /** AI が読み取った結果。読み取る前と、一度も読み取れていないときは null */
   extracted: ExtractedPayment | null;
   /** 確かめているフォームの値。読み取り（または失敗）が済むまでは null */
