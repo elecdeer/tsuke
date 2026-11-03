@@ -1,5 +1,6 @@
 import { cors } from "hono/cors";
 import { defineMiddleware } from "void";
+import { isAllowedCorsOrigin } from "../src/corsOrigin.ts";
 
 /**
  * 拡張機能（chrome-extension://）とローカル開発からのクロスオリジンリクエストを許可する。
@@ -7,16 +8,7 @@ import { defineMiddleware } from "void";
  */
 export default defineMiddleware(
   cors({
-    origin: (origin) => {
-      if (
-        origin.startsWith("chrome-extension://") ||
-        origin.startsWith("http://localhost") ||
-        origin.startsWith("http://127.0.0.1")
-      ) {
-        return origin;
-      }
-      return null;
-    },
+    origin: (origin) => (isAllowedCorsOrigin(origin) ? origin : null),
     credentials: true,
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type"],
