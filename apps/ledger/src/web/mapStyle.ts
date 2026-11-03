@@ -1,7 +1,12 @@
 /**
  * 店舗を選ぶ地図のスタイル。OpenFreeMap の配信するものを、店舗の印が見やすいように手直しする。
  */
-import type { LayerSpecification, StyleSpecification } from "maplibre-gl";
+import type {
+  ExpressionSpecification,
+  FilterSpecification,
+  LayerSpecification,
+  StyleSpecification,
+} from "maplibre-gl";
 
 export const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 
@@ -27,6 +32,17 @@ const useLocalName = (layer: LayerSpecification): LayerSpecification => {
 };
 
 /**
+ * 施設のレイヤーからバス停を除き、駅は鉄道の駅だけにする。バス停は数が多く、鉄道の駅と同じ色のアイコンで見分けにくい。
+ */
+const hideBusStops = (layer: LayerSpecification): LayerSpecification => {
+  if (layer.type !== "symbol" || layer["source-layer"] !== "poi") return layer;
+  const notBus: ExpressionSpecification = ["!=", ["get", "class"], "bus"];
+  if (layer.filter === undefined) return { ...layer, filter: notBus };
+  // 型は古い形式の条件も含むが、配信されるスタイルの条件はすべて式で、そのまま "all" に入れられる
+  return { ...layer, filter: ["all", layer.filter, notBus] as FilterSpecification };
+};
+
+/**
  * 配信されたスタイルを、店舗を選ぶ地図向けに手直しする。
  */
 export const adjustMapStyle = (
@@ -34,5 +50,8 @@ export const adjustMapStyle = (
   next: StyleSpecification,
 ): StyleSpecification => ({
   ...next,
-  layers: next.layers.filter((layer) => !HIDDEN_LAYER_IDS.has(layer.id)).map(useLocalName),
+  layers: next.layers
+    .filter((layer) => !HIDDEN_LAYER_IDS.has(layer.id))
+    .map(useLocalName)
+    .map(hideBusStops),
 });

@@ -58,6 +58,41 @@ describe("adjustMapStyle", () => {
     expect(adjustMapStyle(undefined, styleOf(shield)).layers).toEqual([shield]);
   });
 
+  test("施設のレイヤーからバス停を除き、元の条件も保つ", () => {
+    const original: ExpressionSpecification = [
+      "match",
+      ["get", "class"],
+      ["bus", "rail"],
+      true,
+      false,
+    ];
+    const poi: LayerSpecification = {
+      id: "poi_transit",
+      type: "symbol",
+      source: "openmaptiles",
+      "source-layer": "poi",
+      filter: original,
+    };
+
+    const [layer] = adjustMapStyle(undefined, styleOf(poi)).layers;
+
+    expect(layer).toMatchObject({
+      filter: ["all", original, ["!=", ["get", "class"], "bus"]],
+    });
+  });
+
+  test("施設以外のレイヤーの条件は変えない", () => {
+    const road: LayerSpecification = {
+      id: "road_minor",
+      type: "line",
+      source: "openmaptiles",
+      "source-layer": "transportation",
+      filter: ["==", ["get", "class"], "minor"],
+    };
+
+    expect(adjustMapStyle(undefined, styleOf(road)).layers).toEqual([road]);
+  });
+
   test("レイヤー以外の設定はそのまま保つ", () => {
     const style = { ...styleOf(), glyphs: "https://example.com/{fontstack}/{range}" };
 
