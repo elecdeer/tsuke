@@ -31,6 +31,7 @@ const extracted = {
   accountId: 2,
   placeName: "スーパーA",
   placePhone: null,
+  receiptBox: { ymin: 100, xmin: 200, ymax: 900, xmax: 700 },
   items: [{ name: "牛乳", amount: 248, memo: null, genreId: 10101 }],
   confidence: "high",
   reasoning: "receipt",
@@ -193,6 +194,31 @@ describe("resolveReceiptPlaceName", () => {
 });
 
 describe("runExtractReceipt", () => {
+  test("写真の中のレシートの範囲をそのまま返す", async () => {
+    const ai = {
+      run: vi.fn(async () => ({
+        choices: [{ message: { content: JSON.stringify(extracted) } }],
+      })),
+    };
+
+    const { object } = await runExtractReceipt({ ai, quality: "fast", input: baseInput() });
+
+    expect(object.receiptBox).toEqual({ ymin: 100, xmin: 200, ymax: 900, xmax: 700 });
+  });
+
+  test("外れた範囲が返っても読み取りは失敗にしない", async () => {
+    const receiptBox = { ymin: 100, xmin: 200, ymax: 1600, xmax: 700 };
+    const ai = {
+      run: vi.fn(async () => ({
+        choices: [{ message: { content: JSON.stringify({ ...extracted, receiptBox }) } }],
+      })),
+    };
+
+    const { object } = await runExtractReceipt({ ai, quality: "fast", input: baseInput() });
+
+    expect(object.receiptBox).toEqual(receiptBox);
+  });
+
   test("読み取った店舗名を既存の店舗の名前に直して返す", async () => {
     const ai = {
       run: vi.fn(async () => ({

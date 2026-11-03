@@ -46,10 +46,26 @@ export type ExtractReceiptContext = Omit<ExtractPaymentContext, "pageContent"> &
   today: string;
 };
 
-/** レシートの読み取りの出力。ページからの抽出の項目に、店舗の電話番号を足す */
+/**
+ * 写真の中のレシートの範囲。写真の左上を 0、右下を 1000 とした座標。
+ *
+ * ピクセルにしないのは、写真の大きさを伝えても Gemini が 0〜1000 の座標を返したため（docs/phase5-design.md）。
+ * 外れた値でも読み取り全体を失敗にしないよう、値の範囲はここでは確かめず、使うときに確かめる
+ */
+export const ReceiptBoxSchema = v.strictObject({
+  ymin: v.number(),
+  xmin: v.number(),
+  ymax: v.number(),
+  xmax: v.number(),
+});
+
+export type ReceiptBox = v.InferOutput<typeof ReceiptBoxSchema>;
+
+/** レシートの読み取りの出力。ページからの抽出の項目に、店舗の電話番号と写真の中のレシートの範囲を足す */
 export const ExtractedReceiptSchema = v.strictObject({
   ...ExtractedPaymentSchema.entries,
   placePhone: v.nullable(v.string()),
+  receiptBox: v.nullable(ReceiptBoxSchema),
 });
 
 export type ExtractedReceipt = v.InferOutput<typeof ExtractedReceiptSchema>;
@@ -69,6 +85,7 @@ export const buildReceiptPrompt = (input: ExtractReceiptContext): StructuredProm
     '- `date`: "YYYY-MM-DD". Convert Japanese era years (令和8年 = 2026) and two-digit years; when the year is missing, use the year of "Today".',
     `- \`placeName\`: use a recent store name as is when it clearly fits, else the store name printed on the receipt (include the branch name). When writing a printed name, put one half-width space between the chain name and the branch name (e.g. \`ローソン 新宿西口店\`); use no space when there is no branch. ${PLACE_NOTES_RULE}`,
     "- `placePhone`: the store's phone number printed on the receipt (TEL, 電話), as printed; null when there is none. Do not use fax numbers.",
+    "- `receiptBox`: the bounding box of the whole paper receipt in the image, including its blank margins; no part of the receipt may be outside it, and when the receipt is tilted the box must contain all four corners. Integers ymin, xmin, ymax, xmax normalized to 0-1000 relative to the image (top-left is 0,0; bottom-right is 1000,1000), regardless of the image's size. null when no receipt is visible.",
     "- `confidence`: high/medium/low based on how legible the receipt is.",
     "- `reasoning`: 1-3 sentences justifying your choices.",
     "",

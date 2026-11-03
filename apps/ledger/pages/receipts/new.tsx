@@ -24,6 +24,7 @@ import { createLedgerClient, LedgerFetchError } from "@/client";
 import type { DuplicateCandidate } from "@/ledger/payments";
 import type { ExtractedPayment } from "@/llm/extractPayment";
 import { ErrorMessage } from "@/web/components/ErrorMessage";
+import { ReceiptPhoto } from "@/web/components/ReceiptPhoto";
 import { ReviewSheet } from "@/web/components/ReviewSheet";
 import { Section } from "@/web/components/Section";
 import {
@@ -40,6 +41,7 @@ import {
   emptyPaymentDraft,
   paymentFromDraft,
 } from "@/web/receiptDraft";
+import { receiptCrop } from "@/web/receiptCrop";
 import { resizeReceiptImage } from "@/web/receiptImage";
 import {
   formatReadTime,
@@ -679,11 +681,12 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }:
         <div className="md:grid md:grid-cols-12 md:items-start md:gap-x-4">
           <div className="md:sticky md:top-[calc(var(--header-height)+1rem)] md:col-span-4 md:max-h-[calc(100dvh-var(--header-height)-2rem)] md:overflow-y-auto">
             {image !== undefined && (
-              <img
+              <ReceiptPhoto
+                // レシートごとに全体の表示を選び直す。範囲が外れたレシートのための切り替えなので、次へ持ち越さない
+                key={selected.id}
                 src={image}
+                crop={receiptCrop(selected.extracted?.receiptBox)}
                 alt="確かめているレシート"
-                // 細かい文字を読めるよう幅いっぱいに出す。長いレシートはスクロールして見る
-                className="h-auto w-full border"
               />
             )}
             {/* シートに隠れる分だけ余白を足して、写真の下の方もシートの上までスクロールできるようにする */}
