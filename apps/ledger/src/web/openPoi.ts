@@ -15,8 +15,14 @@ export type LngLat = { lng: number; lat: number };
 /** 地図の表示範囲（西・南・東・北） */
 export type BBox = { minLng: number; minLat: number; maxLng: number; maxLat: number };
 
-/** 検索の範囲。地図を動かしたら表示範囲で、開いたときは現在地の周りで探す */
+/** 検索の範囲。中心と半径か、地図の表示範囲 */
 export type PoiArea = { center: LngLat; radius: number } | { bbox: BBox };
+
+/** 1 回の検索で受け取れる件数の上限（API の上限）。範囲の中にこれより多くあると、一部しか返らない */
+export const POI_SEARCH_LIMIT = 200;
+
+/** 地図の中心から近い順に受け取る件数 */
+const NEAREST_LIMIT = 50;
 
 /** 地図に出す施設。座標のない施設は地図に置けないので除く */
 export type Poi = {
@@ -26,6 +32,10 @@ export type Poi = {
   address: string;
   position: LngLat;
 };
+
+/** 施設を見分けるキー。検索し直すと同じ施設でも別のオブジェクトになるので、これで比べる */
+export const poiKey = ({ name, position }: Poi): string =>
+  `${name}:${position.lng}:${position.lat}`;
 
 /** 地図をいくら縮めても、API が受け付ける範囲（経度 ±180・緯度 ±85）に収める */
 const clampBBox = (bbox: BBox): BBox => {
@@ -108,7 +118,7 @@ export const distance = (a: LngLat, b: LngLat): number => {
 export const searchPois = async (
   keyword: string,
   area: PoiArea,
-  { limit = 50, signal }: { limit?: number; signal?: AbortSignal } = {},
+  { limit = POI_SEARCH_LIMIT, signal }: { limit?: number; signal?: AbortSignal } = {},
 ): Promise<Poi[]> => {
   const response = await fetch(searchUrl(keyword, area, limit), {
     headers: { Accept: "application/json" },
@@ -121,4 +131,42 @@ export const searchPois = async (
     throw new Error(message || `店舗を探せませんでした（${response.status}）`);
   }
   return poisFromResponse(await response.json());
+};
+
+/**
+ * 2 つの検索結果を 1 つにまとめる。同じ施設は 1 件にし、範囲の外の施設は除く。
+ */
+export const mergePoisInView = (bbox: BBox, ...lists: Poi[][]): Poi[] => {
+  const merged = new Map<string, Poi>();
+  for (const poi of lists.flat()) {
+    const { lng, lat } = poi.position;
+    const inView =
+      bbox.minLng <= lng && lng <= bbox.maxLng && bbox.minLat <= lat && lat <= bbox.maxLat;
+    if (inView) merged.set(poiKey(poi), poi);
+  }
+  return [...merged.values()];
+};
+
+/**
+ * 地図の表示範囲の施設を探す。
+ *
+ * 範囲の検索は全体に散らばって返るが、近い順ではなく、多いと打ち切られて中心のすぐ近くの店が漏れる。
+ * 中心からの検索は近い順に返るが、店の多い所では中心に固まり、地図の大半に印が出ない。
+ * どちらか一方では足りないので、両方の結果をまとめる。
+ */
+export const searchPoisInView = async (
+  keyword: string,
+  bbox: BBox,
+  center: LngLat,
+  { signal }: { signal?: AbortSignal } = {},
+): Promise<Poi[]> => {
+  const radius = Math.min(
+    distance(center, { lng: bbox.minLng, lat: center.lat }),
+    distance(center, { lng: center.lng, lat: bbox.minLat }),
+  );
+  const [spread, nearest] = await Promise.all([
+    searchPois(keyword, { bbox }, { signal }),
+    searchPois(keyword, { center, radius }, { limit: NEAREST_LIMIT, signal }),
+  ]);
+  return mergePoisInView(bbox, spread, nearest);
 };

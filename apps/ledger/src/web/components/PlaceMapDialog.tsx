@@ -1,5 +1,5 @@
 /**
- * 地図から店舗を選ぶダイアログ。現在地の周りの施設を OpenPOI API で探し、地図と一覧に出す。
+ * 地図から店舗を選ぶダイアログ。地図に出ている範囲の施設を OpenPOI API で探し、地図と一覧に出す。
  */
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
@@ -19,10 +19,11 @@ import { Input } from "@/components/ui/input";
 import {
   distance,
   OPEN_POI_ATTRIBUTION_URL,
-  searchPois,
+  POI_SEARCH_LIMIT,
+  poiKey,
+  searchPoisInView,
   type LngLat,
   type Poi,
-  type PoiArea,
 } from "@/web/openPoi";
 import { adjustMapStyle, MAP_STYLE_URL } from "@/web/mapStyle";
 import { cn } from "@/lib/utils";
@@ -32,8 +33,8 @@ type MapLibre = typeof import("maplibre-gl");
 /** 現在地がわからないときに出す場所（東京駅） */
 const FALLBACK_CENTER: LngLat = { lng: 139.7671, lat: 35.6812 };
 
-/** 開いたときに探す、現在地からの半径（m） */
-const NEARBY_RADIUS = 300;
+/** 地図が止まってから探し始めるまでの時間（ms）。続けて動かしている間は探さない */
+const SEARCH_DELAY = 300;
 
 const INITIAL_ZOOM = 16;
 
@@ -83,7 +84,7 @@ const locate = () =>
 type Status =
   | { type: "locating" }
   | { type: "searching" }
-  | { type: "done"; note?: string }
+  | { type: "done" }
   | { type: "error"; message: string };
 
 /**
@@ -97,28 +98,51 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
   const listRef = useRef<HTMLUListElement>(null);
   const [ready, setReady] = useState(false);
   const [keyword, setKeyword] = useState("");
+  /** 探すときに使うキーワード。入力の途中で地図を動かしても、確定するまでは前のもので探す */
+  const appliedKeywordRef = useRef("");
   const [status, setStatus] = useState<Status>({ type: "locating" });
-  /** 一覧は近い順に並べ、距離はこの点から測る（現在地の周りを探したときは現在地、範囲で探したときは地図の中心） */
+  /** 一覧は近い順に並べ、距離はこの点（探したときの地図の中心）から測る */
   const [result, setResult] = useState<{ origin: LngLat; pois: Poi[] }>({
     origin: FALLBACK_CENTER,
     pois: [],
   });
   const [selected, setSelected] = useState<Poi | null>(null);
+  const [locationNote, setLocationNote] = useState<string | null>(null);
 
-  const search = async (area: PoiArea, origin: LngLat, note?: string) => {
+  /** 地図に今出ている範囲を探す */
+  const searchView = async () => {
+    const map = mapRef.current?.map;
+    if (map === undefined) return;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     setStatus({ type: "searching" });
-    setSelected(null);
+    const bounds = map.getBounds();
+    const { lng, lat } = map.getCenter();
+    const origin = { lng, lat };
     try {
-      const pois = await searchPois(keyword, area, { signal: controller.signal });
+      const pois = await searchPoisInView(
+        appliedKeywordRef.current,
+        {
+          minLng: bounds.getWest(),
+          minLat: bounds.getSouth(),
+          maxLng: bounds.getEast(),
+          maxLat: bounds.getNorth(),
+        },
+        origin,
+        { signal: controller.signal },
+      );
       pois.sort((a, b) => distance(origin, a.position) - distance(origin, b.position));
       setResult({ origin, pois });
-      setStatus({ type: "done", note });
+      // 地図を少し動かしただけで選び直しにならないよう、範囲に残っていれば選んだままにする
+      setSelected(
+        (previous) => previous && (pois.find((poi) => poiKey(poi) === poiKey(previous)) ?? null),
+      );
+      setStatus({ type: "done" });
     } catch (error) {
       if (controller.signal.aborted) return;
       setResult({ origin, pois: [] });
+      setSelected(null);
       setStatus({
         type: "error",
         // 回数の上限を超えた応答には CORS のヘッダーが付かず、TypeError（通信の失敗）になる
@@ -132,14 +156,14 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
     }
   };
 
-  /** 現在地へ地図を動かし、その周りを探す */
-  const searchNearby = async () => {
+  /** 現在地へ地図を動かす。動かすと、そこに出ている範囲を探す */
+  const moveToCurrentLocation = async () => {
     setStatus({ type: "locating" });
     const here = await locate();
     const current = mapRef.current;
     if (current === null) return;
-    const center = here ?? FALLBACK_CENTER;
-    current.map.jumpTo({ center, zoom: INITIAL_ZOOM });
+    setLocationNote(here === null ? "現在地がわからないので、東京駅の周りを出しています" : null);
+    current.map.jumpTo({ center: here ?? FALLBACK_CENTER, zoom: INITIAL_ZOOM });
     currentMarkerRef.current?.remove();
     currentMarkerRef.current =
       here === null
@@ -149,31 +173,13 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
           })
             .setLngLat(here)
             .addTo(current.map);
-    await search(
-      { center, radius: NEARBY_RADIUS },
-      center,
-      here === null ? "現在地がわからないので、東京駅の周りを出しています" : undefined,
-    );
   };
 
-  /** 地図に今出ている範囲を探す */
-  const searchView = (event: FormEvent) => {
+  /** キーワードを確定して探す */
+  const submitKeyword = (event: FormEvent) => {
     event.preventDefault();
-    const map = mapRef.current?.map;
-    if (map === undefined) return;
-    const bounds = map.getBounds();
-    const center = map.getCenter();
-    void search(
-      {
-        bbox: {
-          minLng: bounds.getWest(),
-          minLat: bounds.getSouth(),
-          maxLng: bounds.getEast(),
-          maxLat: bounds.getNorth(),
-        },
-      },
-      { lng: center.lng, lat: center.lat },
-    );
+    appliedKeywordRef.current = keyword;
+    void searchView();
   };
 
   // MapLibre は読み込むだけで window に触れるので、サーバーでの描画を避けてここで読み込む
@@ -225,9 +231,24 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
     };
   }, []);
 
+  // 地図に出ている範囲と一覧がずれないよう、地図が止まるたびに探し直す
   useEffect(() => {
-    if (ready) void searchNearby();
-    // 地図ができたときに 1 度だけ探す
+    const map = mapRef.current?.map;
+    if (!ready || map === undefined) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onMoveEnd = ({ originalEvent }: { originalEvent?: unknown }) => {
+      // 人が動かしたら、もう東京駅の周りとは限らない
+      if (originalEvent !== undefined) setLocationNote(null);
+      clearTimeout(timer);
+      timer = setTimeout(() => void searchView(), SEARCH_DELAY);
+    };
+    map.on("moveend", onMoveEnd);
+    void moveToCurrentLocation();
+    return () => {
+      clearTimeout(timer);
+      map.off("moveend", onMoveEnd);
+    };
+    // 地図ができたときに 1 度だけつなぐ
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
@@ -249,10 +270,9 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
     };
   }, [ready, result, selected]);
 
-  // 一覧で選んだ施設を地図の真ん中に出し、地図で選んだ施設を一覧で見える所まで送る
+  // 地図で選んだ施設を一覧で見える所まで送る。一覧の施設は地図に出ているので、地図は動かさない
   useEffect(() => {
     if (selected === null) return;
-    mapRef.current?.map.panTo(selected.position);
     listRef.current
       ?.querySelector(`[data-poi-index="${result.pois.indexOf(selected)}"]`)
       ?.scrollIntoView({ block: "nearest" });
@@ -263,7 +283,7 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col gap-4 md:grid md:grid-cols-[minmax(0,1fr)_22rem] md:grid-rows-[auto_minmax(0,1fr)]">
-        <form className="flex gap-1.5 md:col-start-2 md:row-start-1" onSubmit={searchView}>
+        <form className="flex gap-1.5 md:col-start-2 md:row-start-1" onSubmit={submitKeyword}>
           <Input
             type="search"
             aria-label="キーワード"
@@ -271,17 +291,17 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
           />
-          <Button type="submit" variant="outline" disabled={!ready || busy}>
+          <Button type="submit" variant="outline" disabled={!ready}>
             <Search />
-            この範囲で探す
+            探す
           </Button>
           <Button
             type="button"
             variant="outline"
             size="icon"
-            aria-label="現在地の周りを探す"
+            aria-label="現在地へ移動する"
             disabled={!ready || busy}
-            onClick={() => void searchNearby()}
+            onClick={() => void moveToCurrentLocation()}
           >
             <LocateFixed />
           </Button>
@@ -303,11 +323,13 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
               </span>
             ) : (
               <>
-                {status.type === "done" && status.note !== undefined && <p>{status.note}</p>}
+                {locationNote !== null && <p>{locationNote}</p>}
                 <p>
                   {result.pois.length === 0
                     ? "見つかりませんでした。地図を動かすか、キーワードを変えて探してください"
-                    : `${result.pois.length} 件。地図の印か一覧から選んでください`}
+                    : result.pois.length >= POI_SEARCH_LIMIT
+                      ? `多いので ${result.pois.length} 件だけ出しています。地図を拡大すると絞り込めます`
+                      : `${result.pois.length} 件。地図の印か一覧から選んでください`}
                 </p>
               </>
             )}
@@ -315,7 +337,7 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
           {result.pois.length > 0 && (
             <ul ref={listRef} className="-mx-1 min-h-0 flex-1 overflow-y-auto">
               {result.pois.map((poi, index) => (
-                <li key={`${poi.name}:${poi.position.lng}:${poi.position.lat}`}>
+                <li key={poiKey(poi)}>
                   <button
                     type="button"
                     data-poi-index={index}
@@ -374,7 +396,7 @@ export const PlaceMapDialog = ({ onSelect }: { onSelect: (name: string) => void 
         <DialogHeader>
           <DialogTitle>地図から店舗を選ぶ</DialogTitle>
           <DialogDescription className="sr-only">
-            現在地の周りの店舗を地図と一覧に出します
+            地図に出ている範囲の店舗を地図と一覧に出します
           </DialogDescription>
         </DialogHeader>
         {open && (
