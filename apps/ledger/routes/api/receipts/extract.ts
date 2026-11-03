@@ -9,7 +9,8 @@ import { ReceiptImageSchema, runExtractReceipt } from "../../../src/llm/extractR
 const ExtractBodySchema = v.object({ image: ReceiptImageSchema });
 
 /**
- * レシートの写真から支出の入力値を推論する。画像は AI に渡すだけで保存しない。
+ * レシートの写真から支出の入力値を推論する。ここでは画像を AI に渡すだけで、保存は登録のとき
+ * （`POST /api/transactions`）に行う。登録しなかった写真をサーバーに残さないため。
  *
  * ページのアクションは値を返せない（loader を走らせ直すかリダイレクトするだけ）ので、
  * 読み取った結果を画面に返すために API にしている。

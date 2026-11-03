@@ -22,6 +22,13 @@
       "when": 1793690366009,
       "tag": "20261103071926_broad_maggott",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1793701153771,
+      "tag": "20261103101913_slow_joystick",
+      "breakpoints": true
     }
   ]
 }

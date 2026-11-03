@@ -68,6 +68,18 @@ const paymentUpdate = (
 });
 
 describe("getTransaction", () => {
+  test("レシートの写真があるかだけを返し、キーは渡さない", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+    const id = insertPayment(sqlite, m);
+    sqlite.prepare("UPDATE transactions SET receipt_image_key = 'receipts/a.jpeg'").run();
+
+    const transaction = await getTransaction(db, id);
+
+    expect(transaction?.hasReceiptImage).toBe(true);
+    expect(transaction).not.toHaveProperty("receiptImageKey");
+  });
+
   test("取引を店舗名と並び順の品目付きで返す", async () => {
     const { db, sqlite } = createTestLedgerDb();
     const m = seedMasters(sqlite);
@@ -87,6 +99,7 @@ describe("getTransaction", () => {
       fromAccountId: m.wallet,
       toAccountId: null,
       placeName: "スーパー",
+      hasReceiptImage: false,
       items: [
         { categoryId: null, genreId: null, name: "値引き", memo: "クーポン", amount: -20 },
         { categoryId: m.food, genreId: m.groceries, name: "牛乳", memo: null, amount: 200 },
@@ -134,6 +147,7 @@ describe("updateTransaction", () => {
       fromAccountId: m.bank,
       toAccountId: null,
       placeName: null,
+      hasReceiptImage: false,
       items: [
         { categoryId: m.food, genreId: m.groceries, name: "卵", memo: "10 個", amount: 300 },
         { categoryId: m.food, genreId: m.groceries, name: null, memo: null, amount: -30 },
@@ -360,9 +374,21 @@ describe("deleteTransaction", () => {
     const m = seedMasters(sqlite);
     const id = insertPayment(sqlite, m);
 
-    expect(await deleteTransaction(db, id)).toEqual({ ok: true });
+    expect(await deleteTransaction(db, id)).toEqual({ ok: true, receiptImageKey: null });
     expect(await getTransaction(db, id)).toBeUndefined();
     expect(sqlite.prepare("SELECT count(*) AS n FROM transaction_items").get()?.["n"]).toBe(0);
+  });
+
+  test("レシートの写真があれば、消す相手のキーを返す", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+    const id = insertPayment(sqlite, m);
+    sqlite.prepare("UPDATE transactions SET receipt_image_key = 'receipts/a.jpeg'").run();
+
+    expect(await deleteTransaction(db, id)).toEqual({
+      ok: true,
+      receiptImageKey: "receipts/a.jpeg",
+    });
   });
 
   test("ない取引には 404 を返す", async () => {

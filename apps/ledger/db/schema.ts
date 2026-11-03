@@ -106,7 +106,7 @@ export const importBatches = sqliteTable("import_batches", {
  * 取引。拡張機能の 1 回の登録、Zaim のレシート 1 枚に当たる。
  *
  * 口座の向きは振替・残高調整でもそろえ、from は残高が減る口座、to は増える口座にする。
- * 合計金額は品目の和なので持たない。
+ * 合計金額は品目の和なので持たない。receipt_image_key はレシートの写真から登録したときの R2 のキー。
  */
 export const transactions = sqliteTable(
   "transactions",
@@ -128,6 +128,7 @@ export const transactions = sqliteTable(
     importBatchId: integer("import_batch_id").references(() => importBatches.id, {
       onDelete: "restrict",
     }),
+    receiptImageKey: text("receipt_image_key"),
     ...timestamps(),
   },
   (t) => [index("transactions_date_idx").on(t.date), index("transactions_place_idx").on(t.placeId)],
