@@ -45,6 +45,12 @@ export const emptyItem = (key: number): ItemDraft => ({
 export const toSingleLine = (value: string): string => value.replace(/[\r\n]+/g, " ");
 
 /**
+ * 品目の金額の合計を返す。入力の途中で数字になっていない金額は 0 として足す。
+ */
+export const itemsTotal = (items: ItemDraft[]): number =>
+  items.reduce((sum, item) => sum + (Number(item.amount.replaceAll(",", "")) || 0), 0);
+
+/**
  * 保存されている取引から、入力中の値を作る。
  */
 export const draftFromTransaction = (transaction: TransactionDetail): TransactionDraft => ({

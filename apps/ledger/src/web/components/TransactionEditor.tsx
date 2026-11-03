@@ -29,6 +29,7 @@ import {
   AccountSelect,
   FormField,
   ItemsFields,
+  ItemsTotal,
   PlaceInput,
   type AccountOption,
 } from "@/web/components/TransactionFields";
@@ -294,6 +295,7 @@ export const TransactionEditor = ({
           categories={mode === "income" ? categories.income : categories.payment}
           onChange={(items) => update({ items })}
         />
+        <ItemsTotal items={draft.items} className="mt-3 border-t border-foreground pt-2" />
       </Section>
 
       {transaction.hasReceiptImage && (

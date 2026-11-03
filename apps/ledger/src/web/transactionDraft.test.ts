@@ -3,6 +3,7 @@ import {
   draftFromTransaction,
   emptyItem,
   isDraftEdited,
+  itemsTotal,
   moveItem,
   toSingleLine,
   updateFromDraft,
@@ -20,6 +21,25 @@ describe("toSingleLine", () => {
 
   test("改行のない値はそのまま返す", () => {
     expect(toSingleLine("コーヒー ミルク")).toBe("コーヒー ミルク");
+  });
+});
+
+describe("itemsTotal", () => {
+  test("3 桁区切りのカンマを除いて足す", () => {
+    const items = [
+      { ...emptyItem(0), amount: "1,200" },
+      { ...emptyItem(1), amount: "-300" },
+    ];
+    expect(itemsTotal(items)).toBe(900);
+  });
+
+  test("空や数字でない金額は 0 として足す", () => {
+    const items = [
+      { ...emptyItem(0), amount: "" },
+      { ...emptyItem(1), amount: "abc" },
+      { ...emptyItem(2), amount: "500" },
+    ];
+    expect(itemsTotal(items)).toBe(500);
   });
 });
 
