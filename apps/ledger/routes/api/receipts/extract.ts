@@ -3,7 +3,11 @@ import { defineHandler } from "void";
 import { db } from "void/db";
 import { env } from "void/env";
 import { todayInTokyo } from "../../../src/ledger/dates.ts";
-import { listAccounts, listCategories, listPlaces } from "../../../src/ledger/masters.ts";
+import {
+  listAccounts,
+  listCategories,
+  listPlacesForExtraction,
+} from "../../../src/ledger/masters.ts";
 import { ReceiptImageSchema, runExtractReceipt } from "../../../src/llm/extractReceipt.ts";
 
 const ExtractBodySchema = v.object({ image: ReceiptImageSchema });
@@ -21,7 +25,7 @@ export const POST = defineHandler.withValidator({ body: ExtractBodySchema })(asy
   const [categories, accounts, places] = await Promise.all([
     listCategories(db, "payment"),
     listAccounts(db),
-    listPlaces(db),
+    listPlacesForExtraction(db),
   ]);
   try {
     const { object, usage, timing } = await runExtractReceipt({

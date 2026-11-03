@@ -1,0 +1,444 @@
+import { Combobox as ComboboxPrimitive } from "@base-ui/react";
+import { action, Link } from "@void/react";
+import { GitMerge, Trash2 } from "lucide-react";
+import { useId, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+} from "@/components/ui/combobox";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { selectTriggerClassName } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { monthOf } from "@/ledger/dates";
+import { cn } from "@/lib/utils";
+import { actionErrorMessage } from "@/web/actionError";
+import { ErrorMessage } from "@/web/components/ErrorMessage";
+import {
+  filterPlaces,
+  isPlaceSort,
+  parseAliases,
+  PLACE_SORT_LABELS,
+  PLACE_SORTS,
+  type PlaceSort,
+  sortPlaces,
+} from "@/web/placeList";
+import { transactionsHref } from "@/web/transactionsHref";
+import type { Props } from "./places.server";
+
+type Place = Props["places"][number];
+
+/** 確認のダイアログから実行する操作の結果。失敗したときの error は Void のアクションのエラーの形 */
+type ActionResult = { ok: true } | { ok: false; error: { body: unknown; message: string } };
+
+/**
+ * 取り消せない操作を確かめるダイアログ。
+ */
+const ConfirmDialog = ({
+  open,
+  onOpenChange,
+  title,
+  description,
+  confirmLabel,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  onConfirm: () => Promise<ActionResult>;
+}) => {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  const confirm = async () => {
+    setPending(true);
+    const result = await onConfirm();
+    setPending(false);
+    if (!result.ok) setError(actionErrorMessage(result.error));
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        {error !== null && <ErrorMessage message={error} />}
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>やめる</DialogClose>
+          <Button variant="destructive" disabled={pending} onClick={() => void confirm()}>
+            {confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+/**
+ * 統合先の店舗を選ぶ combobox。自分自身は候補に出さない。
+ */
+const MergeTargetInput = ({
+  id,
+  value,
+  places,
+  onChange,
+}: {
+  id: string;
+  value: Place | null;
+  places: Place[];
+  onChange: (value: Place | null) => void;
+}) => {
+  const { contains } = ComboboxPrimitive.useFilter();
+  return (
+    <Combobox
+      items={places}
+      value={value}
+      onValueChange={onChange}
+      isItemEqualToValue={(a: Place, b: Place) => a.id === b.id}
+      itemToStringLabel={(place: Place) => place.name}
+      filter={(place: Place, query: string) =>
+        [place.name, ...place.aliases].some((text) => contains(text, query))
+      }
+    >
+      <ComboboxTrigger
+        id={id}
+        data-size="default"
+        className={cn(selectTriggerClassName, "w-full min-w-0 font-normal")}
+      >
+        <span
+          className={cn("line-clamp-1 flex-1 text-left", value === null && "text-muted-foreground")}
+        >
+          {value?.name ?? "統合先を選ぶ"}
+        </span>
+      </ComboboxTrigger>
+      <ComboboxContent>
+        <ComboboxInput placeholder="検索" showTrigger={false} />
+        <ComboboxEmpty>店舗がありません</ComboboxEmpty>
+        <ComboboxList>
+          {(place: Place) => (
+            <ComboboxItem key={place.id} value={place}>
+              {place.name}
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  );
+};
+
+/**
+ * 利用回数と最終利用日の表示。
+ */
+const usageLabel = (place: Place): string =>
+  place.lastUsedOn === null ? "未使用" : `${place.useCount}回・${place.lastUsedOn}`;
+
+/**
+ * 店舗 1 件を編集するダイアログの中身。名前・別名・ヒントの保存、統合、未使用の店舗の削除ができる。
+ */
+const PlaceEditor = ({
+  place,
+  places,
+  onClose,
+}: {
+  place: Place;
+  places: Place[];
+  onClose: () => void;
+}) => {
+  const nameId = useId();
+  const aliasesId = useId();
+  const hintId = useId();
+  const mergeId = useId();
+  const [name, setName] = useState(place.name);
+  const [aliases, setAliases] = useState(place.aliases.join("\n"));
+  const [aiHint, setAiHint] = useState(place.aiHint ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState<Place | null>(null);
+  const [confirming, setConfirming] = useState<"merge" | "delete" | null>(null);
+
+  const save = async () => {
+    setPending(true);
+    setError(null);
+    const result = await action("/settings/places?update", {
+      data: { id: place.id, name, aliases: parseAliases(aliases), aiHint },
+    });
+    setPending(false);
+    if (result.ok) onClose();
+    else setError(actionErrorMessage(result.error));
+  };
+
+  const merge = async (): Promise<ActionResult> => {
+    if (mergeTarget === null) return { ok: true };
+    const result = await action("/settings/places?merge", {
+      data: { sourceId: place.id, targetId: mergeTarget.id },
+    });
+    if (result.ok) onClose();
+    return result;
+  };
+
+  const remove = async (): Promise<ActionResult> => {
+    const result = await action("/settings/places?delete", { data: { id: place.id } });
+    if (result.ok) onClose();
+    return result;
+  };
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>店舗の編集</DialogTitle>
+        <DialogDescription>
+          {place.lastUsedOn === null ? (
+            usageLabel(place)
+          ) : (
+            <Link
+              href={transactionsHref({ month: monthOf(place.lastUsedOn), placeId: place.id })}
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              {usageLabel(place)}
+            </Link>
+          )}
+        </DialogDescription>
+      </DialogHeader>
+      <form
+        className="flex flex-col gap-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={nameId}>店舗名</Label>
+          <Input id={nameId} value={name} onChange={(event) => setName(event.target.value)} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={aliasesId}>AI 読み取り用の別名</Label>
+          <Textarea
+            id={aliasesId}
+            rows={3}
+            value={aliases}
+            placeholder={"AMAZON.CO.JP\nｱﾏｿﾞﾝ"}
+            onChange={(event) => setAliases(event.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            レシートや明細での書かれ方を 1 行に 1 つ。読み取りのときにこの店舗として扱います
+          </p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={hintId}>AI 読み取り用のヒント</Label>
+          <Textarea
+            id={hintId}
+            rows={2}
+            value={aiHint}
+            placeholder="例: 明細では親会社の名前で出る"
+            onChange={(event) => setAiHint(event.target.value)}
+          />
+        </div>
+        {error !== null && <ErrorMessage message={error} />}
+        <div className="flex justify-end gap-2">
+          <DialogClose render={<Button variant="outline" />}>やめる</DialogClose>
+          <Button type="submit" disabled={pending}>
+            保存
+          </Button>
+        </div>
+      </form>
+      <div className="flex flex-col gap-1.5 border-t pt-4">
+        <Label htmlFor={mergeId}>別の店舗に統合</Label>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+          <MergeTargetInput
+            id={mergeId}
+            value={mergeTarget}
+            places={places.filter((other) => other.id !== place.id)}
+            onChange={setMergeTarget}
+          />
+          <Button
+            variant="outline"
+            disabled={mergeTarget === null}
+            onClick={() => setConfirming("merge")}
+          >
+            <GitMerge />
+            統合
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          取引を統合先へ移してこの店舗を消します。今の名前は統合先の別名に残ります
+        </p>
+      </div>
+      {place.useCount === 0 && (
+        <div className="border-t pt-4">
+          <Button
+            variant="ghost"
+            className="text-destructive"
+            onClick={() => setConfirming("delete")}
+          >
+            <Trash2 />
+            この店舗を削除
+          </Button>
+        </div>
+      )}
+      <ConfirmDialog
+        open={confirming === "merge"}
+        onOpenChange={(open) => setConfirming(open ? "merge" : null)}
+        title={`「${mergeTarget?.name ?? ""}」に統合しますか？`}
+        description={`「${place.name}」の取引 ${place.useCount} 件を移して、「${place.name}」を消します。元に戻せません。`}
+        confirmLabel="統合する"
+        onConfirm={merge}
+      />
+      <ConfirmDialog
+        open={confirming === "delete"}
+        onOpenChange={(open) => setConfirming(open ? "delete" : null)}
+        title={`「${place.name}」を削除しますか？`}
+        description="取引のない店舗です。別名とヒントも消え、元に戻せません。"
+        confirmLabel="削除する"
+        onConfirm={remove}
+      />
+    </>
+  );
+};
+
+/**
+ * 店舗 1 件の行。押すと編集のダイアログを開く。
+ */
+const PlaceRow = ({ place, onSelect }: { place: Place; onSelect: () => void }) => {
+  const notes = [
+    ...(place.aliases.length > 0 ? [`別名 ${place.aliases.join("、")}`] : []),
+    ...(place.aiHint !== null ? ["ヒントあり"] : []),
+  ].join("・");
+  return (
+    <li className="border-b">
+      <button
+        type="button"
+        onClick={onSelect}
+        className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 py-2.5 text-left hover:bg-muted/60"
+      >
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate">{place.name}</span>
+            {place.archived && (
+              <span className="shrink-0 text-xs text-muted-foreground">アーカイブ済み</span>
+            )}
+          </span>
+          {notes !== "" && <span className="truncate text-xs text-muted-foreground">{notes}</span>}
+        </span>
+        <span className="text-xs text-muted-foreground tabular-nums">{usageLabel(place)}</span>
+      </button>
+    </li>
+  );
+};
+
+/**
+ * 登録されている店舗の管理の画面。店舗は数百件あるので、検索と並び替えで探す。
+ */
+const PlacesPage = ({ places }: Props) => {
+  const searchId = useId();
+  const sortId = useId();
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<PlaceSort>("recent");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const visible = useMemo(
+    () => sortPlaces(filterPlaces(places, query), sort),
+    [places, query, sort],
+  );
+  // 統合や削除で消えた店舗は閉じる。保存した後も最新の値を見るよう、ID で持って引き直す
+  const selected = places.find((place) => place.id === selectedId);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <Link
+        href="/settings"
+        className="self-start text-xs text-muted-foreground hover:text-foreground"
+      >
+        ← 設定
+      </Link>
+      <h1 className="text-3xl font-semibold tracking-tight">店舗</h1>
+      <div className="grid gap-x-4 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="flex flex-col gap-0.5">
+          <Label htmlFor={searchId} className="text-xs font-normal text-muted-foreground">
+            名前・別名で検索
+          </Label>
+          <Input
+            id={searchId}
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <Label htmlFor={sortId} className="text-xs font-normal text-muted-foreground">
+            並び順
+          </Label>
+          <NativeSelect
+            id={sortId}
+            value={sort}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (isPlaceSort(next)) setSort(next);
+            }}
+          >
+            {PLACE_SORTS.map((value) => (
+              <NativeSelectOption key={value} value={value}>
+                {PLACE_SORT_LABELS[value]}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </div>
+      </div>
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
+          {visible.length === places.length
+            ? `${places.length} 件`
+            : `${places.length} 件中 ${visible.length} 件`}
+        </p>
+        {visible.length === 0 ? (
+          <p className="border-t border-foreground py-6 text-sm text-muted-foreground">
+            該当する店舗はありません
+          </p>
+        ) : (
+          <ul className="border-t border-foreground">
+            {visible.map((place) => (
+              <PlaceRow key={place.id} place={place} onSelect={() => setSelectedId(place.id)} />
+            ))}
+          </ul>
+        )}
+      </div>
+      <Dialog
+        open={selected !== undefined}
+        onOpenChange={(open) => {
+          if (!open) setSelectedId(null);
+        }}
+      >
+        <DialogContent className="max-h-[90dvh] overflow-y-auto">
+          {selected !== undefined && (
+            <PlaceEditor
+              key={selected.id}
+              place={selected}
+              places={places}
+              onClose={() => setSelectedId(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default PlacesPage;

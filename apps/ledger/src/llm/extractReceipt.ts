@@ -10,6 +10,8 @@ import {
   formatAccountsForPrompt,
   formatCategoriesForPrompt,
   formatRecentPlacesForPrompt,
+  PLACE_NOTES_RULE,
+  resolvePlaceAlias,
   type ExtractedPayment,
   type ExtractPaymentContext,
 } from "./extractPayment.ts";
@@ -59,7 +61,7 @@ export const buildReceiptPrompt = (input: ExtractReceiptContext): StructuredProm
     "Rules:",
     "- `accountId` must be one of the provided account IDs; otherwise null. Infer it from the payment method printed on the receipt (cash, card brand, e-money, QR payment).",
     '- `date`: "YYYY-MM-DD". Convert Japanese era years (令和8年 = 2026) and two-digit years; when the year is missing, use the year of "Today".',
-    "- `placeName`: use a recent store name as is when it clearly fits, else the store name printed on the receipt (include the branch name).",
+    `- \`placeName\`: use a recent store name as is when it clearly fits, else the store name printed on the receipt (include the branch name). ${PLACE_NOTES_RULE}`,
     "- `confidence`: high/medium/low based on how legible the receipt is.",
     "- `reasoning`: 1-3 sentences justifying your choices.",
     "",
@@ -112,4 +114,10 @@ export const runExtractReceipt = (params: {
     schema: ExtractedPaymentSchema,
     reasoningEffort: RECEIPT_REASONING_EFFORT,
     abortSignal: params.abortSignal,
-  });
+  }).then((result) => ({
+    ...result,
+    object: {
+      ...result.object,
+      placeName: resolvePlaceAlias(result.object.placeName, params.input.places),
+    },
+  }));
