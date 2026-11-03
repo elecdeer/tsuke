@@ -17,6 +17,10 @@ const HIDDEN_LAYER_IDS: ReadonlySet<string> = new Set([
   "bridge_path_pedestrian_casing",
   "bridge_path_pedestrian",
   "highway-name-path",
+  // 地図に元からある店舗などの施設。探した施設の印だけを出す（駅の poi_transit は残す）
+  "poi_r1",
+  "poi_r7",
+  "poi_r20",
   // 立体の建物。地図を傾けられないので、壁が斜めに写り込むだけになる
   "building-3d",
 ]);
@@ -44,24 +48,24 @@ const hideBusStops = (layer: LayerSpecification): LayerSpecification => {
 
 const MAJOR_ROAD_LAYER =
   /^(road|bridge|tunnel)_(motorway_link|link|secondary_tertiary|trunk_primary|motorway)(_casing)?$/;
-const RAIL_LAYER = /^(road|bridge)_(major|transit)_rail$/;
-const RAIL_HATCHING_LAYER = /^(road|bridge)_(major|transit)_rail_hatching$/;
+const RAIL_LAYER = /^(road|bridge|tunnel)_(major|transit)_rail$/;
+const RAIL_HATCHING_LAYER = /^(road|bridge|tunnel)_(major|transit)_rail_hatching$/;
 
-const ROAD_COLOR = "#fff";
-const ROAD_CASING_COLOR = "#cfcdca";
+const MAJOR_ROAD_COLOR = "#fcf4d9";
+const MAJOR_ROAD_CASING_COLOR = "#ddd2b0";
 const RAIL_COLOR = "#666";
 
 /**
- * 大きい道路を普通の道路（road_minor）と同じ色にする。太さは残すので、道の大きさは見分けられる。
+ * 大きい道路の色を、普通の道路との違いがわかる程度に淡くする。元の黄色とオレンジは店舗の印より目立ってしまう。
  */
-const flattenRoadColors = (layer: LayerSpecification): LayerSpecification => {
+const softenMajorRoads = (layer: LayerSpecification): LayerSpecification => {
   if (layer.type !== "line" || !MAJOR_ROAD_LAYER.test(layer.id)) return layer;
-  const color = layer.id.endsWith("_casing") ? ROAD_CASING_COLOR : ROAD_COLOR;
+  const color = layer.id.endsWith("_casing") ? MAJOR_ROAD_CASING_COLOR : MAJOR_ROAD_COLOR;
   return { ...layer, paint: { ...layer.paint, "line-color": color } };
 };
 
 /**
- * 地上と高架の鉄道の線を濃く太くする。地下の線は見えない所を通るので、目立たないままにする。
+ * 鉄道の線を濃く太くする。元の線は薄く細く、場所の目印にならない。
  */
 const emphasizeRails = (layer: LayerSpecification): LayerSpecification => {
   if (layer.type !== "line") return layer;
@@ -91,6 +95,6 @@ export const adjustMapStyle = (
     .filter((layer) => !HIDDEN_LAYER_IDS.has(layer.id))
     .map(useLocalName)
     .map(hideBusStops)
-    .map(flattenRoadColors)
+    .map(softenMajorRoads)
     .map(emphasizeRails),
 });

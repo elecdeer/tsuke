@@ -18,7 +18,7 @@ const label = (id: string, textField: ExpressionSpecification): LayerSpecificati
 });
 
 describe("adjustMapStyle", () => {
-  test("歩道と立体の建物のレイヤーを除き、ほかは順番を保って残す", () => {
+  test("歩道と立体の建物と地図の施設のレイヤーを除き、ほかは順番を保って残す", () => {
     const style = styleOf(
       background("background"),
       background("tunnel_path_pedestrian"),
@@ -27,6 +27,10 @@ describe("adjustMapStyle", () => {
       background("bridge_path_pedestrian_casing"),
       background("bridge_path_pedestrian"),
       background("building-3d"),
+      background("poi_r1"),
+      background("poi_r7"),
+      background("poi_r20"),
+      background("poi_transit"),
       background("highway-name-path"),
       background("highway-name-minor"),
     );
@@ -36,6 +40,7 @@ describe("adjustMapStyle", () => {
     expect(layers.map((layer) => layer.id)).toEqual([
       "background",
       "road_minor",
+      "poi_transit",
       "highway-name-minor",
     ]);
   });
@@ -101,7 +106,7 @@ describe("adjustMapStyle", () => {
     paint: { "line-color": "#fea", "line-width": 2 },
   });
 
-  test("大きい道路を普通の道路と同じ色にし、太さは保つ", () => {
+  test("大きい道路を淡い色にし、太さは保つ", () => {
     const layers = adjustMapStyle(
       undefined,
       styleOf(
@@ -112,18 +117,21 @@ describe("adjustMapStyle", () => {
     ).layers;
 
     expect(layers.map((layer) => (layer.type === "line" ? layer.paint : null))).toEqual([
-      { "line-color": "#fff", "line-width": 2 },
-      { "line-color": "#fff", "line-width": 2 },
-      { "line-color": "#cfcdca", "line-width": 2 },
+      { "line-color": "#fcf4d9", "line-width": 2 },
+      { "line-color": "#fcf4d9", "line-width": 2 },
+      { "line-color": "#ddd2b0", "line-width": 2 },
     ]);
   });
 
-  test("地上と高架の鉄道を濃く太くする", () => {
-    const [layer] = adjustMapStyle(undefined, styleOf(line("bridge_transit_rail"))).layers;
+  test.each(["road_major_rail", "bridge_transit_rail", "tunnel_transit_rail"])(
+    "鉄道の線（%s）を濃く太くする",
+    (id) => {
+      const [layer] = adjustMapStyle(undefined, styleOf(line(id))).layers;
 
-    expect(layer).toMatchObject({ paint: { "line-color": "#666" } });
-    expect(layer).not.toMatchObject({ paint: { "line-width": 2 } });
-  });
+      expect(layer).toMatchObject({ paint: { "line-color": "#666" } });
+      expect(layer).not.toMatchObject({ paint: { "line-width": 2 } });
+    },
+  );
 
   test("鉄道の枕木は色だけ変え、間隔を決める太さは保つ", () => {
     const [layer] = adjustMapStyle(undefined, styleOf(line("road_major_rail_hatching"))).layers;
@@ -131,8 +139,8 @@ describe("adjustMapStyle", () => {
     expect(layer).toMatchObject({ paint: { "line-color": "#666", "line-width": 2 } });
   });
 
-  test("地下の鉄道と普通の道路は変えない", () => {
-    const layers = [line("tunnel_major_rail"), line("road_minor")];
+  test("普通の道路は変えない", () => {
+    const layers = [line("road_minor")];
 
     expect(adjustMapStyle(undefined, styleOf(...layers)).layers).toEqual(layers);
   });

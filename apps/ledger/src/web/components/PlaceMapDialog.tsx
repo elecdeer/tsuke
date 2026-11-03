@@ -5,7 +5,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { LoaderCircle, LocateFixed, MapPin, Search } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,6 +29,7 @@ import {
   type LngLat,
   type Poi,
 } from "@/web/openPoi";
+import { PoiKindIcon } from "@/web/components/PoiKindIcon";
 import { adjustMapStyle, MAP_STYLE_URL } from "@/web/mapStyle";
 import { cn } from "@/lib/utils";
 
@@ -41,33 +43,58 @@ const SEARCH_DELAY = 300;
 
 const INITIAL_ZOOM = 16;
 
-/** 施設の印の見た目 */
-const MARKER_CLASS = "size-3.5 border-2 border-white bg-red-600";
-/** 色は同じまま、大きさと黒い縁で選んだことを示す */
-const SELECTED_MARKER_CLASS =
-  "z-20 size-6 border-[3px] border-white bg-red-600 ring-2 ring-neutral-900";
-const CURRENT_MARKER_CLASS = "size-3 border-[3px] border-white bg-blue-600";
+const MARKER_LABEL_CLASS =
+  "pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 rounded-md bg-popover px-1.5 py-0.5 text-xs whitespace-nowrap text-popover-foreground shadow-sm";
 
 /**
- * 地図に置く印の要素を作る。名前は、選んでいるときは常に、それ以外は指しているときに出す。
+ * 地図に置く印の土台を作る。
  */
-const createMarkerElement = (
-  name: string,
-  { className, showName = false }: { className: string; showName?: boolean },
-) => {
+const createMarkerRoot = (name: string) => {
   const element = document.createElement("button");
   element.type = "button";
   element.ariaLabel = name;
-  element.className = cn("group rounded-full shadow-sm hover:z-10 focus-visible:z-10", className);
-  const label = document.createElement("span");
-  label.textContent = name;
-  label.className = cn(
-    "pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 rounded-md bg-popover px-1.5 py-0.5 text-xs whitespace-nowrap text-popover-foreground shadow-sm",
-    !showName && "hidden group-hover:block group-focus-visible:block",
-  );
-  element.appendChild(label);
+  element.className = "group hover:z-10 focus-visible:z-10";
   return element;
 };
+
+/**
+ * 現在地の印の要素を作る。
+ */
+const createCurrentMarkerElement = () => {
+  const element = createMarkerRoot("現在地");
+  const dot = document.createElement("span");
+  dot.className = "block size-3 rounded-full border-[3px] border-white bg-blue-600 shadow-sm";
+  element.appendChild(dot);
+  return element;
+};
+
+/**
+ * 施設のピン。先が下を向いたしずく形で、中に種類のアイコンを出す。選ぶと大きくなり、縁が付いて名前が出る。
+ */
+const PoiPin = ({ poi, selected }: { poi: Poi; selected: boolean }) => (
+  <>
+    <span
+      className={cn(
+        // しずくの先は四角を回したぶん箱の外へ出るので、その分を余白で取り、先を土台の下端に合わせる
+        "flex -rotate-45 items-center justify-center rounded-[50%_50%_50%_0] border border-white bg-red-600 shadow-md",
+        selected ? "mb-2 size-9 ring-2 ring-neutral-900" : "mb-[5px] size-6",
+      )}
+    >
+      <PoiKindIcon
+        kind={poi.kind}
+        className={cn("rotate-45 text-white", selected ? "size-5" : "size-3.5")}
+      />
+    </span>
+    <span
+      className={cn(
+        MARKER_LABEL_CLASS,
+        !selected && "hidden group-hover:block group-focus-visible:block",
+      )}
+    >
+      {poi.name}
+    </span>
+  </>
+);
 
 const formatDistance = (meters: number) =>
   meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`;
@@ -233,7 +260,7 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
       here === null
         ? null
         : new current.maplibre.Marker({
-            element: createMarkerElement("現在地", { className: CURRENT_MARKER_CLASS }),
+            element: createCurrentMarkerElement(),
           })
             .setLngLat(here)
             .addTo(current.map);
@@ -326,23 +353,35 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
-  // 施設の印を置き直す。選んだ施設は大きく色を変える
+  // 印の中身は React で描くので、土台の要素を先に作っておく
+  const pinRoots = useMemo(
+    () =>
+      result.pois.map((poi) => {
+        const element = createMarkerRoot(poi.name);
+        element.addEventListener("click", () => setSelected(poi));
+        return { poi, element };
+      }),
+    [result],
+  );
+
+  // 施設の印を置き直す
   useEffect(() => {
     const current = mapRef.current;
     if (!ready || current === null) return;
-    const markers = result.pois.map((poi) => {
-      const isSelected = poi === selected;
-      const element = createMarkerElement(poi.name, {
-        className: isSelected ? SELECTED_MARKER_CLASS : MARKER_CLASS,
-        showName: isSelected,
-      });
-      element.addEventListener("click", () => setSelected(poi));
-      return new current.maplibre.Marker({ element }).setLngLat(poi.position).addTo(current.map);
-    });
+    const markers = pinRoots.map(({ poi, element }) =>
+      new current.maplibre.Marker({ element, anchor: "bottom" })
+        .setLngLat(poi.position)
+        .addTo(current.map),
+    );
     return () => {
       for (const marker of markers) marker.remove();
     };
-  }, [ready, result, selected]);
+  }, [ready, pinRoots]);
+
+  // 選んだ施設の印を、重なったほかの印より手前に出す
+  useEffect(() => {
+    for (const { poi, element } of pinRoots) element.classList.toggle("z-20", poi === selected);
+  }, [pinRoots, selected]);
 
   // 地図で選んだ施設を一覧で見える所まで送る。地図内の結果は地図に出ているので、全国のときだけ地図を動かす
   useEffect(() => {
@@ -360,6 +399,9 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
 
   return (
     <>
+      {pinRoots.map(({ poi, element }) =>
+        createPortal(<PoiPin poi={poi} selected={poi === selected} />, element, poiKey(poi)),
+      )}
       <div className="flex min-h-0 flex-1 flex-col gap-4 md:grid md:grid-cols-[minmax(0,1fr)_22rem] md:grid-rows-[auto_minmax(0,1fr)]">
         <form
           className="flex flex-col gap-1.5 md:col-start-2 md:row-start-1"
@@ -434,11 +476,15 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
                     data-poi-index={index}
                     aria-pressed={poi === selected}
                     className={cn(
-                      "flex w-full items-baseline gap-2 rounded-md px-1 py-1.5 text-left hover:bg-muted",
+                      "flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left hover:bg-muted",
                       poi === selected && "bg-muted",
                     )}
                     onClick={() => setSelected(poi)}
                   >
+                    <PoiKindIcon
+                      kind={poi.kind}
+                      className="size-4 shrink-0 text-muted-foreground"
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{poi.name}</span>
                       <span className="block truncate text-xs text-muted-foreground">
