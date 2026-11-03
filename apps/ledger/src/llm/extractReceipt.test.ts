@@ -72,6 +72,11 @@ describe("buildReceiptPrompt", () => {
     const { system } = buildReceiptPrompt(baseInput());
     expect(system).toContain("Do NOT make items from subtotal, total, tax, tendered");
   });
+
+  test("品目のメモに金額の内訳を入れないよう指示する", () => {
+    const { system } = buildReceiptPrompt(baseInput());
+    expect(system).toContain("Never put prices or their breakdown");
+  });
 });
 
 describe("runExtractReceipt", () => {

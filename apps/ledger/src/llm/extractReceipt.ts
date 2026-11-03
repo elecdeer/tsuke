@@ -62,7 +62,7 @@ export const buildReceiptPrompt = (input: ExtractReceiptContext): StructuredProm
     "- `amount` is the price actually paid for the line in JPY (integer), tax included. When prices are tax-exclusive (外税/税抜), add the tax so the items sum to the receipt total.",
     "- Discounts (値引, 割引, クーポン) are separate items with negative amounts.",
     "- Do NOT make items from subtotal, total, tax, tendered (お預り), change (お釣り), or points lines.",
-    "- `name` is the product name as printed, without codes or tax marks (※, 軽, *); `memo` is a short note (e.g. quantity × unit price) only when helpful.",
+    "- `name` is the product name as printed, without codes or tax marks (※, 軽, *); `memo` is a short note (e.g. variant) only when helpful, else null. Never put prices or their breakdown (unit price, quantity × unit price, tax, discount) in `memo`.",
     "- `genreId` is the per-item genre. Must be one of the provided genre IDs; otherwise null.",
     "  Pick the genre by its parent category context — the listing shows `categoryId=name: genreId=name, ...` so you can see which genres belong to which category.",
     "  Choose the most fitting genre for each item independently; different items in the same purchase may have different genres.",
