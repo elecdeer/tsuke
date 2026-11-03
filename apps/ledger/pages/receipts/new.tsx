@@ -338,7 +338,11 @@ const ReceiptReview = ({
     setPending(true);
     try {
       const { id } = await ledgerApi()("/api/transactions", "POST", {
-        body: { ...parsed.input, receiptImage: image },
+        body: {
+          ...parsed.input,
+          placePhone: entry.extracted?.placePhone ?? null,
+          receiptImage: image,
+        },
       });
       onRegistered(id);
     } catch (registerError) {

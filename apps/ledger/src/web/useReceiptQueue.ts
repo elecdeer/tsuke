@@ -7,6 +7,7 @@ import {
   requestAccurateRead,
   restoreEntries,
   upsertEntry,
+  type ReadReceipt,
   type ReceiptEntry,
 } from "./receiptQueue.ts";
 import { createReceiptQueueStore } from "./receiptQueueStore.ts";
@@ -53,7 +54,7 @@ export const useReceiptQueue = ({
   read,
   toDraft,
 }: {
-  read: (image: string, quality: ReadQuality) => Promise<ExtractedPayment>;
+  read: (image: string, quality: ReadQuality) => Promise<ReadReceipt>;
   toDraft: (extracted: ExtractedPayment | null) => TransactionDraft;
 }): ReceiptQueue => {
   // サーバーで描くときは IndexedDB がないが、開くのは effect の中だけなので作るだけなら問題ない

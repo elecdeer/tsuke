@@ -139,6 +139,33 @@ describe("createPayment", () => {
     ]);
   });
 
+  test("読み取った電話番号を、新しい店舗にも既存の店舗にも覚えさせる", async () => {
+    insert(sqlite, "INSERT INTO places (name) VALUES ('スーパー')");
+
+    await createPayment(db, payment({ placePhone: "0312345678" }));
+    await createPayment(db, payment({ placeName: "薬局", placePhone: "0398765432" }));
+
+    expect(sqlite.prepare("SELECT name, phone FROM places ORDER BY id").all()).toEqual([
+      { name: "スーパー", phone: "0312345678" },
+      { name: "薬局", phone: "0398765432" },
+    ]);
+  });
+
+  test("読み間違えて覚えた電話番号は、次の登録で直る", async () => {
+    await createPayment(db, payment({ placePhone: "0300000000" }));
+    await createPayment(db, payment({ placePhone: "0312345678" }));
+
+    expect(sqlite.prepare("SELECT phone FROM places").get()).toEqual({ phone: "0312345678" });
+  });
+
+  test("電話番号が読み取れなかった登録では、覚えた番号を消さない", async () => {
+    await createPayment(db, payment({ placePhone: "0312345678" }));
+    await createPayment(db, payment({ placePhone: null }));
+    await createPayment(db, payment());
+
+    expect(sqlite.prepare("SELECT phone FROM places").get()).toEqual({ phone: "0312345678" });
+  });
+
   test("既存の店舗は名前で使い回し、なければ作る", async () => {
     insert(sqlite, "INSERT INTO places (name) VALUES ('スーパー')");
 

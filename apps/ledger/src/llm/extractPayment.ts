@@ -22,10 +22,11 @@ export const PageContentSchema = v.object({
 
 export type PageContent = v.InferOutput<typeof PageContentSchema>;
 
-/** プロンプトに渡す店舗。別名とヒントは設定してある店舗にだけある */
+/** プロンプトに渡す店舗。別名とヒントは設定してある店舗にだけある。電話番号はプロンプトには出さず、読み取りの後の紐付けに使う */
 export type PlaceForPrompt = PlaceWithUsage & {
   aliases?: string[];
   aiHint?: string | null;
+  phone?: string | null;
 };
 
 /** プロンプトに渡す、ページの内容と台帳の候補 */
