@@ -1,9 +1,9 @@
-import { useShared } from "@void/react";
+import { Link, useShared } from "@void/react";
 import { buttonVariants } from "@/components/ui/button";
 import { Section } from "@/web/components/Section";
 
 /**
- * 設定の画面。今はログイン中のアカウントとログアウトだけを置く。
+ * 設定の画面。ログイン中のアカウントと、マスタの管理の画面への入口を置く。
  */
 const SettingsPage = () => {
   const { email } = useShared();
@@ -23,6 +23,19 @@ const SettingsPage = () => {
             </a>
           </div>
         </dl>
+      </Section>
+      <Section label="マスタ">
+        <ul className="border-t border-foreground">
+          <li className="border-b">
+            <Link
+              href="/settings/places"
+              className="grid grid-cols-[minmax(0,1fr)_1rem] items-baseline gap-x-4 py-2.5 hover:bg-muted/60"
+            >
+              <span>店舗</span>
+              <span className="text-xs text-muted-foreground">→</span>
+            </Link>
+          </li>
+        </ul>
       </Section>
     </div>
   );

@@ -87,6 +87,13 @@ export const places = sqliteTable("places", {
   poiCategory: text("poi_category"),
   poiLicenses: text("poi_licenses", { mode: "json" }).$type<string[]>(),
   poiAttributions: text("poi_attributions", { mode: "json" }).$type<string[]>(),
+  /** AI の読み取りで同じ店と見なす別の表記。レシートや明細に出てくる書き方を入れる */
+  aliases: text("aliases", { mode: "json" })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
+  /** AI の読み取りに渡す、この店についての補足 */
+  aiHint: text("ai_hint"),
   ...masterColumns(),
   ...timestamps(),
 });

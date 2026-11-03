@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "1360b8b0-11a1-4418-b4b5-eb963a3d31fa",
+  "id": "5c3ac395-ca19-40ef-9139-57a7725203de",
   "prevId": "33dab884-4fb6-4d55-b5d5-ee21aca61a4c",
   "tables": {
     "accounts": {
@@ -346,6 +346,21 @@
           "notNull": false,
           "autoincrement": false
         },
+        "aliases": {
+          "name": "aliases",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "ai_hint": {
+          "name": "ai_hint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "sort": {
           "name": "sort",
           "type": "integer",
@@ -580,13 +595,6 @@
         "import_batch_id": {
           "name": "import_batch_id",
           "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "receipt_image_key": {
-          "name": "receipt_image_key",
-          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

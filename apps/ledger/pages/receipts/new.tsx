@@ -15,10 +15,10 @@ import { Input } from "@/components/ui/input";
 import { createLedgerClient, LedgerFetchError } from "@/client";
 import type { DuplicateCandidate } from "@/ledger/payments";
 import type { ExtractedPayment } from "@/llm/extractPayment";
+import { ErrorMessage } from "@/web/components/ErrorMessage";
 import { Section } from "@/web/components/Section";
 import {
   AccountSelect,
-  ErrorMessage,
   FormField,
   ItemsFields,
   PlaceInput,

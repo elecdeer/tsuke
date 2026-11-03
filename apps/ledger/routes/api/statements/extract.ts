@@ -2,7 +2,11 @@ import * as v from "valibot";
 import { defineHandler } from "void";
 import { db } from "void/db";
 import { env } from "void/env";
-import { listAccounts, listCategories, listPlaces } from "../../../src/ledger/masters.ts";
+import {
+  listAccounts,
+  listCategories,
+  listPlacesForExtraction,
+} from "../../../src/ledger/masters.ts";
 import { PageContentSchema } from "../../../src/llm/extractPayment.ts";
 import { runExtractStatement } from "../../../src/llm/extractStatement.ts";
 
@@ -18,7 +22,7 @@ export const POST = defineHandler.withValidator({ body: ExtractBodySchema })(asy
   const [categories, accounts, places] = await Promise.all([
     listCategories(db, "payment"),
     listAccounts(db),
-    listPlaces(db),
+    listPlacesForExtraction(db),
   ]);
   try {
     const { object, usage, timing } = await runExtractStatement({
