@@ -1,5 +1,5 @@
 /**
- * 地図から店舗を選ぶダイアログ。地図に出ている範囲の施設を OpenPOI API で探し、地図と一覧に出す。
+ * 地図から店舗を選ぶダイアログ。地図に出ている範囲か全国から施設を OpenPOI API で探し、地図と一覧に出す。
  */
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
@@ -17,11 +17,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
+  boundsOfPois,
   distance,
   OPEN_POI_ATTRIBUTION_URL,
   POI_SEARCH_LIMIT,
   poiKey,
+  searchPois,
   searchPoisInView,
+  uniquePois,
   type LngLat,
   type Poi,
 } from "@/web/openPoi";
@@ -39,8 +42,8 @@ const SEARCH_DELAY = 300;
 const INITIAL_ZOOM = 16;
 
 /** 施設の印の見た目 */
-const MARKER_CLASS = "size-3.5 border-2 border-background bg-muted-foreground";
-const SELECTED_MARKER_CLASS = "z-20 size-5 border-2 border-background bg-primary";
+const MARKER_CLASS = "size-3.5 border-2 border-white bg-violet-600";
+const SELECTED_MARKER_CLASS = "z-20 size-5 border-2 border-white bg-primary";
 const CURRENT_MARKER_CLASS = "size-3 border-[3px] border-white bg-blue-600";
 
 /**
@@ -81,6 +84,31 @@ const locate = () =>
     );
   });
 
+/** 探す範囲。view は地図に出ている範囲で、地図を動かすと探し直す。anywhere は全国で、地図を動かしても変わらない */
+type SearchScope = "view" | "anywhere";
+
+const SEARCH_SCOPES: { value: SearchScope; label: string }[] = [
+  { value: "view", label: "地図内" },
+  { value: "anywhere", label: "全国" },
+];
+
+/** 探し終えたときに出す案内 */
+const statusMessage = (scope: SearchScope, keyword: string, count: number): string => {
+  if (scope === "anywhere") {
+    if (keyword.trim() === "") return "全国から探すには、キーワードを入れてください";
+    if (count === 0) return "全国で見つかりませんでした。キーワードを変えて探してください";
+    if (count >= POI_SEARCH_LIMIT) {
+      return `全国から ${count} 件だけ出しています。近くの店は「地図内」で探せます`;
+    }
+    return `全国から ${count} 件。地図を動かしても一覧は変わりません`;
+  }
+  if (count === 0) return "見つかりませんでした。地図を動かすか、キーワードを変えて探してください";
+  if (count >= POI_SEARCH_LIMIT) {
+    return `多いので ${count} 件だけ出しています。地図を拡大すると絞り込めます`;
+  }
+  return `${count} 件。地図の印か一覧から選んでください`;
+};
+
 type Status =
   | { type: "locating" }
   | { type: "searching" }
@@ -100,6 +128,9 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
   const [keyword, setKeyword] = useState("");
   /** 探すときに使うキーワード。入力の途中で地図を動かしても、確定するまでは前のもので探す */
   const appliedKeywordRef = useRef("");
+  const [scope, setScope] = useState<SearchScope>("view");
+  /** 地図のイベントから今の範囲を読むためのもの */
+  const scopeRef = useRef<SearchScope>("view");
   const [status, setStatus] = useState<Status>({ type: "locating" });
   /** 一覧は近い順に並べ、距離はこの点（探したときの地図の中心）から測る */
   const [result, setResult] = useState<{ origin: LngLat; pois: Poi[] }>({
@@ -109,29 +140,41 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
   const [selected, setSelected] = useState<Poi | null>(null);
   const [locationNote, setLocationNote] = useState<string | null>(null);
 
-  /** 地図に今出ている範囲を探す */
-  const searchView = async () => {
+  /** 今の範囲とキーワードで探す */
+  const search = async () => {
     const map = mapRef.current?.map;
     if (map === undefined) return;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    setStatus({ type: "searching" });
-    const bounds = map.getBounds();
     const { lng, lat } = map.getCenter();
     const origin = { lng, lat };
+    const anywhere = scopeRef.current === "anywhere";
+    // キーワードなしで全国を探しても、選べないほどの施設から適当に返るだけになる
+    if (anywhere && appliedKeywordRef.current.trim() === "") {
+      setResult({ origin, pois: [] });
+      setSelected(null);
+      setStatus({ type: "done" });
+      return;
+    }
+    setStatus({ type: "searching" });
+    const bounds = map.getBounds();
     try {
-      const pois = await searchPoisInView(
-        appliedKeywordRef.current,
-        {
-          minLng: bounds.getWest(),
-          minLat: bounds.getSouth(),
-          maxLng: bounds.getEast(),
-          maxLat: bounds.getNorth(),
-        },
-        origin,
-        { signal: controller.signal },
-      );
+      const pois = anywhere
+        ? uniquePois(
+            await searchPois(appliedKeywordRef.current, null, { signal: controller.signal }),
+          )
+        : await searchPoisInView(
+            appliedKeywordRef.current,
+            {
+              minLng: bounds.getWest(),
+              minLat: bounds.getSouth(),
+              maxLng: bounds.getEast(),
+              maxLat: bounds.getNorth(),
+            },
+            origin,
+            { signal: controller.signal },
+          );
       pois.sort((a, b) => distance(origin, a.position) - distance(origin, b.position));
       setResult({ origin, pois });
       // 地図を少し動かしただけで選び直しにならないよう、範囲に残っていれば選んだままにする
@@ -139,6 +182,17 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
         (previous) => previous && (pois.find((poi) => poiKey(poi) === poiKey(previous)) ?? null),
       );
       setStatus({ type: "done" });
+      // 全国から探した結果は地図の外にあるので、地図のほうを結果に合わせる
+      const found = anywhere ? boundsOfPois(pois) : null;
+      if (found !== null) {
+        map.fitBounds(
+          [
+            [found.minLng, found.minLat],
+            [found.maxLng, found.maxLat],
+          ],
+          { padding: 48, maxZoom: INITIAL_ZOOM, duration: 0 },
+        );
+      }
     } catch (error) {
       if (controller.signal.aborted) return;
       setResult({ origin, pois: [] });
@@ -156,8 +210,16 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
     }
   };
 
+  /** 探す範囲を切り替える */
+  const applyScope = (next: SearchScope) => {
+    scopeRef.current = next;
+    setScope(next);
+    if (next === "anywhere") setLocationNote(null);
+  };
+
   /** 現在地へ地図を動かす。動かすと、そこに出ている範囲を探す */
   const moveToCurrentLocation = async () => {
+    applyScope("view");
     setStatus({ type: "locating" });
     const here = await locate();
     const current = mapRef.current;
@@ -179,7 +241,15 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
   const submitKeyword = (event: FormEvent) => {
     event.preventDefault();
     appliedKeywordRef.current = keyword;
-    void searchView();
+    void search();
+  };
+
+  /** 探す範囲を切り替えて、入力中のキーワードで探す */
+  const changeScope = (next: SearchScope) => {
+    if (next === scope) return;
+    applyScope(next);
+    appliedKeywordRef.current = keyword;
+    void search();
   };
 
   // MapLibre は読み込むだけで window に触れるので、サーバーでの描画を避けてここで読み込む
@@ -240,7 +310,9 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
       // 人が動かしたら、もう東京駅の周りとは限らない
       if (originalEvent !== undefined) setLocationNote(null);
       clearTimeout(timer);
-      timer = setTimeout(() => void searchView(), SEARCH_DELAY);
+      timer = setTimeout(() => {
+        if (scopeRef.current === "view") void search();
+      }, SEARCH_DELAY);
     };
     map.on("moveend", onMoveEnd);
     void moveToCurrentLocation();
@@ -270,9 +342,13 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
     };
   }, [ready, result, selected]);
 
-  // 地図で選んだ施設を一覧で見える所まで送る。一覧の施設は地図に出ているので、地図は動かさない
+  // 地図で選んだ施設を一覧で見える所まで送る。地図内の結果は地図に出ているので、全国のときだけ地図を動かす
   useEffect(() => {
     if (selected === null) return;
+    const map = mapRef.current?.map;
+    if (scopeRef.current === "anywhere" && map !== undefined) {
+      map.easeTo({ center: selected.position, zoom: Math.max(map.getZoom(), INITIAL_ZOOM) });
+    }
     listRef.current
       ?.querySelector(`[data-poi-index="${result.pois.indexOf(selected)}"]`)
       ?.scrollIntoView({ block: "nearest" });
@@ -283,28 +359,47 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col gap-4 md:grid md:grid-cols-[minmax(0,1fr)_22rem] md:grid-rows-[auto_minmax(0,1fr)]">
-        <form className="flex gap-1.5 md:col-start-2 md:row-start-1" onSubmit={submitKeyword}>
-          <Input
-            type="search"
-            aria-label="キーワード"
-            placeholder="キーワード"
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-          />
-          <Button type="submit" variant="outline" disabled={!ready}>
-            <Search />
-            探す
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            aria-label="現在地へ移動する"
-            disabled={!ready || busy}
-            onClick={() => void moveToCurrentLocation()}
-          >
-            <LocateFixed />
-          </Button>
+        <form
+          className="flex flex-col gap-1.5 md:col-start-2 md:row-start-1"
+          onSubmit={submitKeyword}
+        >
+          <div className="flex gap-1.5">
+            <Input
+              type="search"
+              aria-label="キーワード"
+              placeholder="キーワード"
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+            />
+            <Button type="submit" variant="outline" disabled={!ready}>
+              <Search />
+              探す
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="現在地の周りを地図内で探す"
+              disabled={!ready || busy}
+              onClick={() => void moveToCurrentLocation()}
+            >
+              <LocateFixed />
+            </Button>
+          </div>
+          <div className="flex gap-1">
+            {SEARCH_SCOPES.map(({ value, label }) => (
+              <Button
+                key={value}
+                type="button"
+                size="sm"
+                variant={scope === value ? "secondary" : "ghost"}
+                aria-pressed={scope === value}
+                onClick={() => changeScope(value)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
         </form>
         <div
           ref={containerRef}
@@ -324,13 +419,7 @@ const PlaceMap = ({ onSelect }: { onSelect: (name: string) => void }) => {
             ) : (
               <>
                 {locationNote !== null && <p>{locationNote}</p>}
-                <p>
-                  {result.pois.length === 0
-                    ? "見つかりませんでした。地図を動かすか、キーワードを変えて探してください"
-                    : result.pois.length >= POI_SEARCH_LIMIT
-                      ? `多いので ${result.pois.length} 件だけ出しています。地図を拡大すると絞り込めます`
-                      : `${result.pois.length} 件。地図の印か一覧から選んでください`}
-                </p>
+                <p>{statusMessage(scope, appliedKeywordRef.current, result.pois.length)}</p>
               </>
             )}
           </div>

@@ -15,8 +15,8 @@ export type LngLat = { lng: number; lat: number };
 /** 地図の表示範囲（西・南・東・北） */
 export type BBox = { minLng: number; minLat: number; maxLng: number; maxLat: number };
 
-/** 検索の範囲。中心と半径か、地図の表示範囲 */
-export type PoiArea = { center: LngLat; radius: number } | { bbox: BBox };
+/** 検索の範囲。中心と半径か、地図の表示範囲。null なら範囲を限らず全国から探す */
+export type PoiArea = { center: LngLat; radius: number } | { bbox: BBox } | null;
 
 /** 1 回の検索で受け取れる件数の上限（API の上限）。範囲の中にこれより多くあると、一部しか返らない */
 export const POI_SEARCH_LIMIT = 200;
@@ -55,10 +55,10 @@ export const searchUrl = (keyword: string, area: PoiArea, limit: number): string
   const params = new URLSearchParams();
   const q = keyword.trim();
   if (q !== "") params.set("q", q);
-  if ("bbox" in area) {
+  if (area !== null && "bbox" in area) {
     const { minLng, minLat, maxLng, maxLat } = clampBBox(area.bbox);
     params.set("bbox", [minLng, minLat, maxLng, maxLat].join(","));
-  } else {
+  } else if (area !== null) {
     params.set("center", `${area.center.lng},${area.center.lat}`);
     params.set("radius", String(Math.round(area.radius)));
   }
@@ -134,18 +134,36 @@ export const searchPois = async (
 };
 
 /**
+ * 施設がすべて入る範囲を返す。施設がなければ null。
+ */
+export const boundsOfPois = (pois: Poi[]): BBox | null => {
+  if (pois.length === 0) return null;
+  const lngs = pois.map((poi) => poi.position.lng);
+  const lats = pois.map((poi) => poi.position.lat);
+  return {
+    minLng: Math.min(...lngs),
+    minLat: Math.min(...lats),
+    maxLng: Math.max(...lngs),
+    maxLat: Math.max(...lats),
+  };
+};
+
+/**
+ * 同じ施設を 1 件にまとめる。API は同じ名前と座標の施設を重ねて返すことがある。
+ */
+export const uniquePois = (pois: Poi[]): Poi[] => [
+  ...new Map(pois.map((poi) => [poiKey(poi), poi])).values(),
+];
+
+/**
  * 2 つの検索結果を 1 つにまとめる。同じ施設は 1 件にし、範囲の外の施設は除く。
  */
-export const mergePoisInView = (bbox: BBox, ...lists: Poi[][]): Poi[] => {
-  const merged = new Map<string, Poi>();
-  for (const poi of lists.flat()) {
-    const { lng, lat } = poi.position;
-    const inView =
-      bbox.minLng <= lng && lng <= bbox.maxLng && bbox.minLat <= lat && lat <= bbox.maxLat;
-    if (inView) merged.set(poiKey(poi), poi);
-  }
-  return [...merged.values()];
-};
+export const mergePoisInView = (bbox: BBox, ...lists: Poi[][]): Poi[] =>
+  uniquePois(
+    lists.flat().filter(({ position: { lng, lat } }) => {
+      return bbox.minLng <= lng && lng <= bbox.maxLng && bbox.minLat <= lat && lat <= bbox.maxLat;
+    }),
+  );
 
 /**
  * 地図の表示範囲の施設を探す。
