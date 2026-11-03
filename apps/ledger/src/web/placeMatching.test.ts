@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vite-plus/test";
 import type { Poi } from "./openPoi.ts";
-import { inferChain, placeDetailFor, similarPlaces, suggestQueries } from "./placeMatching.ts";
+import {
+  inferChain,
+  placeDetailFor,
+  placeKey,
+  similarPlaces,
+  suggestQueries,
+} from "./placeMatching.ts";
 
 const poi: Poi = {
   name: "セブンイレブン 丸の内店",
@@ -12,17 +18,26 @@ const poi: Poi = {
   attributions: ["Overture Maps Foundation"],
 };
 
+describe("placeKey", () => {
+  test.each([
+    ["セブン-イレブン", "セブンーイレブン"],
+    ["ｾﾌﾞﾝｲﾚﾌﾞﾝ", "セブンイレブン"],
+    ["Amazon.co.jp", "AMAZON CO JP"],
+    ["ＪＲ東日本", "JR 東日本"],
+  ])("%s と %s は同じキーになる", (a, b) => {
+    expect(placeKey(a)).toBe(placeKey(b));
+  });
+
+  test("別の名前は別のキーになる", () => {
+    expect(placeKey("ローソン")).not.toBe(placeKey("ファミリーマート"));
+  });
+});
+
 describe("similarPlaces", () => {
   test("表記だけが違う店舗を、一部だけ同じ店舗より先に返す", () => {
     expect(
       similarPlaces("セブン-イレブン", ["セブンイレブン丸の内店", "ローソン", "ｾﾌﾞﾝｲﾚﾌﾞﾝ"]),
     ).toEqual(["ｾﾌﾞﾝｲﾚﾌﾞﾝ", "セブンイレブン丸の内店"]);
-  });
-
-  test("末尾の店の有無だけが違う店舗を、一部だけ同じ店舗より先に返す", () => {
-    expect(
-      similarPlaces("マックスバリュ船堀", ["マックスバリュ船堀駅前店", "マックスバリュ船堀店"]),
-    ).toEqual(["マックスバリュ船堀店", "マックスバリュ船堀駅前店"]);
   });
 
   test("入れた名前そのものは返さない", () => {

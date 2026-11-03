@@ -5,7 +5,6 @@
 import { toJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import type { CategoryWithGenres, PlaceWithUsage } from "../ledger/masters.ts";
-import { storeKey } from "../ledger/placeKey.ts";
 import {
   runStructuredChat,
   truncate,
@@ -138,14 +137,9 @@ const normalizePlaceName = (name: string): string => name.normalize("NFKC").trim
 
 /**
  * 名前か別名が一致する店舗の正式な名前を返す。なければ undefined を返す。別名より店舗名の一致を優先する。
- *
- * 店舗名は表記の揺れと末尾の「店」の有無を無視して比べる。一部だけ同じ店舗は別の支店かもしれないので、ここでは決めない。
  */
 export const findPlaceName = (name: string, places: PlaceForPrompt[]): string | undefined => {
   if (places.some((place) => place.name === name)) return name;
-  const key = storeKey(name);
-  const sameStore = places.find((place) => key !== "" && storeKey(place.name) === key);
-  if (sameStore !== undefined) return sameStore.name;
   const wanted = normalizePlaceName(name);
   return places.find((place) =>
     place.aliases?.some((alias) => normalizePlaceName(alias) === wanted),
@@ -153,9 +147,9 @@ export const findPlaceName = (name: string, places: PlaceForPrompt[]): string | 
 };
 
 /**
- * AI が返した店舗名が既存の店舗の別の表記や別名なら、その店舗の正式な名前に直す。そうでなければそのまま返す。
+ * AI が返した店舗名が別名なら、その店舗の正式な名前に直す。別名でなければそのまま返す。
  *
- * AI が返した表記のままだと、登録のときに同じ表記の新しい店舗が作られてしまうため。
+ * AI が別名をそのまま返すと、登録のときに同じ表記の新しい店舗が作られてしまうため。
  */
 export const resolvePlaceAlias = (
   placeName: string | null,

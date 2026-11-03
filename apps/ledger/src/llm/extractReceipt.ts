@@ -7,13 +7,14 @@ import * as v from "valibot";
 import {
   EXTRACTED_PAYMENT_JSON_SCHEMA,
   ExtractedPaymentSchema,
+  findPlaceName,
   formatAccountsForPrompt,
   formatCategoriesForPrompt,
   formatRecentPlacesForPrompt,
   PLACE_NOTES_RULE,
-  resolvePlaceAlias,
   type ExtractedPayment,
   type ExtractPaymentContext,
+  type PlaceForPrompt,
 } from "./extractPayment.ts";
 import { READ_SETTINGS, type ReadQuality } from "./readQuality.ts";
 import {
@@ -89,6 +90,36 @@ export const buildReceiptPrompt = (input: ExtractReceiptContext): StructuredProm
   return { system, prompt, images: [input.image] };
 };
 
+/** 短い名前は無関係な店舗の名前にも含まれやすいので、部分一致はこの文字数以上の名前でだけ見る */
+const PARTIAL_MATCH_MIN_LENGTH = 3;
+
+/**
+ * レシートから読み取った店舗名を、既存の店舗の名前に直す。当たらなければそのまま返す。
+ *
+ * 名前と別名で当たらなければ、読み取った語がすべて店舗名に含まれる店舗を探す。店舗名は OpenPOI の施設から
+ * 作ると空白を含むので、空白を落として比べる。同じチェーンの別の支店に付けないよう、1 つに決まるときだけ直す。
+ */
+export const resolveReceiptPlaceName = (
+  placeName: string | null,
+  places: PlaceForPrompt[],
+): string | null => {
+  if (placeName === null) return null;
+  const known = findPlaceName(placeName, places);
+  if (known !== undefined) return known;
+
+  const words = placeName
+    .normalize("NFKC")
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((word) => word !== "");
+  if (words.join("").length < PARTIAL_MATCH_MIN_LENGTH) return placeName;
+  const [match, ...others] = places.filter((place) => {
+    const name = place.name.normalize("NFKC").toLowerCase().replace(/\s/g, "");
+    return words.every((word) => name.includes(word));
+  });
+  return match !== undefined && others.length === 0 ? match.name : placeName;
+};
+
 /**
  * Workers AI binding を使ってレシートの写真から支払い情報を抽出する。
  */
@@ -111,6 +142,6 @@ export const runExtractReceipt = (params: {
     ...result,
     object: {
       ...result.object,
-      placeName: resolvePlaceAlias(result.object.placeName, params.input.places),
+      placeName: resolveReceiptPlaceName(result.object.placeName, params.input.places),
     },
   }));

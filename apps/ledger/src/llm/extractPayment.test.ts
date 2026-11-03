@@ -219,29 +219,6 @@ describe("店舗の別名とヒント", () => {
       expect(resolvePlaceAlias("アマゾン", places)).toBe("アマゾン");
     });
 
-    test("表記の揺れと末尾の店の有無だけが違えば、既存の店舗名に直す", () => {
-      const stores = [place("マックスバリュエクスプレス船堀駅前店"), place("セブン-イレブン")];
-      expect(resolvePlaceAlias("マックスバリュエクスプレス船堀駅前", stores)).toBe(
-        "マックスバリュエクスプレス船堀駅前店",
-      );
-      expect(resolvePlaceAlias("マックスバリュエクスプレス　船堀駅前店", stores)).toBe(
-        "マックスバリュエクスプレス船堀駅前店",
-      );
-      expect(resolvePlaceAlias("ｾﾌﾞﾝｲﾚﾌﾞﾝ", stores)).toBe("セブン-イレブン");
-    });
-
-    test("別名より店舗名の表記の揺れの一致を優先する", () => {
-      const stores = [place("A店", { aliases: ["B"] }), place("B店")];
-      expect(resolvePlaceAlias("B", stores)).toBe("B店");
-    });
-
-    test("一部だけ同じ店舗には直さない", () => {
-      const stores = [place("マックスバリュエクスプレス船堀駅前店")];
-      expect(resolvePlaceAlias("マックスバリュエクスプレス", stores)).toBe(
-        "マックスバリュエクスプレス",
-      );
-    });
-
     test("どれにも当たらなければそのまま返し、null は null のまま返す", () => {
       expect(resolvePlaceAlias("新しい店", places)).toBe("新しい店");
       expect(resolvePlaceAlias(null, places)).toBeNull();

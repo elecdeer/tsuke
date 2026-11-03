@@ -6,6 +6,7 @@ import { describe, expect, test, vi } from "vite-plus/test";
 import {
   buildReceiptPrompt,
   ReceiptImageSchema,
+  resolveReceiptPlaceName,
   runExtractReceipt,
   type ExtractReceiptContext,
 } from "./extractReceipt.ts";
@@ -84,7 +85,76 @@ describe("buildReceiptPrompt", () => {
   });
 });
 
+describe("resolveReceiptPlaceName", () => {
+  const place = (name: string, aliases?: string[]) => ({
+    id: 1,
+    name,
+    lastUsedOn: null,
+    useCount: 0,
+    aliases,
+  });
+  const store = "マックスバリュエクスプレス船堀駅前店";
+
+  test.each([
+    ["店のない名前", "マックスバリュエクスプレス船堀駅前"],
+    ["チェーン名と支店名を区切った名前", "マックスバリュエクスプレス 船堀駅前店"],
+    ["区切って店のない名前", "マックスバリュエクスプレス　船堀駅前"],
+  ])("%s を、語がすべて含まれる既存の店舗に直す", (_, read) => {
+    expect(resolveReceiptPlaceName(read, [place(store)])).toBe(store);
+  });
+
+  test("空白を含む店舗名にも、空白のない読み取りの名前で当たる", () => {
+    const spaced = "マックスバリュエクスプレス　船堀駅前店";
+    expect(resolveReceiptPlaceName("マックスバリュエクスプレス船堀駅前", [place(spaced)])).toBe(
+      spaced,
+    );
+  });
+
+  test("全角半角と大文字小文字の違いは無視する", () => {
+    expect(resolveReceiptPlaceName("ａｅｏｎ 船堀", [place("AEON船堀店")])).toBe("AEON船堀店");
+  });
+
+  test("複数の店舗に当たるときは決めずにそのまま返す", () => {
+    const places = [place("ローソン新宿西口店"), place("ローソン新宿南口店")];
+    expect(resolveReceiptPlaceName("ローソン 新宿", places)).toBe("ローソン 新宿");
+  });
+
+  test("含まれない語があれば直さない", () => {
+    expect(resolveReceiptPlaceName("ローソン 渋谷店", [place("ローソン新宿西口店")])).toBe(
+      "ローソン 渋谷店",
+    );
+  });
+
+  test("短い名前は一部が同じだけでは直さない", () => {
+    expect(resolveReceiptPlaceName("ヤマ", [place("ヤマト運輸")])).toBe("ヤマ");
+  });
+
+  test("完全に一致する店舗名と別名は、部分一致より先に見る", () => {
+    const places = [place("スーパーA本店"), place("スーパーA"), place("B店", ["スーパーAB"])];
+    expect(resolveReceiptPlaceName("スーパーA", places)).toBe("スーパーA");
+    expect(resolveReceiptPlaceName("スーパーAB", places)).toBe("B店");
+  });
+
+  test("null は null のまま返す", () => {
+    expect(resolveReceiptPlaceName(null, [place(store)])).toBeNull();
+  });
+});
+
 describe("runExtractReceipt", () => {
+  test("読み取った店舗名を既存の店舗の名前に直して返す", async () => {
+    const ai = {
+      run: vi.fn(async () => ({
+        choices: [
+          { message: { content: JSON.stringify({ ...extracted, placeName: "スーパー A" }) } },
+        ],
+      })),
+    };
+
+    const { object } = await runExtractReceipt({ ai, quality: "fast", input: baseInput() });
+
+    expect(object.placeName).toBe("スーパーA");
+  });
+
   test("user メッセージに文字と画像を content parts で入れ、抽出結果を返す", async () => {
     const ai = {
       run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
