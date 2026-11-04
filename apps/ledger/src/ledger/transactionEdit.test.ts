@@ -5,9 +5,11 @@ import { createTestLedgerDb, insert } from "../../db/testing.ts";
 import type { LedgerDb } from "../db.ts";
 import {
   checkModeRules,
+  createTransaction,
   deleteTransaction,
   getTransaction,
   TransactionUpdateSchema,
+  TransactionCreateSchema,
   updateTransaction,
   type TransactionUpdate,
 } from "./transactionEdit.ts";
@@ -129,6 +131,300 @@ describe("getTransaction", () => {
     const { db } = createTestLedgerDb();
 
     expect(await getTransaction(db, 1)).toBeUndefined();
+  });
+});
+
+describe("TransactionCreateSchema", () => {
+  test("知らない種類を受け付けない", () => {
+    const input = {
+      date: "2026-10-02",
+      aggregation: "always",
+      fromAccountId: null,
+      toAccountId: null,
+      placeName: null,
+      items: [{ categoryId: null, genreId: null, name: null, memo: null, amount: 100 }],
+    };
+
+    expect(v.safeParse(TransactionCreateSchema, { ...input, mode: "income" }).success).toBe(true);
+    expect(v.safeParse(TransactionCreateSchema, { ...input, mode: "refund" }).success).toBe(false);
+  });
+
+  test("立替額と紐付けは登録の入力に残さない", () => {
+    const parsed = v.parse(TransactionCreateSchema, {
+      date: "2026-10-02",
+      aggregation: "always",
+      fromAccountId: null,
+      toAccountId: null,
+      placeName: null,
+      items: [{ categoryId: null, genreId: null, name: null, memo: null, amount: 100 }],
+      mode: "payment",
+      advanceAmount: 100,
+      reimbursements: [{ paymentId: 1, amount: 100, expectMore: false }],
+    });
+
+    expect(parsed).not.toHaveProperty("advanceAmount");
+    expect(parsed).not.toHaveProperty("reimbursements");
+  });
+});
+
+describe("createTransaction", () => {
+  test("支出を手入力の取引として登録し、内訳から親のカテゴリを決め、品目を入力の順に並べる", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+
+    const result = await createTransaction(db, {
+      ...paymentUpdate(m, {
+        aggregation: "never",
+        items: [
+          { categoryId: null, genreId: m.groceries, name: "卵", memo: "10 個", amount: 300 },
+          { categoryId: null, genreId: m.groceries, name: "", memo: "", amount: -30 },
+        ],
+      }),
+      mode: "payment",
+    });
+
+    if (!result.ok) throw new Error(result.error);
+    expect(await getTransaction(db, result.id)).toEqual({
+      id: result.id,
+      date: "2026-10-02",
+      mode: "payment",
+      aggregation: "never",
+      source: "manual",
+      fromAccountId: m.bank,
+      toAccountId: null,
+      placeName: "スーパー",
+      hasReceiptImage: false,
+      advanceAmount: 0,
+      linkedIncomes: [],
+      linkedPayments: [],
+      items: [
+        {
+          categoryId: m.food,
+          genreId: m.groceries,
+          name: "卵",
+          memo: "10 個",
+          amount: 300,
+          isAdvanceTarget: false,
+        },
+        {
+          categoryId: m.food,
+          genreId: m.groceries,
+          name: null,
+          memo: null,
+          amount: -30,
+          isAdvanceTarget: false,
+        },
+      ],
+    });
+  });
+
+  test("立替の対象の印を品目に保存する", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+
+    const result = await createTransaction(db, {
+      ...paymentUpdate(m, {
+        items: [
+          {
+            categoryId: null,
+            genreId: m.groceries,
+            name: "卵",
+            memo: null,
+            amount: 300,
+            isAdvanceTarget: true,
+          },
+        ],
+      }),
+      mode: "payment",
+    });
+
+    if (!result.ok) throw new Error(result.error);
+    expect(await getTransaction(db, result.id)).toMatchObject({
+      advanceAmount: 0,
+      items: [{ isAdvanceTarget: true }],
+    });
+  });
+
+  test("支出のほかに立替の対象の印を付けると理由を返す", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+
+    const result = await createTransaction(db, {
+      ...paymentUpdate(m, {
+        fromAccountId: null,
+        toAccountId: m.bank,
+        placeName: null,
+        items: [
+          {
+            categoryId: m.salary,
+            genreId: null,
+            name: null,
+            memo: null,
+            amount: 100,
+            isAdvanceTarget: true,
+          },
+        ],
+      }),
+      mode: "income",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      status: 400,
+      error: "立替額を指定できるのは支出だけです",
+    });
+  });
+
+  test("すでに取引があっても、新しい取引に品目を付ける", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+    const existing = insertPayment(sqlite, m);
+
+    const result = await createTransaction(db, { ...paymentUpdate(m), mode: "payment" });
+
+    if (!result.ok) throw new Error(result.error);
+    expect(result.id).not.toBe(existing);
+    expect((await getTransaction(db, existing))?.items).toHaveLength(1);
+    expect((await getTransaction(db, result.id))?.items).toHaveLength(1);
+  });
+
+  test("収入を入金先とカテゴリで登録する", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+
+    const result = await createTransaction(db, {
+      ...paymentUpdate(m, {
+        fromAccountId: null,
+        toAccountId: m.bank,
+        placeName: null,
+        items: [{ categoryId: m.salary, genreId: null, name: null, memo: null, amount: 300000 }],
+      }),
+      mode: "income",
+    });
+
+    if (!result.ok) throw new Error(result.error);
+    expect(await getTransaction(db, result.id)).toMatchObject({
+      mode: "income",
+      fromAccountId: null,
+      toAccountId: m.bank,
+      placeName: null,
+      items: [{ categoryId: m.salary, genreId: null, amount: 300000 }],
+    });
+  });
+
+  test("振替を支払元と入金先で登録する", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+
+    const result = await createTransaction(db, {
+      ...paymentUpdate(m, {
+        fromAccountId: m.bank,
+        toAccountId: m.wallet,
+        placeName: null,
+        items: [{ categoryId: null, genreId: null, name: null, memo: "ATM", amount: 10000 }],
+      }),
+      mode: "transfer",
+    });
+
+    if (!result.ok) throw new Error(result.error);
+    expect(await getTransaction(db, result.id)).toMatchObject({
+      mode: "transfer",
+      fromAccountId: m.bank,
+      toAccountId: m.wallet,
+      items: [{ memo: "ATM", amount: 10000 }],
+    });
+  });
+
+  test("残高調整を片方の口座で登録する", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+
+    const result = await createTransaction(db, {
+      ...paymentUpdate(m, {
+        fromAccountId: null,
+        toAccountId: m.wallet,
+        placeName: null,
+        items: [{ categoryId: null, genreId: null, name: null, memo: null, amount: 500 }],
+      }),
+      mode: "adjustment",
+    });
+
+    if (!result.ok) throw new Error(result.error);
+    expect(await getTransaction(db, result.id)).toMatchObject({
+      mode: "adjustment",
+      fromAccountId: null,
+      toAccountId: m.wallet,
+    });
+  });
+
+  test("新しい店舗名なら店舗も作る", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+
+    const result = await createTransaction(db, {
+      ...paymentUpdate(m, { placeName: "新しいお店" }),
+      mode: "payment",
+    });
+
+    if (!result.ok) throw new Error(result.error);
+    expect((await getTransaction(db, result.id))?.placeName).toBe("新しいお店");
+  });
+
+  test("種類の決まりに合わなければ何も登録しない", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+
+    const result = await createTransaction(db, {
+      ...paymentUpdate(m, {
+        fromAccountId: m.bank,
+        toAccountId: null,
+        placeName: null,
+        items: [{ categoryId: null, genreId: null, name: null, memo: null, amount: 100 }],
+      }),
+      mode: "transfer",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      status: 400,
+      error: "振替には支払元と入金先の両方を指定してください",
+    });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM transactions").get()).toEqual({
+      count: 0,
+    });
+  });
+
+  test("ない口座には理由を返す", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+
+    const result = await createTransaction(db, {
+      ...paymentUpdate(m, { fromAccountId: 9999 }),
+      mode: "payment",
+    });
+
+    expect(result).toEqual({ ok: false, status: 400, error: "口座が見つかりません" });
+  });
+
+  test("種類に合わないカテゴリには理由を返す", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+
+    const result = await createTransaction(db, {
+      ...paymentUpdate(m, {
+        fromAccountId: null,
+        toAccountId: m.bank,
+        placeName: null,
+        items: [{ categoryId: m.food, genreId: null, name: null, memo: null, amount: 100 }],
+      }),
+      mode: "income",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      status: 400,
+      error: `カテゴリが見つかりません: ${m.food}`,
+    });
   });
 });
 

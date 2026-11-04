@@ -46,6 +46,8 @@ vp run dev
 
 口座の AI の読み取り用のヒントは設定の下の `/settings/accounts` で編集する。
 
+レシートのない取引は `/transactions/new` で手で入力して登録する。支出・収入・振替・残高調整のどれも登録できる。
+
 支出の一部を立替にでき、負担額だけを支出として集計する。記録済みの収入の編集画面から支出を紐付けると立替額が確定し、取引の一覧の「未入金」で返ってきていない立替を確かめられる。要件は [advance-payment-requirements.md](apps/ledger/docs/advance-payment-requirements.md)。
 
 紙のレシートは `/receipts/new` で撮影して登録する。続けて何枚でも撮れ、AI が裏で順に読み取ったものを 1 枚ずつ確かめて登録する。読み取りに誤りが目立つときは、より正確なモデルでもう一度読み取れる。スマートフォンではホーム画面に追加すると、この画面から開く（PWA）。設計は [phase5-design.md](apps/ledger/docs/phase5-design.md)。

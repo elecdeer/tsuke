@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 import {
+  draftForMode,
   allocateReimbursements,
   draftFromTransaction,
   emptyItem,
@@ -92,6 +93,71 @@ describe("draftFromTransaction", () => {
       ],
       advanceAmount: "",
       reimbursements: [],
+    });
+  });
+});
+
+describe("draftForMode", () => {
+  const paymentDraft: TransactionDraft = {
+    date: "2026-10-01",
+    aggregation: "never",
+    fromAccountId: "3",
+    toAccountId: "",
+    placeName: "スーパー",
+    placeDetail: { chain: "スーパーチェーン", poi: null },
+    items: [
+      { key: 0, category: "g:1:2", name: "牛乳", memo: "メモ", amount: "200" },
+      { key: 1, category: "g:1:3", name: "卵", memo: "", amount: "300" },
+    ],
+  };
+
+  test("日付と集計の設定は引き継ぐ", () => {
+    expect(draftForMode(paymentDraft, "transfer")).toMatchObject({
+      date: "2026-10-01",
+      aggregation: "never",
+    });
+  });
+
+  test("収入にすると支払元とカテゴリを消し、先頭の品目だけを残す。店舗は残す", () => {
+    expect(draftForMode(paymentDraft, "income")).toMatchObject({
+      fromAccountId: "",
+      toAccountId: "",
+      placeName: "スーパー",
+      items: [{ key: 0, category: "", name: "牛乳", memo: "メモ", amount: "200" }],
+    });
+  });
+
+  test("振替にすると店舗を消し、口座は両方残す", () => {
+    const draft = draftForMode({ ...paymentDraft, toAccountId: "4" }, "transfer");
+
+    expect(draft).toMatchObject({
+      fromAccountId: "3",
+      toAccountId: "4",
+      placeName: "",
+      placeDetail: null,
+    });
+    expect(draft.items).toHaveLength(1);
+  });
+
+  test("支出にすると入金先とカテゴリを消す", () => {
+    const draft = draftForMode({ ...paymentDraft, toAccountId: "4" }, "payment");
+
+    expect(draft.toAccountId).toBe("");
+    expect(draft.fromAccountId).toBe("3");
+    expect(draft.items.map((item) => item.category)).toEqual(["", ""]);
+  });
+
+  test("残高調整にすると、口座が両方あれば入金先を残す", () => {
+    expect(draftForMode({ ...paymentDraft, toAccountId: "4" }, "adjustment")).toMatchObject({
+      fromAccountId: "",
+      toAccountId: "4",
+    });
+  });
+
+  test("残高調整にすると、支払元だけならそのまま残す", () => {
+    expect(draftForMode(paymentDraft, "adjustment")).toMatchObject({
+      fromAccountId: "3",
+      toAccountId: "",
     });
   });
 

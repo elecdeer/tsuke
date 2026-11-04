@@ -661,6 +661,16 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }:
               />
             )}
           </div>
+          <Link
+            href="/transactions/new"
+            className={cn(
+              "self-start text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground",
+              // 確かめている間は写真を広く見せたいので、狭い画面では隠す
+              reviewing && "max-md:hidden",
+            )}
+          >
+            レシートなしで手で入力する
+          </Link>
           {adding && (
             <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
