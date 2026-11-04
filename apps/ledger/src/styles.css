@@ -7,6 +7,12 @@
 :root {
   /* 画面の上に固定するヘッダーの高さ（pages/layout.tsx）。固定して置くものはこの下から並べる */
   --header-height: 2.75rem;
+  /* 狭い画面で画面の下に固定するナビの高さ（pages/layout.tsx） */
+  --bottom-nav-height: 3.5rem;
+  /* ヘッダーと下のナビの間の高さ。下に重ねるシートが使える高さ（src/web/components/ReviewSheet.tsx） */
+  --sheet-stage-height: calc(
+    100dvh - var(--header-height) - var(--bottom-nav-height) - env(safe-area-inset-bottom)
+  );
   /* 角丸は使わない（docs/design.md） */
   --radius: 0;
   --background: oklch(1 0 0);

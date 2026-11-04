@@ -1,7 +1,7 @@
 /**
  * 取引の入力欄の部品。取引の編集・手入力の登録・レシートの登録の画面で共有する。
  */
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, MessageSquarePlus, Plus, Trash2 } from "lucide-react";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react";
 import {
   useId,
@@ -55,6 +55,7 @@ import { placeDetailFor } from "@/web/placeMatching";
 import { placeOptions, type PlaceOption } from "@/web/placeOptions";
 import {
   emptyItem,
+  itemsTotal,
   moveItem,
   toSingleLine,
   type ItemDraft,
@@ -75,6 +76,15 @@ const ITEM_COLUMNS: Record<TransactionMode, string> = {
   transfer: "@xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]",
   adjustment: "@xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]",
 };
+
+/**
+ * 金額に添える単位。順序は文字の大きさと太さで付ける（docs/design.md）ので、数字より小さく細く出す。
+ */
+const YenUnit = ({ className }: { className?: string }) => (
+  <span className={cn("text-xs font-normal tracking-normal text-muted-foreground", className)}>
+    円
+  </span>
+);
 
 /**
  * ラベル付きの入力欄。labelClassName でラベルを隠す（見出しのある表の中など）こともできる。
@@ -336,6 +346,9 @@ const ItemTextDialog = ({
  *
  * 狭いところでは内訳と金額を横に並べ、品目名とメモに両列を使う。
  * 内訳のない種類では金額の隣が空くので、メモと金額を横に並べる。
+ *
+ * 支出のメモは空のことが多いので、狭いところでは空の欄を隠し、行のボタンの列に追加のボタンを出す。
+ * 広いところではメモは表の列なので、列がずれないよう空でも欄を残す。
  */
 const ItemFields = ({
   mode,
@@ -359,6 +372,7 @@ const ItemFields = ({
   const ids = { category: useId(), name: useId(), memo: useId(), amount: useId() };
   const [editing, setEditing] = useState<ItemTextField | null>(null);
   const hasCategory = mode === "payment" || mode === "income";
+  const memoCollapsed = mode === "payment" && item.memo === "";
   const known =
     item.category === "" ||
     categories.some(
@@ -423,7 +437,10 @@ const ItemFields = ({
         label="メモ"
         htmlFor={ids.memo}
         labelClassName="@xl:sr-only"
-        className={cn(hasCategory && "col-span-2 @xl:col-span-1")}
+        className={cn(
+          hasCategory && "col-span-2 @xl:col-span-1",
+          memoCollapsed && "hidden @xl:flex",
+        )}
       >
         <ItemTextButton id={ids.memo} value={item.memo} onClick={() => setEditing("memo")} />
       </FormField>
@@ -433,16 +450,36 @@ const ItemFields = ({
         labelClassName="@xl:sr-only"
         className={cn(hasCategory && "order-first @xl:order-none")}
       >
-        <Input
-          id={ids.amount}
-          inputMode="numeric"
-          className="text-right tabular-nums"
-          value={item.amount}
-          onChange={(event) => onChange({ amount: event.target.value })}
-        />
+        <div className="relative">
+          <Input
+            id={ids.amount}
+            inputMode="numeric"
+            className="pr-4 text-right tabular-nums"
+            value={item.amount}
+            onChange={(event) => onChange({ amount: event.target.value })}
+          />
+          {/* 入力欄の文字と同じ大きさの行に置き、小さくした「円」の下端を数字にそろえる */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 right-0 py-1 text-base md:text-sm"
+          >
+            <YenUnit />
+          </span>
+        </div>
       </FormField>
       {mode === "payment" && (
         <div className="col-span-2 flex justify-end gap-0.5 @xl:col-span-1">
+          {memoCollapsed && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="メモを追加"
+              className="@xl:hidden"
+              onClick={() => setEditing("memo")}
+            >
+              <MessageSquarePlus />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -486,7 +523,20 @@ const ItemFields = ({
 };
 
 /**
- * 品目の表と合計。支出では品目を足す・並べ替える・消すこともできる。
+ * 品目の合計。一番大事な数字なので大きく出し、単位は小さく添えて数字を読む邪魔をしない。
+ */
+export const ItemsTotal = ({ items, className }: { items: ItemDraft[]; className?: string }) => (
+  <div className={cn("flex items-baseline justify-between gap-3", className)}>
+    <span className="text-xs text-muted-foreground">合計</span>
+    <span className="text-2xl font-semibold tracking-tight tabular-nums">
+      {formatAmount(itemsTotal(items))}
+      <YenUnit className="ml-0.5" />
+    </span>
+  </div>
+);
+
+/**
+ * 品目の表。支出では品目を足す・並べ替える・消すこともできる。合計は置き場所が画面ごとに違うので、`ItemsTotal` で別に出す。
  *
  * `categories` は取引の種類に合うもの（支出なら支出の、収入なら収入のカテゴリ）を渡す。
  */
@@ -501,10 +551,6 @@ export const ItemsFields = ({
   categories: CategoryWithGenres[];
   onChange: (items: ItemDraft[]) => void;
 }) => {
-  const total = items.reduce(
-    (sum, item) => sum + (Number(item.amount.replaceAll(",", "")) || 0),
-    0,
-  );
   const updateItem = (index: number, patch: Partial<ItemDraft>) =>
     onChange(items.map((item, i) => (i === index ? { ...item, ...patch } : item)));
 
@@ -552,12 +598,6 @@ export const ItemsFields = ({
           品目を足す
         </Button>
       )}
-      <div className="mt-3 flex items-baseline justify-between border-t border-foreground pt-2">
-        <span className="text-xs text-muted-foreground">合計</span>
-        <span className="text-2xl font-semibold tracking-tight tabular-nums">
-          {formatAmount(total)}
-        </span>
-      </div>
     </>
   );
 };
@@ -756,6 +796,7 @@ export const TransactionDraftFields = ({
           categories={mode === "income" ? categories.income : categories.payment}
           onChange={onItemsChange}
         />
+        <ItemsTotal items={draft.items} className="mt-3 border-t border-foreground pt-2" />
       </Section>
     </>
   );

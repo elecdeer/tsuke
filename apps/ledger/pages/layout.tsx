@@ -31,7 +31,7 @@ const BottomNav = ({ activePath }: { activePath: string }) => (
           href={item.href}
           aria-current={active ? "page" : undefined}
           className={cn(
-            "-mt-px flex h-14 flex-col items-center justify-center gap-0.5 border-t-2 border-transparent text-[0.6875rem] text-muted-foreground",
+            "-mt-px flex h-(--bottom-nav-height) flex-col items-center justify-center gap-0.5 border-t-2 border-transparent text-[0.6875rem] text-muted-foreground",
             active && "border-primary font-medium text-foreground",
           )}
         >
