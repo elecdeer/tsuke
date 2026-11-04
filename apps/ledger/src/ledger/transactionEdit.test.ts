@@ -2,6 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import * as v from "valibot";
 import { describe, expect, test } from "vite-plus/test";
 import { createTestLedgerDb, insert } from "../../db/testing.ts";
+import type { LedgerDb } from "../db.ts";
 import {
   checkModeRules,
   deleteTransaction,
@@ -100,9 +101,26 @@ describe("getTransaction", () => {
       toAccountId: null,
       placeName: "スーパー",
       hasReceiptImage: false,
+      advanceAmount: 0,
+      linkedIncomes: [],
+      linkedPayments: [],
       items: [
-        { categoryId: null, genreId: null, name: "値引き", memo: "クーポン", amount: -20 },
-        { categoryId: m.food, genreId: m.groceries, name: "牛乳", memo: null, amount: 200 },
+        {
+          categoryId: null,
+          genreId: null,
+          name: "値引き",
+          memo: "クーポン",
+          amount: -20,
+          isAdvanceTarget: false,
+        },
+        {
+          categoryId: m.food,
+          genreId: m.groceries,
+          name: "牛乳",
+          memo: null,
+          amount: 200,
+          isAdvanceTarget: false,
+        },
       ],
     });
   });
@@ -148,9 +166,26 @@ describe("updateTransaction", () => {
       toAccountId: null,
       placeName: null,
       hasReceiptImage: false,
+      advanceAmount: 0,
+      linkedIncomes: [],
+      linkedPayments: [],
       items: [
-        { categoryId: m.food, genreId: m.groceries, name: "卵", memo: "10 個", amount: 300 },
-        { categoryId: m.food, genreId: m.groceries, name: null, memo: null, amount: -30 },
+        {
+          categoryId: m.food,
+          genreId: m.groceries,
+          name: "卵",
+          memo: "10 個",
+          amount: 300,
+          isAdvanceTarget: false,
+        },
+        {
+          categoryId: m.food,
+          genreId: m.groceries,
+          name: null,
+          memo: null,
+          amount: -30,
+          isAdvanceTarget: false,
+        },
       ],
     });
   });
@@ -195,7 +230,14 @@ describe("updateTransaction", () => {
     );
 
     expect((await getTransaction(db, id))?.items).toEqual([
-      { categoryId: m.food, genreId: null, name: null, memo: null, amount: 100 },
+      {
+        categoryId: m.food,
+        genreId: null,
+        name: null,
+        memo: null,
+        amount: 100,
+        isAdvanceTarget: false,
+      },
     ]);
   });
 
@@ -398,6 +440,398 @@ describe("deleteTransaction", () => {
       ok: false,
       status: 404,
       error: "取引が見つかりません",
+    });
+  });
+});
+
+describe("立替", () => {
+  /**
+   * 銀行に入る収入を入れる。
+   */
+  const insertIncome = (
+    sqlite: DatabaseSync,
+    m: ReturnType<typeof seedMasters>,
+    amount: number,
+  ) => {
+    const id = insert(
+      sqlite,
+      "INSERT INTO transactions (date, mode, to_account_id, source) VALUES ('2026-10-20', 'income', ?, 'manual')",
+      m.bank,
+    );
+    insert(
+      sqlite,
+      "INSERT INTO transaction_items (transaction_id, category_id, amount) VALUES (?, ?, ?)",
+      id,
+      m.salary,
+      amount,
+    );
+    return id;
+  };
+
+  /**
+   * 3,600 円の支出を入れる。advance は立替額。
+   */
+  const insertAdvancePayment = (
+    sqlite: DatabaseSync,
+    m: ReturnType<typeof seedMasters>,
+    advance: number,
+  ) => {
+    const id = insert(
+      sqlite,
+      "INSERT INTO transactions (date, mode, from_account_id, source, advance_amount) VALUES ('2026-10-01', 'payment', ?, 'manual', ?)",
+      m.wallet,
+      advance,
+    );
+    insert(
+      sqlite,
+      "INSERT INTO transaction_items (transaction_id, category_id, genre_id, amount) VALUES (?, ?, ?, 3600)",
+      id,
+      m.food,
+      m.groceries,
+    );
+    return id;
+  };
+
+  const incomeUpdate = (
+    m: ReturnType<typeof seedMasters>,
+    amount: number,
+    reimbursements: TransactionUpdate["reimbursements"],
+  ): TransactionUpdate => ({
+    date: "2026-10-20",
+    aggregation: "always",
+    fromAccountId: null,
+    toAccountId: m.bank,
+    placeName: null,
+    items: [{ categoryId: m.salary, genreId: null, name: null, memo: null, amount }],
+    reimbursements,
+  });
+
+  const advanceOf = async (db: LedgerDb, id: number) =>
+    (await getTransaction(db, id))?.advanceAmount;
+
+  describe("支出の立替額", () => {
+    test("立替額と対象の印を保存して返す", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const id = insertPayment(sqlite, m);
+
+      const result = await updateTransaction(
+        db,
+        id,
+        paymentUpdate(m, {
+          advanceAmount: 250,
+          items: [
+            { categoryId: null, genreId: m.groceries, name: "卵", memo: null, amount: 100 },
+            {
+              categoryId: null,
+              genreId: m.groceries,
+              name: "牛乳",
+              memo: null,
+              amount: 300,
+              isAdvanceTarget: true,
+            },
+          ],
+        }),
+      );
+
+      expect(result).toEqual({ ok: true });
+      const saved = await getTransaction(db, id);
+      expect(saved?.advanceAmount).toBe(250);
+      expect(saved?.items.map((item) => item.isAdvanceTarget)).toEqual([false, true]);
+    });
+
+    test("立替額を省くと今の値のままにする", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const id = insertAdvancePayment(sqlite, m, 100);
+
+      await updateTransaction(db, id, paymentUpdate(m));
+
+      expect(await advanceOf(db, id)).toBe(100);
+    });
+
+    test("対象の品目の合計を超える立替額は保存しない", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const id = insertPayment(sqlite, m);
+
+      const result = await updateTransaction(
+        db,
+        id,
+        paymentUpdate(m, {
+          advanceAmount: 200,
+          items: [
+            {
+              categoryId: null,
+              genreId: m.groceries,
+              name: "卵",
+              memo: null,
+              amount: 100,
+              isAdvanceTarget: true,
+            },
+            { categoryId: null, genreId: m.groceries, name: "牛乳", memo: null, amount: 300 },
+          ],
+        }),
+      );
+
+      expect(result).toEqual({
+        ok: false,
+        status: 400,
+        error: "立替額は対象の品目の合計以下にしてください",
+      });
+    });
+
+    test("紐付けた額の合計より低い立替額は保存しない", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const payment = insertAdvancePayment(sqlite, m, 2400);
+      const income = insertIncome(sqlite, m, 1200);
+      await updateTransaction(
+        db,
+        income,
+        incomeUpdate(m, 1200, [{ paymentId: payment, amount: 1200, expectMore: true }]),
+      );
+
+      const result = await updateTransaction(
+        db,
+        payment,
+        paymentUpdate(m, {
+          advanceAmount: 1000,
+          items: [{ categoryId: null, genreId: m.groceries, name: null, memo: null, amount: 3600 }],
+        }),
+      );
+
+      expect(result).toEqual({
+        ok: false,
+        status: 400,
+        error: "立替額は紐付けた額の合計以上にしてください",
+      });
+    });
+
+    test("支出以外には立替額を指定できない", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const income = insertIncome(sqlite, m, 1000);
+
+      const result = await updateTransaction(db, income, {
+        ...incomeUpdate(m, 1000, []),
+        advanceAmount: 100,
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        status: 400,
+        error: "立替額を指定できるのは支出だけです",
+      });
+    });
+  });
+
+  describe("収入の紐付け", () => {
+    test("紐付けると立替額を収入の金額で確定し、収入を集計に含めないようにする", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const payment = insertAdvancePayment(sqlite, m, 2400);
+      const income = insertIncome(sqlite, m, 2000);
+
+      const result = await updateTransaction(
+        db,
+        income,
+        incomeUpdate(m, 2000, [{ paymentId: payment, amount: 2000, expectMore: false }]),
+      );
+
+      expect(result).toEqual({ ok: true });
+      expect(await advanceOf(db, payment)).toBe(2000);
+      const saved = await getTransaction(db, income);
+      expect(saved?.aggregation).toBe("never");
+      expect(saved?.linkedPayments).toMatchObject([{ paymentId: payment, amount: 2000 }]);
+      expect((await getTransaction(db, payment))?.linkedIncomes).toMatchObject([
+        { incomeId: income, amount: 2000, accountName: "銀行" },
+      ]);
+    });
+
+    test("まだ入金があるなら立替額を変えず、次の入金で合計に確定する", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const payment = insertAdvancePayment(sqlite, m, 2400);
+      const first = insertIncome(sqlite, m, 1200);
+      const second = insertIncome(sqlite, m, 1000);
+
+      await updateTransaction(
+        db,
+        first,
+        incomeUpdate(m, 1200, [{ paymentId: payment, amount: 1200, expectMore: true }]),
+      );
+      expect(await advanceOf(db, payment)).toBe(2400);
+
+      await updateTransaction(
+        db,
+        second,
+        incomeUpdate(m, 1000, [{ paymentId: payment, amount: 1000, expectMore: false }]),
+      );
+      expect(await advanceOf(db, payment)).toBe(2200);
+    });
+
+    test("1 件の収入を複数の支出に配分して紐付ける", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const a = insertAdvancePayment(sqlite, m, 2000);
+      const b = insertAdvancePayment(sqlite, m, 3500);
+      const income = insertIncome(sqlite, m, 5000);
+
+      const result = await updateTransaction(
+        db,
+        income,
+        incomeUpdate(m, 5000, [
+          { paymentId: a, amount: 1800, expectMore: false },
+          { paymentId: b, amount: 3200, expectMore: false },
+        ]),
+      );
+
+      expect(result).toEqual({ ok: true });
+      expect(await advanceOf(db, a)).toBe(1800);
+      expect(await advanceOf(db, b)).toBe(3200);
+    });
+
+    test("充てる額の和が収入の金額と合わなければ保存しない", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const payment = insertAdvancePayment(sqlite, m, 2400);
+      const income = insertIncome(sqlite, m, 2000);
+
+      const result = await updateTransaction(
+        db,
+        income,
+        incomeUpdate(m, 2000, [{ paymentId: payment, amount: 1500, expectMore: false }]),
+      );
+
+      expect(result).toMatchObject({ ok: false, status: 400 });
+      expect(await advanceOf(db, payment)).toBe(2400);
+    });
+
+    test("対象の品目の合計を超える収入は紐付けず、分けるよう案内する", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const payment = insertAdvancePayment(sqlite, m, 2400);
+      const income = insertIncome(sqlite, m, 4000);
+
+      const result = await updateTransaction(
+        db,
+        income,
+        incomeUpdate(m, 4000, [{ paymentId: payment, amount: 4000, expectMore: false }]),
+      );
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: expect.stringContaining("収入を 2 件に分けて"),
+      });
+    });
+
+    test("支出以外には紐付けない", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const other = insertIncome(sqlite, m, 1000);
+      const income = insertIncome(sqlite, m, 1000);
+
+      const result = await updateTransaction(
+        db,
+        income,
+        incomeUpdate(m, 1000, [{ paymentId: other, amount: 1000, expectMore: false }]),
+      );
+
+      expect(result).toEqual({ ok: false, status: 400, error: "紐付ける支出が見つかりません" });
+    });
+
+    test("収入の金額を変えると、確定していた支出の立替額を上書きする", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const payment = insertAdvancePayment(sqlite, m, 2400);
+      const income = insertIncome(sqlite, m, 2000);
+      await updateTransaction(
+        db,
+        income,
+        incomeUpdate(m, 2000, [{ paymentId: payment, amount: 2000, expectMore: false }]),
+      );
+
+      await updateTransaction(
+        db,
+        income,
+        incomeUpdate(m, 1500, [{ paymentId: payment, amount: 1500, expectMore: false }]),
+      );
+
+      expect(await advanceOf(db, payment)).toBe(1500);
+    });
+
+    test("紐付けを省いて金額だけ変えると、和が合わないので保存しない", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const payment = insertAdvancePayment(sqlite, m, 2400);
+      const income = insertIncome(sqlite, m, 2000);
+      await updateTransaction(
+        db,
+        income,
+        incomeUpdate(m, 2000, [{ paymentId: payment, amount: 2000, expectMore: false }]),
+      );
+
+      const result = await updateTransaction(db, income, incomeUpdate(m, 1500, undefined));
+
+      expect(result).toMatchObject({ ok: false, status: 400 });
+    });
+
+    test("紐付けを外すと立替額はそのままで、集計の設定も変えない", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const payment = insertAdvancePayment(sqlite, m, 2400);
+      const income = insertIncome(sqlite, m, 2000);
+      await updateTransaction(
+        db,
+        income,
+        incomeUpdate(m, 2000, [{ paymentId: payment, amount: 2000, expectMore: false }]),
+      );
+
+      await updateTransaction(db, income, {
+        ...incomeUpdate(m, 2000, []),
+        aggregation: "never",
+      });
+
+      expect(await advanceOf(db, payment)).toBe(2000);
+      const saved = await getTransaction(db, income);
+      expect(saved?.linkedPayments).toEqual([]);
+      expect(saved?.aggregation).toBe("never");
+    });
+  });
+
+  describe("削除", () => {
+    test("収入を消すと紐付けが消え、支出の立替額はそのまま残る", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const payment = insertAdvancePayment(sqlite, m, 2400);
+      const income = insertIncome(sqlite, m, 2000);
+      await updateTransaction(
+        db,
+        income,
+        incomeUpdate(m, 2000, [{ paymentId: payment, amount: 2000, expectMore: false }]),
+      );
+
+      expect(await deleteTransaction(db, income)).toMatchObject({ ok: true });
+
+      const saved = await getTransaction(db, payment);
+      expect(saved?.advanceAmount).toBe(2000);
+      expect(saved?.linkedIncomes).toEqual([]);
+    });
+
+    test("収入が紐付いた支出は消さない", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const m = seedMasters(sqlite);
+      const payment = insertAdvancePayment(sqlite, m, 2400);
+      const income = insertIncome(sqlite, m, 2000);
+      await updateTransaction(
+        db,
+        income,
+        incomeUpdate(m, 2000, [{ paymentId: payment, amount: 2000, expectMore: false }]),
+      );
+
+      expect(await deleteTransaction(db, payment)).toMatchObject({ ok: false, status: 400 });
+      expect(await getTransaction(db, payment)).toBeDefined();
     });
   });
 });

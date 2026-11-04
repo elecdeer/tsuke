@@ -134,6 +134,8 @@ describe("listTransactions", () => {
         placeName: null,
         items: [{ name: null, memo: null, categoryName: "食費", genreName: "外食", amount: 900 }],
         total: 900,
+        advanceAmount: 0,
+        linkedAmount: 0,
       },
       {
         id: transfer,
@@ -146,6 +148,8 @@ describe("listTransactions", () => {
         placeName: null,
         items: [{ name: null, memo: null, categoryName: null, genreName: null, amount: 10000 }],
         total: 10000,
+        advanceAmount: 0,
+        linkedAmount: 0,
       },
       {
         id: early,
@@ -161,6 +165,8 @@ describe("listTransactions", () => {
           { name: "値引き", memo: null, categoryName: "食費", genreName: "食料品", amount: -50 },
         ],
         total: 350,
+        advanceAmount: 0,
+        linkedAmount: 0,
       },
     ]);
   });
@@ -279,5 +285,73 @@ describe("listTransactions", () => {
     const listed = await listTransactions(db, { month: "2026-10", categoryId: m.food });
 
     expect(listed.map((transaction) => transaction.id)).toEqual([eatingOut, groceries]);
+  });
+
+  describe("立替", () => {
+    /**
+     * 立替のある支出を入れる。linked を渡すと、その額の収入を紐付ける。
+     */
+    const insertAdvance = (
+      sqlite: DatabaseSync,
+      date: string,
+      advance: number,
+      linked?: number,
+    ): number => {
+      const id = insertTransaction(sqlite, { date, mode: "payment" });
+      insertItem(sqlite, id, { amount: 3600 });
+      sqlite.prepare("UPDATE transactions SET advance_amount = ? WHERE id = ?").run(advance, id);
+      if (linked !== undefined) {
+        const income = insertTransaction(sqlite, { date, mode: "income" });
+        insertItem(sqlite, income, { amount: linked });
+        insert(
+          sqlite,
+          "INSERT INTO advance_reimbursements (payment_transaction_id, income_transaction_id, amount) VALUES (?, ?, ?)",
+          id,
+          income,
+          linked,
+        );
+      }
+      return id;
+    };
+
+    test("立替額と紐付けた額の合計を返す", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const id = insertAdvance(sqlite, "2026-10-01", 2400, 1200);
+
+      const listed = await listTransactions(db, { month: "2026-10" });
+
+      expect(listed.find((transaction) => transaction.id === id)).toMatchObject({
+        advanceAmount: 2400,
+        linkedAmount: 1200,
+        total: 3600,
+      });
+    });
+
+    test("立替ありの絞り込みは、その月の立替のある取引だけを返す", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const settled = insertAdvance(sqlite, "2026-10-01", 1000, 1000);
+      insertAdvance(sqlite, "2026-09-01", 1000);
+      insertItem(sqlite, insertTransaction(sqlite, { date: "2026-10-02", mode: "payment" }), {
+        amount: 100,
+      });
+
+      const listed = await listTransactions(db, { month: "2026-10", advance: "any" });
+
+      expect(listed.map((transaction) => transaction.id)).toEqual([settled]);
+    });
+
+    test("未入金の絞り込みは、月をまたいで未入金の残りがある取引だけを返す", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      const provisional = insertAdvance(sqlite, "2026-08-01", 1000);
+      const partial = insertAdvance(sqlite, "2026-10-01", 2400, 1200);
+      insertAdvance(sqlite, "2026-10-02", 1000, 1000);
+      insertItem(sqlite, insertTransaction(sqlite, { date: "2026-10-03", mode: "payment" }), {
+        amount: 100,
+      });
+
+      const listed = await listTransactions(db, { month: "2026-11", advance: "unreceived" });
+
+      expect(listed.map((transaction) => transaction.id)).toEqual([partial, provisional]);
+    });
   });
 });

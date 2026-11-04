@@ -1,6 +1,7 @@
-import { and, eq, gte, inArray, lt, sql, sum } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, lt, sql, sum } from "drizzle-orm";
 import { categories, genres, transactionItems, transactions } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
+import { advanceSharesOf } from "./advance.ts";
 import { monthRange } from "./dates.ts";
 import type { CategoryMode } from "./masters.ts";
 
@@ -81,39 +82,101 @@ const buildModeSummary = (rows: SummaryRow[]): ModeSummary => {
   };
 };
 
+/** カテゴリと内訳の組み合わせを表すキー */
+const groupKey = (categoryId: number | null, genreId: number | null): string =>
+  `${categoryId}:${genreId}`;
+
+/**
+ * 月の支出の立替の按分額を、カテゴリと内訳ごとに合計する。
+ *
+ * 端数の調整は取引ごとに行うので、SQL では合計せず、品目を読んで計算する。
+ */
+const sumAdvanceShares = async (
+  db: LedgerDb,
+  { start, end }: { start: string; end: string },
+): Promise<Map<string, number>> => {
+  const rows = await db
+    .select({
+      transactionId: transactions.id,
+      advanceAmount: transactions.advanceAmount,
+      categoryId: transactionItems.categoryId,
+      genreId: transactionItems.genreId,
+      amount: transactionItems.amount,
+      isAdvanceTarget: transactionItems.isAdvanceTarget,
+    })
+    .from(transactionItems)
+    .innerJoin(transactions, eq(transactions.id, transactionItems.transactionId))
+    .where(
+      and(
+        gte(transactions.date, start),
+        lt(transactions.date, end),
+        eq(transactions.mode, "payment"),
+        eq(transactions.aggregation, "always"),
+        gt(transactions.advanceAmount, 0),
+      ),
+    )
+    .orderBy(asc(transactions.id), asc(transactionItems.sort), asc(transactionItems.id));
+
+  const byTransaction = new Map<number, typeof rows>();
+  for (const row of rows) {
+    byTransaction.set(row.transactionId, [...(byTransaction.get(row.transactionId) ?? []), row]);
+  }
+  const totals = new Map<string, number>();
+  for (const items of byTransaction.values()) {
+    const shares = advanceSharesOf(items, items[0]?.advanceAmount ?? 0);
+    items.forEach((item, index) => {
+      const key = groupKey(item.categoryId, item.genreId);
+      totals.set(key, (totals.get(key) ?? 0) + (shares[index] ?? 0));
+    });
+  }
+  return totals;
+};
+
 /**
  * 月の支出と収入を、カテゴリと内訳ごとに合計する。
  *
  * 集計の設定が「常に集計に含める」の取引だけを入れる。「年の集計にのみ含める」は月の集計には入れない。
  * 品目の金額は符号付きなので、値引きの品目はそのまま差し引かれる。
+ * 支出は立替の按分額を引いた負担額で合計し、負担額が 0 になったカテゴリと内訳は出さない。
  */
 export const summarizeMonth = async (db: LedgerDb, month: string): Promise<MonthlySummary> => {
   const { start, end } = monthRange(month);
-  const rows = await db
-    .select({
-      mode: transactions.mode,
-      categoryId: transactionItems.categoryId,
-      categoryName: categories.name,
-      genreId: transactionItems.genreId,
-      genreName: genres.name,
-      amount: sql<number>`cast(${sum(transactionItems.amount)} as integer)`,
-    })
-    .from(transactionItems)
-    .innerJoin(transactions, eq(transactions.id, transactionItems.transactionId))
-    .leftJoin(categories, eq(categories.id, transactionItems.categoryId))
-    .leftJoin(genres, eq(genres.id, transactionItems.genreId))
-    .where(
-      and(
-        gte(transactions.date, start),
-        lt(transactions.date, end),
-        inArray(transactions.mode, ["payment", "income"]),
-        eq(transactions.aggregation, "always"),
-      ),
-    )
-    .groupBy(transactions.mode, transactionItems.categoryId, transactionItems.genreId);
+  const [rows, advanceShares] = await Promise.all([
+    db
+      .select({
+        mode: transactions.mode,
+        categoryId: transactionItems.categoryId,
+        categoryName: categories.name,
+        genreId: transactionItems.genreId,
+        genreName: genres.name,
+        amount: sql<number>`cast(${sum(transactionItems.amount)} as integer)`,
+      })
+      .from(transactionItems)
+      .innerJoin(transactions, eq(transactions.id, transactionItems.transactionId))
+      .leftJoin(categories, eq(categories.id, transactionItems.categoryId))
+      .leftJoin(genres, eq(genres.id, transactionItems.genreId))
+      .where(
+        and(
+          gte(transactions.date, start),
+          lt(transactions.date, end),
+          inArray(transactions.mode, ["payment", "income"]),
+          eq(transactions.aggregation, "always"),
+        ),
+      )
+      .groupBy(transactions.mode, transactionItems.categoryId, transactionItems.genreId),
+    sumAdvanceShares(db, { start, end }),
+  ]);
+
+  const paymentRows = rows
+    .filter((row) => row.mode === "payment")
+    .map((row) => ({
+      ...row,
+      amount: row.amount - (advanceShares.get(groupKey(row.categoryId, row.genreId)) ?? 0),
+    }))
+    .filter((row) => row.amount !== 0);
 
   return {
-    payment: buildModeSummary(rows.filter((row) => row.mode === "payment")),
+    payment: buildModeSummary(paymentRows),
     income: buildModeSummary(rows.filter((row) => row.mode === "income")),
   };
 };
