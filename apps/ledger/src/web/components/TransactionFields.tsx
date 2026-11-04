@@ -1,7 +1,7 @@
 /**
- * 取引の入力欄の部品。取引の編集画面とレシートの登録画面で共有する。
+ * 取引の入力欄の部品。取引の編集・手入力の登録・レシートの登録の画面で共有する。
  */
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, MessageSquarePlus, Plus, Trash2 } from "lucide-react";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react";
 import {
   useId,
@@ -47,11 +47,20 @@ import { categoryLabels, categoryValueOf } from "@/web/categoryValue";
 import { CategoryOptions } from "@/web/components/CategoryOptions";
 import { PlaceCandidates } from "@/web/components/PlaceCandidates";
 import { PlaceMapDialog } from "@/web/components/PlaceMapDialog";
+import { Section } from "@/web/components/Section";
 import { formatAmount } from "@/web/format";
+import { AGGREGATION_LABELS } from "@/web/labels";
 import type { PlaceDetail } from "@/ledger/placeDetail";
 import { placeDetailFor } from "@/web/placeMatching";
 import { placeOptions, type PlaceOption } from "@/web/placeOptions";
-import { emptyItem, moveItem, toSingleLine, type ItemDraft } from "@/web/transactionDraft";
+import {
+  emptyItem,
+  itemsTotal,
+  moveItem,
+  toSingleLine,
+  type ItemDraft,
+  type TransactionDraft,
+} from "@/web/transactionDraft";
 import { cn } from "@/lib/utils";
 
 export type AccountOption = { id: number; name: string };
@@ -67,6 +76,15 @@ const ITEM_COLUMNS: Record<TransactionMode, string> = {
   transfer: "@xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]",
   adjustment: "@xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]",
 };
+
+/**
+ * 金額に添える単位。順序は文字の大きさと太さで付ける（docs/design.md）ので、数字より小さく細く出す。
+ */
+const YenUnit = ({ className }: { className?: string }) => (
+  <span className={cn("text-xs font-normal tracking-normal text-muted-foreground", className)}>
+    円
+  </span>
+);
 
 /**
  * ラベル付きの入力欄。labelClassName でラベルを隠す（見出しのある表の中など）こともできる。
@@ -328,6 +346,9 @@ const ItemTextDialog = ({
  *
  * 狭いところでは内訳と金額を横に並べ、品目名とメモに両列を使う。
  * 内訳のない種類では金額の隣が空くので、メモと金額を横に並べる。
+ *
+ * 支出のメモは空のことが多いので、狭いところでは空の欄を隠し、行のボタンの列に追加のボタンを出す。
+ * 広いところではメモは表の列なので、列がずれないよう空でも欄を残す。
  */
 const ItemFields = ({
   mode,
@@ -351,6 +372,7 @@ const ItemFields = ({
   const ids = { category: useId(), name: useId(), memo: useId(), amount: useId() };
   const [editing, setEditing] = useState<ItemTextField | null>(null);
   const hasCategory = mode === "payment" || mode === "income";
+  const memoCollapsed = mode === "payment" && item.memo === "";
   const known =
     item.category === "" ||
     categories.some(
@@ -415,7 +437,10 @@ const ItemFields = ({
         label="メモ"
         htmlFor={ids.memo}
         labelClassName="@xl:sr-only"
-        className={cn(hasCategory && "col-span-2 @xl:col-span-1")}
+        className={cn(
+          hasCategory && "col-span-2 @xl:col-span-1",
+          memoCollapsed && "hidden @xl:flex",
+        )}
       >
         <ItemTextButton id={ids.memo} value={item.memo} onClick={() => setEditing("memo")} />
       </FormField>
@@ -425,16 +450,36 @@ const ItemFields = ({
         labelClassName="@xl:sr-only"
         className={cn(hasCategory && "order-first @xl:order-none")}
       >
-        <Input
-          id={ids.amount}
-          inputMode="numeric"
-          className="text-right tabular-nums"
-          value={item.amount}
-          onChange={(event) => onChange({ amount: event.target.value })}
-        />
+        <div className="relative">
+          <Input
+            id={ids.amount}
+            inputMode="numeric"
+            className="pr-4 text-right tabular-nums"
+            value={item.amount}
+            onChange={(event) => onChange({ amount: event.target.value })}
+          />
+          {/* 入力欄の文字と同じ大きさの行に置き、小さくした「円」の下端を数字にそろえる */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 right-0 py-1 text-base md:text-sm"
+          >
+            <YenUnit />
+          </span>
+        </div>
       </FormField>
       {mode === "payment" && (
         <div className="col-span-2 flex justify-end gap-0.5 @xl:col-span-1">
+          {memoCollapsed && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="メモを追加"
+              className="@xl:hidden"
+              onClick={() => setEditing("memo")}
+            >
+              <MessageSquarePlus />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -478,7 +523,20 @@ const ItemFields = ({
 };
 
 /**
- * 品目の表と合計。支出では品目を足す・並べ替える・消すこともできる。
+ * 品目の合計。一番大事な数字なので大きく出し、単位は小さく添えて数字を読む邪魔をしない。
+ */
+export const ItemsTotal = ({ items, className }: { items: ItemDraft[]; className?: string }) => (
+  <div className={cn("flex items-baseline justify-between gap-3", className)}>
+    <span className="text-xs text-muted-foreground">合計</span>
+    <span className="text-2xl font-semibold tracking-tight tabular-nums">
+      {formatAmount(itemsTotal(items))}
+      <YenUnit className="ml-0.5" />
+    </span>
+  </div>
+);
+
+/**
+ * 品目の表。支出では品目を足す・並べ替える・消すこともできる。合計は置き場所が画面ごとに違うので、`ItemsTotal` で別に出す。
  *
  * `categories` は取引の種類に合うもの（支出なら支出の、収入なら収入のカテゴリ）を渡す。
  */
@@ -493,10 +551,6 @@ export const ItemsFields = ({
   categories: CategoryWithGenres[];
   onChange: (items: ItemDraft[]) => void;
 }) => {
-  const total = items.reduce(
-    (sum, item) => sum + (Number(item.amount.replaceAll(",", "")) || 0),
-    0,
-  );
   const updateItem = (index: number, patch: Partial<ItemDraft>) =>
     onChange(items.map((item, i) => (i === index ? { ...item, ...patch } : item)));
 
@@ -544,12 +598,206 @@ export const ItemsFields = ({
           品目を足す
         </Button>
       )}
-      <div className="mt-3 flex items-baseline justify-between border-t border-foreground pt-2">
-        <span className="text-xs text-muted-foreground">合計</span>
-        <span className="text-2xl font-semibold tracking-tight tabular-nums">
-          {formatAmount(total)}
-        </span>
-      </div>
+    </>
+  );
+};
+
+/** 残高調整の向きの選択肢の名前 */
+const DIRECTION_LABELS = { increase: "残高を増やす", decrease: "残高を減らす" } as const;
+
+/**
+ * 残高調整の口座の入力欄。「増やす / 減らす」と口座で入れ、増やすなら入金先、減らすなら支払元に入れる。
+ *
+ * 向きは口座を選ぶ前にも選べるよう、入力中の値とは別に持つ（口座が空だと入力中の値からは向きが分からない）。
+ */
+const AdjustmentFields = ({
+  draft,
+  accounts,
+  update,
+}: {
+  draft: TransactionDraft;
+  accounts: AccountOption[];
+  update: (patch: Partial<TransactionDraft>) => void;
+}) => {
+  const directionId = useId();
+  const accountId = useId();
+  const [increases, setIncreases] = useState(draft.toAccountId !== "");
+  const account = increases ? draft.toAccountId : draft.fromAccountId;
+  const setAdjustment = (nextIncreases: boolean, nextAccount: string) => {
+    setIncreases(nextIncreases);
+    update(
+      nextIncreases
+        ? { toAccountId: nextAccount, fromAccountId: "" }
+        : { fromAccountId: nextAccount, toAccountId: "" },
+    );
+  };
+  return (
+    <>
+      <FormField label="向き" htmlFor={directionId}>
+        <Select
+          items={DIRECTION_LABELS}
+          value={increases ? "increase" : "decrease"}
+          onValueChange={(value) => setAdjustment(value === "increase", account)}
+        >
+          <SelectTrigger id={directionId} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="increase">{DIRECTION_LABELS.increase}</SelectItem>
+            <SelectItem value="decrease">{DIRECTION_LABELS.decrease}</SelectItem>
+          </SelectContent>
+        </Select>
+      </FormField>
+      <FormField label="口座" htmlFor={accountId}>
+        <AccountSelect
+          id={accountId}
+          value={account}
+          accounts={accounts}
+          allowEmpty={false}
+          onChange={(value) => setAdjustment(increases, value)}
+        />
+      </FormField>
+    </>
+  );
+};
+
+/**
+ * 種類ごとの口座の入力欄。
+ */
+const AccountFields = ({
+  mode,
+  draft,
+  accounts,
+  update,
+}: {
+  mode: TransactionMode;
+  draft: TransactionDraft;
+  accounts: AccountOption[];
+  update: (patch: Partial<TransactionDraft>) => void;
+}) => {
+  const fromId = useId();
+  const toId = useId();
+
+  if (mode === "adjustment") {
+    return <AdjustmentFields draft={draft} accounts={accounts} update={update} />;
+  }
+
+  return (
+    <>
+      {(mode === "payment" || mode === "transfer") && (
+        <FormField label="支払元" htmlFor={fromId}>
+          <AccountSelect
+            id={fromId}
+            value={draft.fromAccountId}
+            accounts={accounts}
+            allowEmpty={mode === "payment"}
+            onChange={(value) => update({ fromAccountId: value })}
+          />
+        </FormField>
+      )}
+      {(mode === "income" || mode === "transfer") && (
+        <FormField label="入金先" htmlFor={toId}>
+          <AccountSelect
+            id={toId}
+            value={draft.toAccountId}
+            accounts={accounts}
+            allowEmpty={mode === "income"}
+            onChange={(value) => update({ toAccountId: value })}
+          />
+        </FormField>
+      )}
+    </>
+  );
+};
+
+/**
+ * 取引の入力欄ひとそろい（日付・集計の設定・口座・店舗と品目）。編集と手入力の登録で使う。
+ */
+export const TransactionDraftFields = ({
+  mode,
+  heading,
+  draft,
+  accounts,
+  categories,
+  placeNames,
+  chainNames,
+  update,
+  onItemsChange,
+}: {
+  mode: TransactionMode;
+  heading: ReactNode;
+  draft: TransactionDraft;
+  accounts: AccountOption[];
+  categories: { payment: CategoryWithGenres[]; income: CategoryWithGenres[] };
+  placeNames: string[];
+  chainNames: string[];
+  update: (patch: Partial<TransactionDraft>) => void;
+  onItemsChange: (items: ItemDraft[]) => void;
+}) => {
+  const ids = { date: useId(), place: useId(), aggregation: useId() };
+  return (
+    <>
+      <Section label={heading}>
+        <div className="grid gap-x-6 gap-y-4 border-t border-foreground pt-3 @md:grid-cols-2">
+          <FormField label="日付" htmlFor={ids.date}>
+            <Input
+              id={ids.date}
+              type="date"
+              required
+              value={draft.date}
+              onChange={(event) => update({ date: event.target.value })}
+            />
+          </FormField>
+          <FormField label="集計の設定" htmlFor={ids.aggregation}>
+            <Select
+              items={AGGREGATION_LABELS}
+              value={draft.aggregation}
+              // 紐付いた収入は保存時に必ず「集計に含めない」になるので、選べないようにする
+              disabled={(draft.reimbursements ?? []).length > 0}
+              onValueChange={(next) => {
+                const aggregation = (["always", "never", "yearly_only"] as const).find(
+                  (value) => value === next,
+                );
+                if (aggregation !== undefined) update({ aggregation });
+              }}
+            >
+              <SelectTrigger id={ids.aggregation} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(["always", "never", "yearly_only"] as const).map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {AGGREGATION_LABELS[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+          <AccountFields mode={mode} draft={draft} accounts={accounts} update={update} />
+          {(mode === "payment" || mode === "income") && (
+            <FormField label={mode === "payment" ? "店舗" : "取引先"} htmlFor={ids.place}>
+              <PlaceInput
+                id={ids.place}
+                value={draft.placeName}
+                detail={draft.placeDetail}
+                placeNames={placeNames}
+                chainNames={chainNames}
+                onChange={(placeName, placeDetail) => update({ placeName, placeDetail })}
+              />
+            </FormField>
+          )}
+        </div>
+      </Section>
+
+      <Section label="品目">
+        <ItemsFields
+          mode={mode}
+          items={draft.items}
+          categories={mode === "income" ? categories.income : categories.payment}
+          onChange={onItemsChange}
+        />
+        <ItemsTotal items={draft.items} className="mt-3 border-t border-foreground pt-2" />
+      </Section>
     </>
   );
 };

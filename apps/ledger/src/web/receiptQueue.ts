@@ -1,4 +1,5 @@
 import type { ExtractedPayment } from "../llm/extractPayment.ts";
+import type { ReceiptBox } from "../llm/extractReceipt.ts";
 import type { ReadQuality } from "../llm/readQuality.ts";
 import type { TransactionDraft } from "./transactionDraft.ts";
 
@@ -12,8 +13,11 @@ import type { TransactionDraft } from "./transactionDraft.ts";
  */
 export type ReceiptStatus = "waiting" | "reading" | "read" | "failed";
 
-/** AI が読み取った結果。電話番号は、この項目を足す前に端末へ保存されたレシートにはない */
-export type ReadReceipt = ExtractedPayment & { placePhone?: string | null };
+/** AI が読み取った結果。電話番号と範囲は、この項目を足す前に端末へ保存されたレシートにはない */
+export type ReadReceipt = ExtractedPayment & {
+  placePhone?: string | null;
+  receiptBox?: ReceiptBox | null;
+};
 
 /**
  * 撮ってから登録するまでのレシート 1 枚。写真は大きいので別に持つ（入力のたびに書き直さないため）。

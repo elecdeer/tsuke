@@ -3,18 +3,19 @@ import {
   formatAmount,
   formatDay,
   formatDayOfMonth,
+  formatFullDay,
   formatPercent,
   formatSignedAmount,
   formatYen,
 } from "./format.ts";
 
 describe("formatYen", () => {
-  test("3 桁ごとに区切って円記号を付ける", () => {
-    expect(formatYen(1234567)).toBe("¥1,234,567");
+  test("3 桁ごとに区切って円を付ける", () => {
+    expect(formatYen(1234567)).toBe("1,234,567円");
   });
 
-  test("負の金額は符号を円記号の前に付ける", () => {
-    expect(formatYen(-500)).toBe("-¥500");
+  test("負の金額は「−」の符号を前に付ける", () => {
+    expect(formatYen(-500)).toBe("−500円");
   });
 });
 
@@ -61,5 +62,11 @@ describe("formatSignedAmount", () => {
 describe("formatDayOfMonth", () => {
   test("日と曜日だけを書く", () => {
     expect(formatDayOfMonth("2026-10-28")).toBe("28 水");
+  });
+});
+
+describe("formatFullDay", () => {
+  test("年から書く", () => {
+    expect(formatFullDay("2026-10-28")).toBe("2026/10/28");
   });
 });

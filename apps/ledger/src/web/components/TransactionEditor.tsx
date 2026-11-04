@@ -1,5 +1,5 @@
 import { Check, Info, Trash2 } from "lucide-react";
-import { useId, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,30 +11,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { CategoryWithGenres } from "@/ledger/masters";
+import type { ReimbursementCandidate } from "@/ledger/reimbursements";
 import type { getTransaction, TransactionUpdate } from "@/ledger/transactionEdit";
-import type { TransactionMode } from "@/ledger/transactions";
 import { actionErrorMessage } from "@/web/actionError";
+import { IncomeReimbursementFields, PaymentAdvanceFields } from "@/web/components/AdvanceFields";
 import { ErrorMessage } from "@/web/components/ErrorMessage";
 import { Section } from "@/web/components/Section";
+import { TransactionDraftFields, type AccountOption } from "@/web/components/TransactionFields";
+import { MODE_LABELS } from "@/web/labels";
 import {
-  AccountSelect,
-  FormField,
-  ItemsFields,
-  PlaceInput,
-  type AccountOption,
-} from "@/web/components/TransactionFields";
-import { AGGREGATION_LABELS, MODE_LABELS } from "@/web/labels";
-import {
+  allocateReimbursements,
   draftFromTransaction,
+  itemsTotalOf,
   updateFromDraft,
   type TransactionDraft,
 } from "@/web/transactionDraft";
@@ -45,96 +34,6 @@ type Transaction = NonNullable<Awaited<ReturnType<typeof getTransaction>>>;
 export type EditorActionResult =
   | { ok: true }
   | { ok: false; error: { body: unknown; message: string } };
-
-/** 残高調整の向きの選択肢の名前 */
-const DIRECTION_LABELS = { increase: "残高を増やす", decrease: "残高を減らす" } as const;
-
-/**
- * 種類ごとの口座の入力欄。
- *
- * 残高調整は「増やす / 減らす」と口座で入れ、増やすなら入金先、減らすなら支払元に入れる。
- */
-const AccountFields = ({
-  mode,
-  draft,
-  accounts,
-  update,
-}: {
-  mode: TransactionMode;
-  draft: TransactionDraft;
-  accounts: AccountOption[];
-  update: (patch: Partial<TransactionDraft>) => void;
-}) => {
-  const fromId = useId();
-  const toId = useId();
-  const directionId = useId();
-
-  if (mode === "adjustment") {
-    const increases = draft.toAccountId !== "";
-    const accountId = increases ? draft.toAccountId : draft.fromAccountId;
-    const setAdjustment = (nextIncreases: boolean, nextAccountId: string) =>
-      update(
-        nextIncreases
-          ? { toAccountId: nextAccountId, fromAccountId: "" }
-          : { fromAccountId: nextAccountId, toAccountId: "" },
-      );
-    return (
-      <>
-        <FormField label="向き" htmlFor={directionId}>
-          <Select
-            items={DIRECTION_LABELS}
-            value={increases ? "increase" : "decrease"}
-            onValueChange={(value) => setAdjustment(value === "increase", accountId)}
-          >
-            <SelectTrigger id={directionId} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="increase">{DIRECTION_LABELS.increase}</SelectItem>
-              <SelectItem value="decrease">{DIRECTION_LABELS.decrease}</SelectItem>
-            </SelectContent>
-          </Select>
-        </FormField>
-        <FormField label="口座" htmlFor={fromId}>
-          <AccountSelect
-            id={fromId}
-            value={accountId}
-            accounts={accounts}
-            allowEmpty={false}
-            onChange={(value) => setAdjustment(increases, value)}
-          />
-        </FormField>
-      </>
-    );
-  }
-
-  return (
-    <>
-      {(mode === "payment" || mode === "transfer") && (
-        <FormField label="支払元" htmlFor={fromId}>
-          <AccountSelect
-            id={fromId}
-            value={draft.fromAccountId}
-            accounts={accounts}
-            allowEmpty={mode === "payment"}
-            onChange={(value) => update({ fromAccountId: value })}
-          />
-        </FormField>
-      )}
-      {(mode === "income" || mode === "transfer") && (
-        <FormField label="入金先" htmlFor={toId}>
-          <AccountSelect
-            id={toId}
-            value={draft.toAccountId}
-            accounts={accounts}
-            allowEmpty={mode === "income"}
-            onChange={(value) => update({ toAccountId: value })}
-          />
-        </FormField>
-      )}
-    </>
-  );
-};
 
 /**
  * 取引を消す確認のダイアログ。
@@ -179,6 +78,8 @@ export type TransactionEditorProps = {
   categories: { payment: CategoryWithGenres[]; income: CategoryWithGenres[] };
   placeNames: string[];
   chainNames: string[];
+  /** 収入に紐付ける支出の候補 */
+  reimbursementCandidates: ReimbursementCandidate[];
   /** 保存したか。作り直しても「保存しました」を出し続けられるよう、親が持つ */
   saved: boolean;
   onSavedChange: (saved: boolean) => void;
@@ -200,6 +101,7 @@ export const TransactionEditor = ({
   categories,
   placeNames,
   chainNames,
+  reimbursementCandidates,
   saved,
   onSavedChange,
   onSave,
@@ -209,11 +111,19 @@ export const TransactionEditor = ({
   const [draft, setDraft] = useState(() => draftFromTransaction(transaction));
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const ids = { date: useId(), place: useId(), aggregation: useId() };
 
   const update = (patch: Partial<TransactionDraft>) => {
     setDraft((current) => ({ ...current, ...patch }));
     onSavedChange(false);
+  };
+  /** 紐付けのある収入の金額を変えたら、支出へ充てる額も配分し直す */
+  const updateItems = (items: TransactionDraft["items"]) => {
+    const reimbursements = draft.reimbursements ?? [];
+    update(
+      reimbursements.length > 0
+        ? { items, reimbursements: allocateReimbursements(reimbursements, itemsTotalOf(items)) }
+        : { items },
+    );
   };
   const save = async () => {
     const parsed = updateFromDraft(draft);
@@ -237,64 +147,37 @@ export const TransactionEditor = ({
         void save();
       }}
     >
-      <Section label={<h1 className="text-2xl font-semibold">{MODE_LABELS[mode]}</h1>}>
-        <div className="grid gap-x-6 gap-y-4 border-t border-foreground pt-3 @md:grid-cols-2">
-          <FormField label="日付" htmlFor={ids.date}>
-            <Input
-              id={ids.date}
-              type="date"
-              required
-              value={draft.date}
-              onChange={(event) => update({ date: event.target.value })}
-            />
-          </FormField>
-          <FormField label="集計の設定" htmlFor={ids.aggregation}>
-            <Select
-              items={AGGREGATION_LABELS}
-              value={draft.aggregation}
-              onValueChange={(next) => {
-                const aggregation = (["always", "never", "yearly_only"] as const).find(
-                  (value) => value === next,
-                );
-                if (aggregation !== undefined) update({ aggregation });
-              }}
-            >
-              <SelectTrigger id={ids.aggregation} className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(["always", "never", "yearly_only"] as const).map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {AGGREGATION_LABELS[value]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
-          <AccountFields mode={mode} draft={draft} accounts={accounts} update={update} />
-          {(mode === "payment" || mode === "income") && (
-            <FormField label={mode === "payment" ? "店舗" : "取引先"} htmlFor={ids.place}>
-              <PlaceInput
-                id={ids.place}
-                value={draft.placeName}
-                detail={draft.placeDetail}
-                placeNames={placeNames}
-                chainNames={chainNames}
-                onChange={(placeName, placeDetail) => update({ placeName, placeDetail })}
-              />
-            </FormField>
-          )}
-        </div>
-      </Section>
+      <TransactionDraftFields
+        mode={mode}
+        heading={<h1 className="text-2xl font-semibold">{MODE_LABELS[mode]}</h1>}
+        draft={draft}
+        accounts={accounts}
+        categories={categories}
+        placeNames={placeNames}
+        chainNames={chainNames}
+        update={update}
+        onItemsChange={updateItems}
+      />
 
-      <Section label="品目">
-        <ItemsFields
-          mode={mode}
-          items={draft.items}
-          categories={mode === "income" ? categories.income : categories.payment}
-          onChange={(items) => update({ items })}
-        />
-      </Section>
+      {mode === "payment" && (
+        <Section label="立替">
+          <PaymentAdvanceFields
+            draft={draft}
+            linkedIncomes={transaction.linkedIncomes}
+            update={update}
+          />
+        </Section>
+      )}
+
+      {mode === "income" && (
+        <Section label="立替の入金">
+          <IncomeReimbursementFields
+            candidates={reimbursementCandidates}
+            draft={draft}
+            update={update}
+          />
+        </Section>
+      )}
 
       {transaction.hasReceiptImage && (
         <Section label="レシート">
