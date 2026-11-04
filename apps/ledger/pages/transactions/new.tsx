@@ -98,6 +98,7 @@ const TransactionNewPage = ({ accounts, categories, placeNames, chainNames, toda
           placeNames={placeNames}
           chainNames={chainNames}
           update={update}
+          onItemsChange={(items) => update({ items })}
         />
 
         <Section label="">

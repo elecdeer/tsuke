@@ -96,6 +96,8 @@ export const places = sqliteTable("places", {
     .default(sql`'[]'`),
   /** AI の読み取りに渡す、この店についての補足 */
   aiHint: text("ai_hint"),
+  /** レシートに印字された電話番号（数字だけ）。読み取りで既存の店舗に紐付けるのに使い、登録のたびに覚え直す */
+  phone: text("phone"),
   ...masterColumns(),
   ...timestamps(),
 });
@@ -116,6 +118,7 @@ export const importBatches = sqliteTable("import_batches", {
  *
  * 口座の向きは振替・残高調整でもそろえ、from は残高が減る口座、to は増える口座にする。
  * 合計金額は品目の和なので持たない。receipt_image_key はレシートの写真から登録したときの R2 のキー。
+ * advance_amount は支出のうち立替の額。残高や明細との突合が全額で合うよう、品目の金額は減らさない。
  */
 export const transactions = sqliteTable(
   "transactions",
@@ -138,12 +141,17 @@ export const transactions = sqliteTable(
       onDelete: "restrict",
     }),
     receiptImageKey: text("receipt_image_key"),
+    advanceAmount: integer("advance_amount").notNull().default(0),
     ...timestamps(),
   },
   (t) => [index("transactions_date_idx").on(t.date), index("transactions_place_idx").on(t.placeId)],
 );
 
-/** 品目。金額は符号付きで、レシート内の値引きは負の品目として持つ */
+/**
+ * 品目。金額は符号付きで、レシート内の値引きは負の品目として持つ。
+ *
+ * is_advance_target は立替の対象の印。取引のどの品目にも印がなければ、全品目が対象になる。
+ */
 export const transactionItems = sqliteTable(
   "transaction_items",
   {
@@ -156,6 +164,7 @@ export const transactionItems = sqliteTable(
     name: text("name"),
     memo: text("memo"),
     amount: integer("amount").notNull(),
+    isAdvanceTarget: integer("is_advance_target", { mode: "boolean" }).notNull().default(false),
     sort: integer("sort").notNull().default(0),
   },
   (t) => [
@@ -167,5 +176,32 @@ export const transactionItems = sqliteTable(
       columns: [t.genreId, t.categoryId],
       foreignColumns: [genres.id, genres.categoryId],
     }).onDelete("restrict"),
+  ],
+);
+
+/**
+ * 立替の支出と、その分の入金である収入の紐付け。amount は収入からその支出へ充てる額。
+ *
+ * まとめての入金と別々の入金の両方があるので多対多にする。取り込みの総入れ替えを止めないよう、外部キーは cascade にし、
+ * 紐付いた支出の削除を止めるのはアプリ側で行う。
+ */
+export const advanceReimbursements = sqliteTable(
+  "advance_reimbursements",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    paymentTransactionId: integer("payment_transaction_id")
+      .notNull()
+      .references(() => transactions.id, { onDelete: "cascade" }),
+    incomeTransactionId: integer("income_transaction_id")
+      .notNull()
+      .references(() => transactions.id, { onDelete: "cascade" }),
+    amount: integer("amount").notNull(),
+  },
+  (t) => [
+    unique("advance_reimbursements_payment_income_unique").on(
+      t.paymentTransactionId,
+      t.incomeTransactionId,
+    ),
+    index("advance_reimbursements_income_idx").on(t.incomeTransactionId),
   ],
 );

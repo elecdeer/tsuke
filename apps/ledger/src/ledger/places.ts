@@ -1,4 +1,4 @@
-import { and, eq, notExists } from "drizzle-orm";
+import { and, eq, notExists, sql } from "drizzle-orm";
 import * as v from "valibot";
 import { places, transactions } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
@@ -64,7 +64,7 @@ export const updatePlace = async (
  * 店舗を別の店舗にまとめる。取引を統合先へ付け替えて、統合元を消す。
  *
  * 統合元の名前は統合先の別名に残す。同じ表記の明細やレシートを AI が読んだときに、統合先として扱えるようにするため。
- * チェーンと OpenPOI の情報は、統合先になければ引き継ぐ。OpenPOI の施設は後から引き直せないので、消すと失われる。
+ * チェーン・電話番号・OpenPOI の情報は、統合先になければ引き継ぐ。OpenPOI の施設は後から引き直せないので、消すと失われる。
  * OpenPOI の情報は出典と組なので、項目ごとに混ぜず、統合先に施設の情報がないときにまとめて移す。
  * 統合元をアーカイブせず消すのは、名前が残っていると同じ表記の登録が隠れた統合元に付いてしまうため。
  * 統合先がアーカイブ済みなら、取引が増えてまた使う店舗になるので元に戻す。
@@ -84,6 +84,7 @@ export const mergePlace = async (
           name: places.name,
           aliases: places.aliases,
           aiHint: places.aiHint,
+          phone: places.phone,
           chain: places.chain,
           address: places.address,
           lng: places.lng,
@@ -105,6 +106,7 @@ export const mergePlace = async (
       .set({
         aliases: cleanAliases(target.name, [...target.aliases, source.name, ...source.aliases]),
         aiHint: target.aiHint ?? source.aiHint,
+        phone: target.phone ?? source.phone,
         chain: target.chain ?? source.chain,
         ...(target.lng === null && {
           address: source.address,
@@ -163,3 +165,15 @@ export const upsertPlaceByName = (
       set: { archived: false },
       setWhere: eq(places.archived, true),
     });
+
+/**
+ * レシートに印字された電話番号を、登録した店舗に覚えさせる batch の文を返す。電話番号がなければ何も変えない。
+ *
+ * 人が店舗を確かめた後なので、`upsertPlaceByName` と違ってすでにある店舗にも書く。読み間違えて覚えても次の登録で
+ * 直るよう、前の番号は残さない。
+ */
+export const rememberPlacePhone = (db: LedgerDb, name: string, phone: string | null) =>
+  db
+    .update(places)
+    .set({ phone })
+    .where(and(eq(places.name, name), sql`${phone} IS NOT NULL`));

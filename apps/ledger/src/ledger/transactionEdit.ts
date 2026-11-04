@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import * as v from "valibot";
 import {
   accounts,
+  advanceReimbursements,
   categories,
   genres,
   places,
@@ -9,8 +10,18 @@ import {
   transactions,
 } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
+import { advanceLimitOf } from "./advance.ts";
 import { PlaceDetailSchema, placeDetailColumns } from "./placeDetail.ts";
 import { upsertPlaceByName } from "./places.ts";
+import {
+  getLinkedIncomes,
+  getLinkedPayments,
+  linkedAmountOf,
+  planReimbursements,
+  type LinkedIncome,
+  type LinkedPayment,
+  type ReimbursementInput,
+} from "./reimbursements.ts";
 import type { Aggregation, TransactionMode } from "./transactions.ts";
 
 export type TransactionDetail = {
@@ -24,12 +35,19 @@ export type TransactionDetail = {
   placeName: string | null;
   /** レシートの写真を保存しているか。キーは画面に要らないので渡さない */
   hasReceiptImage: boolean;
+  /** 支出のうち立替の額 */
+  advanceAmount: number;
+  /** 支出に紐付いた収入 */
+  linkedIncomes: LinkedIncome[];
+  /** 収入に紐付いた支出 */
+  linkedPayments: LinkedPayment[];
   items: {
     categoryId: number | null;
     genreId: number | null;
     name: string | null;
     memo: string | null;
     amount: number;
+    isAdvanceTarget: boolean;
   }[];
 };
 
@@ -51,6 +69,7 @@ export const getTransaction = async (
       toAccountId: transactions.toAccountId,
       placeName: places.name,
       receiptImageKey: transactions.receiptImageKey,
+      advanceAmount: transactions.advanceAmount,
     })
     .from(transactions)
     .leftJoin(places, eq(places.id, transactions.placeId))
@@ -58,24 +77,39 @@ export const getTransaction = async (
   if (transaction === undefined) return undefined;
   const { receiptImageKey, ...columns } = transaction;
 
-  const items = await db
-    .select({
-      categoryId: transactionItems.categoryId,
-      genreId: transactionItems.genreId,
-      name: transactionItems.name,
-      memo: transactionItems.memo,
-      amount: transactionItems.amount,
-    })
-    .from(transactionItems)
-    .where(eq(transactionItems.transactionId, id))
-    .orderBy(asc(transactionItems.sort), asc(transactionItems.id));
-  return { ...columns, hasReceiptImage: receiptImageKey !== null, items };
+  const [items, linkedIncomes, linkedPayments] = await Promise.all([
+    db
+      .select({
+        categoryId: transactionItems.categoryId,
+        genreId: transactionItems.genreId,
+        name: transactionItems.name,
+        memo: transactionItems.memo,
+        amount: transactionItems.amount,
+        isAdvanceTarget: transactionItems.isAdvanceTarget,
+      })
+      .from(transactionItems)
+      .where(eq(transactionItems.transactionId, id))
+      .orderBy(asc(transactionItems.sort), asc(transactionItems.id)),
+    columns.mode === "payment" ? getLinkedIncomes(db, id) : [],
+    columns.mode === "income" ? getLinkedPayments(db, id) : [],
+  ]);
+  return {
+    ...columns,
+    hasReceiptImage: receiptImageKey !== null,
+    linkedIncomes,
+    linkedPayments,
+    items,
+  };
 };
 
 const TextSchema = v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(200)));
 const IdSchema = v.nullable(v.pipe(v.number(), v.integer()));
 
-/** 取引の編集の入力。種類は変えられないので持たない */
+/**
+ * 取引の編集の入力。種類は変えられないので持たない。
+ *
+ * advanceAmount と reimbursements は省くと今の値のままにする。
+ */
 export const TransactionUpdateSchema = v.object({
   date: v.pipe(v.string(), v.isoDate()),
   aggregation: v.picklist(["always", "never", "yearly_only"]),
@@ -91,18 +125,38 @@ export const TransactionUpdateSchema = v.object({
         name: TextSchema,
         memo: TextSchema,
         amount: v.pipe(v.number(), v.safeInteger()),
+        isAdvanceTarget: v.optional(v.boolean()),
       }),
     ),
     v.minLength(1),
     v.maxLength(100),
   ),
+  /** 支出のうち立替の額 */
+  advanceAmount: v.optional(v.pipe(v.number(), v.safeInteger(), v.minValue(0))),
+  /** 収入に紐付ける支出 */
+  reimbursements: v.optional(
+    v.pipe(
+      v.array(
+        v.object({
+          paymentId: v.pipe(v.number(), v.safeInteger()),
+          amount: v.pipe(v.number(), v.safeInteger()),
+          expectMore: v.boolean(),
+        }),
+      ),
+      v.maxLength(100),
+    ),
+  ),
 });
 
 export type TransactionUpdate = v.InferOutput<typeof TransactionUpdateSchema>;
 
-/** 手入力の登録の入力。編集の入力に種類を足したもの */
+/**
+ * 手入力の登録の入力。編集の入力に種類を足し、立替の項目を除いたもの。
+ *
+ * 登録のフォームには立替の入力がなく、立替は登録した後に取引の画面で入れる。
+ */
 export const TransactionCreateSchema = v.object({
-  ...TransactionUpdateSchema.entries,
+  ...v.omit(TransactionUpdateSchema, ["advanceAmount", "reimbursements"]).entries,
   mode: v.picklist(["payment", "income", "transfer", "adjustment"]),
 });
 
@@ -225,6 +279,34 @@ const accountsExist = async (db: LedgerDb, ids: (number | null)[]): Promise<bool
 };
 
 /**
+ * 種類ごとの立替の決まりと、支出の立替額の範囲を確かめ、合わなければ理由を返す。
+ */
+const checkAdvanceRules = (
+  mode: TransactionMode,
+  input: TransactionUpdate,
+  advanceAmount: number,
+  linkedAmount: number,
+): string | null => {
+  const items = input.items.map((item) => ({
+    amount: item.amount,
+    isAdvanceTarget: item.isAdvanceTarget ?? false,
+  }));
+  if (mode !== "payment") {
+    return advanceAmount !== 0 || items.some((item) => item.isAdvanceTarget)
+      ? "立替額を指定できるのは支出だけです"
+      : null;
+  }
+  if (input.reimbursements !== undefined && input.reimbursements.length > 0) {
+    return "紐付けは収入の画面から作ってください";
+  }
+  if (advanceAmount < linkedAmount) return "立替額は紐付けた額の合計以上にしてください";
+  if (advanceAmount > 0 && advanceAmount > advanceLimitOf(items)) {
+    return "立替額は対象の品目の合計以下にしてください";
+  }
+  return null;
+};
+
+/**
  * 店舗名から取引の place_id の値を作る。同じ batch で作る店舗も引けるよう、ID ではなく名前で参照する。
  */
 const placeIdOf = (placeName: string | null): SQL | null =>
@@ -243,6 +325,7 @@ const itemRows = (transactionId: number | SQL, items: TransactionUpdate["items"]
     name: blankToNull(item.name),
     memo: blankToNull(item.memo),
     amount: item.amount,
+    isAdvanceTarget: item.isAdvanceTarget ?? false,
     sort: index,
   }));
 
@@ -264,6 +347,8 @@ export const createTransaction = async (
   }
   const resolved = await resolveItemCategories(db, input.mode, input.items);
   if (!resolved.ok) return { ok: false, status: 400, error: resolved.error };
+  const advanceError = checkAdvanceRules(input.mode, input, 0, 0);
+  if (advanceError !== null) return { ok: false, status: 400, error: advanceError };
 
   const placeName = blankToNull(input.placeName);
   const insertTransaction = db
@@ -311,7 +396,11 @@ export const updateTransaction = async (
   input: TransactionUpdate,
 ): Promise<EditResult> => {
   const [current] = await db
-    .select({ mode: transactions.mode, placeName: places.name })
+    .select({
+      mode: transactions.mode,
+      placeName: places.name,
+      advanceAmount: transactions.advanceAmount,
+    })
     .from(transactions)
     .leftJoin(places, eq(places.id, transactions.placeId))
     .where(eq(transactions.id, id));
@@ -325,12 +414,38 @@ export const updateTransaction = async (
   const resolved = await resolveItemCategories(db, current.mode, input.items);
   if (!resolved.ok) return { ok: false, status: 400, error: resolved.error };
 
+  const advanceAmount = input.advanceAmount ?? current.advanceAmount;
+  const linkedAmount = current.mode === "payment" ? await linkedAmountOf(db, id) : 0;
+  const advanceError = checkAdvanceRules(current.mode, input, advanceAmount, linkedAmount);
+  if (advanceError !== null) return { ok: false, status: 400, error: advanceError };
+
+  // 省いたときも今の紐付けのまま確かめる。収入の金額だけが変わって、和が合わなくなるのを防ぐため
+  const reimbursements: readonly ReimbursementInput[] =
+    current.mode !== "income"
+      ? []
+      : (input.reimbursements ??
+        (await getLinkedPayments(db, id)).map((payment) => ({
+          paymentId: payment.paymentId,
+          amount: payment.amount,
+          expectMore: payment.otherLinked + payment.amount < payment.advanceAmount,
+        })));
+  const planned = await planReimbursements(
+    db,
+    id,
+    input.items.reduce((sum, item) => sum + item.amount, 0),
+    reimbursements,
+  );
+  if (!planned.ok) return { ok: false, status: 400, error: planned.error };
+  const { plan } = planned;
+
   const placeName = blankToNull(input.placeName);
   const updateTransactionRow = db
     .update(transactions)
     .set({
       date: input.date,
-      aggregation: input.aggregation,
+      // 紐付いた収入は立替の入金なので、収入の集計に数えて二重に計上しないようにする
+      aggregation: plan.links.length > 0 ? "never" : input.aggregation,
+      advanceAmount,
       fromAccountId: input.fromAccountId,
       toAccountId: input.toAccountId,
       placeId: placeIdOf(placeName),
@@ -338,23 +453,46 @@ export const updateTransaction = async (
     .where(eq(transactions.id, id));
   const deleteItems = db.delete(transactionItems).where(eq(transactionItems.transactionId, id));
   const insertItems = db.insert(transactionItems).values(itemRows(id, resolved.items));
+  const reimbursementWrites =
+    current.mode === "income"
+      ? [
+          db.delete(advanceReimbursements).where(eq(advanceReimbursements.incomeTransactionId, id)),
+          ...plan.links.map((link) =>
+            db.insert(advanceReimbursements).values({
+              paymentTransactionId: link.paymentId,
+              incomeTransactionId: id,
+              amount: link.amount,
+            }),
+          ),
+          ...plan.payments.map((payment) =>
+            db
+              .update(transactions)
+              .set({ advanceAmount: payment.advanceAmount })
+              .where(eq(transactions.id, payment.id)),
+          ),
+        ]
+      : [];
 
   // 店舗を変えていないときは作らない。過去の取引を直しただけでアーカイブ済みの店舗が元に戻らないようにするため
   if (placeName === null || placeName === current.placeName) {
-    await db.batch([updateTransactionRow, deleteItems, insertItems]);
+    await db.batch([updateTransactionRow, deleteItems, insertItems, ...reimbursementWrites]);
   } else {
     await db.batch([
       upsertPlaceByName(db, placeName, input.placeDetail),
       updateTransactionRow,
       deleteItems,
       insertItems,
+      ...reimbursementWrites,
     ]);
   }
   return { ok: true };
 };
 
 /**
- * 取引を消す。品目は外部キーの on delete cascade で消える。
+ * 取引を消す。品目と収入の紐付けは外部キーの on delete cascade で消える。
+ *
+ * 紐付いた支出は消さない。消すと収入の金額と充てた額の和が合わなくなるため。
+ * 収入を消しても支出の立替額は変えないので、消えた額がそのまま未入金の残りに戻る。
  *
  * レシートの写真は DB の外にあるので、消す相手のキーを返す。呼び出し側で `removeReceiptImage` に渡す。
  */
@@ -362,8 +500,15 @@ export const deleteTransaction = async (
   db: LedgerDb,
   id: number,
 ): Promise<
-  { ok: true; receiptImageKey: string | null } | { ok: false; status: 404; error: string }
+  { ok: true; receiptImageKey: string | null } | { ok: false; status: 400 | 404; error: string }
 > => {
+  if ((await linkedAmountOf(db, id)) > 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: "収入が紐付いている支出は削除できません。先に収入の画面で紐付けを外してください",
+    };
+  }
   const [deleted] = await db
     .delete(transactions)
     .where(eq(transactions.id, id))

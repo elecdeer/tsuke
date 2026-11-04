@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lt, or, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lt, or, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import {
   accounts,
@@ -10,6 +10,7 @@ import {
 } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
 import { monthRange } from "./dates.ts";
+import { hasUnreceivedAdvance, linkedAmountSql } from "./reimbursements.ts";
 
 export type TransactionMode = (typeof transactions.$inferSelect)["mode"];
 export type Aggregation = (typeof transactions.$inferSelect)["aggregation"];
@@ -27,6 +28,8 @@ export type TransactionFilter = {
   placeId?: number | undefined;
   /** このチェーンの店舗の取引 */
   chain?: string | undefined;
+  /** 立替のある支出（any）か、未入金の残りがある支出（unreceived）。unreceived は月をまたいで全期間から探す */
+  advance?: "any" | "unreceived" | undefined;
 };
 
 export type TransactionListItem = {
@@ -48,6 +51,10 @@ export type TransactionListItem = {
   }[];
   /** 品目の金額の合計 */
   total: number;
+  /** 支出のうち立替の額 */
+  advanceAmount: number;
+  /** 紐付けた収入から充てた額の合計 */
+  linkedAmount: number;
 };
 
 const fromAccounts = alias(accounts, "from_accounts");
@@ -60,7 +67,11 @@ const toAccounts = alias(accounts, "to_accounts");
  */
 const filterConditions = (db: LedgerDb, filter: TransactionFilter): SQL[] => {
   const { start, end } = monthRange(filter.month);
-  const conditions: SQL[] = [gte(transactions.date, start), lt(transactions.date, end)];
+  const conditions: SQL[] =
+    filter.advance === "unreceived"
+      ? [hasUnreceivedAdvance]
+      : [gte(transactions.date, start), lt(transactions.date, end)];
+  if (filter.advance === "any") conditions.push(gt(transactions.advanceAmount, 0));
   if (filter.mode !== undefined) conditions.push(eq(transactions.mode, filter.mode));
   if (filter.accountId !== undefined) {
     const accountCondition = or(
@@ -100,7 +111,7 @@ const filterConditions = (db: LedgerDb, filter: TransactionFilter): SQL[] => {
 };
 
 /**
- * 1 か月分の取引を、絞り込みの条件に合わせて日付の新しい順に返す。同じ日は ID の新しい順。
+ * 絞り込みの条件に合う取引を、日付の新しい順に返す。同じ日は ID の新しい順。未入金の絞り込み以外は 1 か月分を返す。
  */
 export const listTransactions = async (
   db: LedgerDb,
@@ -116,6 +127,8 @@ export const listTransactions = async (
       toAccountName: toAccounts.name,
       placeId: transactions.placeId,
       placeName: places.name,
+      advanceAmount: transactions.advanceAmount,
+      linkedAmount: linkedAmountSql,
       itemName: transactionItems.name,
       itemMemo: transactionItems.memo,
       categoryName: categories.name,
@@ -150,6 +163,8 @@ export const listTransactions = async (
       placeName: row.placeName,
       items: [],
       total: 0,
+      advanceAmount: row.advanceAmount,
+      linkedAmount: row.linkedAmount,
     };
     listed.items.push({
       name: row.itemName,

@@ -12,6 +12,9 @@ import type { TransactionDraft } from "./transactionDraft.ts";
  */
 export type ReceiptStatus = "waiting" | "reading" | "read" | "failed";
 
+/** AI が読み取った結果。電話番号は、この項目を足す前に端末へ保存されたレシートにはない */
+export type ReadReceipt = ExtractedPayment & { placePhone?: string | null };
+
 /**
  * 撮ってから登録するまでのレシート 1 枚。写真は大きいので別に持つ（入力のたびに書き直さないため）。
  */
@@ -23,7 +26,9 @@ export type ReceiptEntry = {
   /** 読み取りの優先。ないものは fast（この項目を足す前に端末へ保存されたレシートにはない） */
   quality?: ReadQuality;
   /** AI が読み取った結果。読み取る前と、一度も読み取れていないときは null */
-  extracted: ExtractedPayment | null;
+  extracted: ReadReceipt | null;
+  /** 最後に読み取れたときにかかった時間（ms）。この項目を足す前に端末へ保存されたレシートにはない */
+  readMs?: number;
   /** 確かめているフォームの値。読み取り（または失敗）が済むまでは null */
   draft: TransactionDraft | null;
 };
@@ -81,6 +86,11 @@ export const markReadFailed = (
   status: "failed",
   draft: entry.draft ?? emptyDraft,
 });
+
+/**
+ * 読み取りにかかった時間を、画面に出す文言にする。
+ */
+export const formatReadTime = (readMs: number): string => `${(readMs / 1000).toFixed(1)} 秒`;
 
 /**
  * 確かめる対象として選ぶレシートを決める。選んでいたものがなくなっていれば、キューの先頭にする。

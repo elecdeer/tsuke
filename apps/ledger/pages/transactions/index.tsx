@@ -15,6 +15,7 @@ import type {
   TransactionListItem,
   TransactionMode,
 } from "@/ledger/transactions";
+import { advanceStatusOf, unreceivedAmountOf } from "@/ledger/advance";
 import { cn } from "@/lib/utils";
 import { categoryLabels, categoryValueOf, parseCategoryValue } from "@/web/categoryValue";
 import { Section } from "@/web/components/Section";
@@ -22,11 +23,15 @@ import { TransactionEditor } from "@/web/components/TransactionEditor";
 import { CategoryOptions } from "@/web/components/CategoryOptions";
 import { MonthHeading } from "@/web/components/MonthHeading";
 import { MonthSwipe } from "@/web/components/MonthSwipe";
-import { formatAmount, formatDayOfMonth } from "@/web/format";
+import { formatAmount, formatDayOfMonth, formatFullDay } from "@/web/format";
 import { groupByDate } from "@/web/groupByDate";
-import { MODE_LABELS, TRANSACTION_MODES } from "@/web/labels";
+import { ADVANCE_STATUS_LABELS, MODE_LABELS, TRANSACTION_MODES } from "@/web/labels";
 import { isFiltered, transactionsHref } from "@/web/transactionsHref";
 import type { Props } from "./index.server";
+
+/** 立替の絞り込みの選択肢 */
+const ADVANCE_FILTER_LABELS = { any: "立替あり", unreceived: "未入金" } as const;
+const ADVANCE_FILTERS = ["any", "unreceived"] as const;
 
 /**
  * 種類・口座・カテゴリの絞り込み。選ぶとすぐにその条件の一覧へ移る。
@@ -52,6 +57,11 @@ const Filters = ({
     "": "すべてのカテゴリ",
     ...categoryLabels(categories.payment),
     ...categoryLabels(categories.income),
+  };
+
+  const advanceItems: Record<string, string> = {
+    "": "立替を問わない",
+    ...ADVANCE_FILTER_LABELS,
   };
 
   const chainItems: Record<string, string> = {
@@ -117,6 +127,25 @@ const Filters = ({
           <CategoryOptions label="収入" categories={categories.income} />
         </SelectContent>
       </Select>
+      <Select
+        items={advanceItems}
+        value={filter.advance ?? ""}
+        onValueChange={(value) =>
+          visit({ advance: ADVANCE_FILTERS.find((candidate) => candidate === value) })
+        }
+      >
+        <SelectTrigger size="sm" aria-label="立替">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="">立替を問わない</SelectItem>
+          {ADVANCE_FILTERS.map((advance) => (
+            <SelectItem key={advance} value={advance}>
+              {ADVANCE_FILTER_LABELS[advance]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       {chainNames.length > 0 && (
         <Select
           items={chainItems}
@@ -173,6 +202,10 @@ const ListTotals = ({ transactions }: { transactions: TransactionListItem[] }) =
     transactions
       .filter((transaction) => transaction.mode === mode)
       .reduce((total, transaction) => total + transaction.total, 0);
+  const advanceTotal = transactions.reduce(
+    (total, transaction) => total + transaction.advanceAmount,
+    0,
+  );
   return (
     <dl className="flex flex-wrap gap-x-5 text-xs text-muted-foreground">
       <div className="flex gap-1.5">
@@ -183,6 +216,12 @@ const ListTotals = ({ transactions }: { transactions: TransactionListItem[] }) =
         <dt>支出</dt>
         <dd className="text-foreground tabular-nums">{formatAmount(sumOf("payment"))}</dd>
       </div>
+      {advanceTotal > 0 && (
+        <div className="flex gap-1.5">
+          <dt>うち立替</dt>
+          <dd className="text-foreground tabular-nums">{formatAmount(advanceTotal)}</dd>
+        </div>
+      )}
       <div className="flex gap-1.5">
         <dt>収入</dt>
         <dd className="text-foreground tabular-nums">{formatAmount(sumOf("income"))}</dd>
@@ -247,6 +286,19 @@ const amountOf = (transaction: TransactionListItem): string =>
     ? `+${formatAmount(transaction.total)}`
     : formatAmount(transaction.total);
 
+/**
+ * 立替の額と状態の書き方。立替のない取引には null を返す。
+ */
+const advanceSummaryOf = (transaction: TransactionListItem): string | null => {
+  const { advanceAmount, linkedAmount } = transaction;
+  const status = advanceStatusOf(advanceAmount, linkedAmount);
+  if (status === "none") return null;
+  const summary = `うち立替 ${formatAmount(advanceAmount)}・${ADVANCE_STATUS_LABELS[status]}`;
+  return status === "partial"
+    ? `${summary}（残り ${formatAmount(unreceivedAmountOf(advanceAmount, linkedAmount))}）`
+    : summary;
+};
+
 /** サイドパネルで詳細を開く画面の幅。一覧とパネルを並べても一覧の 12 列のグリッドが崩れない幅にする */
 const SIDE_PANEL_MEDIA = "(min-width: 80rem)";
 
@@ -269,6 +321,7 @@ const TransactionRow = ({
   const accountName = accountsOf(transaction);
   const details = [summary, ...categoriesOf(transaction)].filter((value) => value !== null);
   const isMove = transaction.mode === "transfer" || transaction.mode === "adjustment";
+  const advanceSummary = advanceSummaryOf(transaction);
   return (
     <li className="border-b">
       <Link
@@ -305,6 +358,11 @@ const TransactionRow = ({
                   {accountName}
                 </span>
               )}
+            </span>
+          )}
+          {advanceSummary !== null && (
+            <span className="truncate text-xs text-muted-foreground tabular-nums">
+              {advanceSummary}
             </span>
           )}
           {transaction.aggregation !== "always" && (
@@ -382,6 +440,7 @@ const SidePanel = ({
         accounts={accounts}
         categories={categories}
         placeNames={selected.placeNames}
+        reimbursementCandidates={selected.reimbursementCandidates}
         chainNames={chainNames}
         saved={savedId === transaction.id}
         onSavedChange={(saved) => setSavedId(saved ? transaction.id : null)}
@@ -421,7 +480,14 @@ const TransactionsPage = ({
   // パネルを閉じても列が縮みきるまでは中身を残すため、最後に開いた取引を持っておく
   const [shown, setShown] = useState(selected);
   if (selected !== null && selected !== shown) setShown(selected);
-  const monthHref = (month: string) => transactionsHref({ ...filter, month });
+  // 未入金は全期間の一覧なので、月を移るときは絞り込みを外してその月の一覧にする
+  const monthHref = (month: string) =>
+    transactionsHref({
+      ...filter,
+      month,
+      advance: filter.advance === "unreceived" ? undefined : filter.advance,
+    });
+  const unreceivedOnly = filter.advance === "unreceived";
 
   /**
    * パネルの列が縮みきったら、残しておいた中身を外す。中の要素のトランジションも届くので、列の幅の変化だけを見る。
@@ -446,7 +512,11 @@ const TransactionsPage = ({
       <div className="flex min-w-0 flex-col gap-8">
         <div className="grid gap-x-4 gap-y-6 md:grid-cols-12 md:items-end">
           <div className="md:col-span-3">
-            <MonthHeading month={filter.month} hrefOf={monthHref} />
+            {unreceivedOnly ? (
+              <h1 className="text-2xl font-semibold">未入金の立替</h1>
+            ) : (
+              <MonthHeading month={filter.month} hrefOf={monthHref} />
+            )}
           </div>
           <div className="flex flex-col gap-3 md:col-span-9">
             <Filters
@@ -482,7 +552,7 @@ const TransactionsPage = ({
                 className="gap-y-0"
                 label={
                   <span className="block pt-2.5 text-xs font-normal text-muted-foreground tabular-nums">
-                    {formatDayOfMonth(group.date)}
+                    {unreceivedOnly ? formatFullDay(group.date) : formatDayOfMonth(group.date)}
                   </span>
                 }
               >

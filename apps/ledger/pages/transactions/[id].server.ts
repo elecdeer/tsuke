@@ -6,6 +6,7 @@ import { storage } from "void/storage";
 import { monthOf } from "../../src/ledger/dates.ts";
 import { listAccounts, listCategories, listChains, listPlaces } from "../../src/ledger/masters.ts";
 import { removeReceiptImage } from "../../src/ledger/receiptImages.ts";
+import { listReimbursementCandidates } from "../../src/ledger/reimbursements.ts";
 import {
   deleteTransaction,
   getTransaction,
@@ -39,6 +40,8 @@ export const loader = defineHandler.withValidator({ params: ParamsSchema })(asyn
   }
   return {
     transaction,
+    reimbursementCandidates:
+      transaction.mode === "income" ? await listReimbursementCandidates(db, transaction.id) : [],
     accounts,
     categories: { payment: paymentCategories, income: incomeCategories },
     placeNames: places.map((place) => place.name),

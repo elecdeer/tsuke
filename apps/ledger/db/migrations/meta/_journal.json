@@ -43,6 +43,20 @@
       "when": 1793715705618,
       "tag": "20261103142145_handy_talos",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793717514060,
+      "tag": "20261103145154_tired_demogoblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793726264762,
+      "tag": "20261103171744_abnormal_dragon_lord",
+      "breakpoints": true
     }
   ]
 }

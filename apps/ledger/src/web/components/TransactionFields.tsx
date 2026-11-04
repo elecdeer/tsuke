@@ -682,6 +682,7 @@ export const TransactionDraftFields = ({
   placeNames,
   chainNames,
   update,
+  onItemsChange,
 }: {
   mode: TransactionMode;
   heading: ReactNode;
@@ -691,6 +692,7 @@ export const TransactionDraftFields = ({
   placeNames: string[];
   chainNames: string[];
   update: (patch: Partial<TransactionDraft>) => void;
+  onItemsChange: (items: ItemDraft[]) => void;
 }) => {
   const ids = { date: useId(), place: useId(), aggregation: useId() };
   return (
@@ -710,6 +712,8 @@ export const TransactionDraftFields = ({
             <Select
               items={AGGREGATION_LABELS}
               value={draft.aggregation}
+              // 紐付いた収入は保存時に必ず「集計に含めない」になるので、選べないようにする
+              disabled={(draft.reimbursements ?? []).length > 0}
               onValueChange={(next) => {
                 const aggregation = (["always", "never", "yearly_only"] as const).find(
                   (value) => value === next,
@@ -750,7 +754,7 @@ export const TransactionDraftFields = ({
           mode={mode}
           items={draft.items}
           categories={mode === "income" ? categories.income : categories.payment}
-          onChange={(items) => update({ items })}
+          onChange={onItemsChange}
         />
       </Section>
     </>
