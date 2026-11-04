@@ -457,7 +457,15 @@ const TransactionsPage = ({
               placeName={placeName}
               chainNames={chainNames}
             />
-            <ListTotals transactions={transactions} />
+            <div className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-2">
+              <ListTotals transactions={transactions} />
+              <Link
+                href="/statements/import"
+                className="text-xs text-muted-foreground underline hover:text-foreground"
+              >
+                CSV の取り込み
+              </Link>
+            </div>
           </div>
         </div>
         {transactions.length === 0 ? (
