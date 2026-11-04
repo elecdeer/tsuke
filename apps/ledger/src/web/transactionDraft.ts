@@ -2,6 +2,7 @@ import { suggestAllocation } from "../ledger/advance.ts";
 import type { PlaceDetail } from "../ledger/placeDetail.ts";
 import type { ReimbursablePayment } from "../ledger/reimbursements.ts";
 import type { TransactionDetail, TransactionUpdate } from "../ledger/transactionEdit.ts";
+import type { TransactionMode } from "../ledger/transactions.ts";
 import { categoryValueOf, parseCategoryValue } from "./categoryValue.ts";
 
 /**
@@ -85,6 +86,30 @@ export const draftFromTransaction = (transaction: TransactionDetail): Transactio
     expectMore: payment.otherLinked + amount < payment.advanceAmount,
   })),
 });
+
+/**
+ * 入力の途中で取引の種類を変えたときの値を返す。その種類で持てない値は残さない。
+ *
+ * - カテゴリは種類ごとに別のものなので消す
+ * - 支出のほかは品目が 1 件なので、先頭の品目だけを残す
+ * - 残高調整は口座を片方だけ持つので、両方あれば入金先を残す
+ * - 店舗は支出と収入だけが持つ
+ */
+export const draftForMode = (draft: TransactionDraft, mode: TransactionMode): TransactionDraft => {
+  const items = mode === "payment" ? draft.items : draft.items.slice(0, 1);
+  const hasPlace = mode === "payment" || mode === "income";
+  return {
+    ...draft,
+    fromAccountId:
+      mode === "income" || (mode === "adjustment" && draft.toAccountId !== "")
+        ? ""
+        : draft.fromAccountId,
+    toAccountId: mode === "payment" ? "" : draft.toAccountId,
+    placeName: hasPlace ? draft.placeName : "",
+    placeDetail: hasPlace ? draft.placeDetail : null,
+    items: items.map((item) => ({ ...item, category: "" })),
+  };
+};
 
 /**
  * 入力中の値が元の値から変わったかを返す。どちらも同じ関数で作るので、項目の並びは揃っている。
