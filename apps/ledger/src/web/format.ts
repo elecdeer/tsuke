@@ -33,6 +33,11 @@ export const formatDay = (date: string): string => {
 };
 
 /**
+ * YYYY-MM-DD の日付を「2026/10/28」の形で書く。月をまたぐ一覧の、日付の列で使う。
+ */
+export const formatFullDay = (date: string): string => date.replaceAll("-", "/");
+
+/**
  * YYYY-MM-DD の日付を「28 水」の形で書く。月がほかの所で分かる一覧の、日付の列で使う。
  */
 export const formatDayOfMonth = (date: string): string => {

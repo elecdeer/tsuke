@@ -204,3 +204,77 @@ describe("summarizeMonth", () => {
     });
   });
 });
+
+describe("summarizeMonth の立替", () => {
+  /** 立替額を書き込む */
+  const setAdvance = (sqlite: DatabaseSync, id: number, amount: number) =>
+    sqlite.prepare("UPDATE transactions SET advance_amount = ? WHERE id = ?").run(amount, id);
+
+  test("品目の金額に比例して立替額を引く。値引きの品目からも引く", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+    const id = insertTransaction(sqlite, {
+      date: "2026-10-01",
+      mode: "payment",
+      items: [
+        { categoryId: m.food, genreId: m.eatingOut, amount: 3000 },
+        { categoryId: m.food, genreId: m.groceries, amount: 1000 },
+        { categoryId: m.daily, genreId: m.supplies, amount: -400 },
+      ],
+    });
+    setAdvance(sqlite, id, 2400);
+
+    const { payment } = await summarizeMonth(db, "2026-10");
+
+    expect(payment.total).toBe(1200);
+    const food = payment.categories.find((category) => category.categoryId === m.food);
+    expect(food?.genres).toEqual([
+      { genreId: m.eatingOut, name: "外食", amount: 1000 },
+      { genreId: m.groceries, name: "食料品", amount: 333 },
+    ]);
+    expect(payment.categories.find((category) => category.categoryId === m.daily)?.amount).toBe(
+      -133,
+    );
+  });
+
+  test("印があれば印の付いた品目からだけ引き、負担額が 0 になった内訳とカテゴリは出さない", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+    const id = insertTransaction(sqlite, {
+      date: "2026-10-01",
+      mode: "payment",
+      items: [
+        { categoryId: m.food, genreId: m.groceries, amount: 1000 },
+        { categoryId: m.daily, genreId: m.supplies, amount: 2000 },
+      ],
+    });
+    sqlite
+      .prepare("UPDATE transaction_items SET is_advance_target = 1 WHERE genre_id = ?")
+      .run(m.supplies);
+    setAdvance(sqlite, id, 2000);
+
+    const { payment } = await summarizeMonth(db, "2026-10");
+
+    expect(payment.total).toBe(1000);
+    expect(payment.categories.map((category) => category.categoryId)).toEqual([m.food]);
+  });
+
+  test("集計に含めない取引は立替額に関係なく入れない", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+    const id = insertTransaction(sqlite, {
+      date: "2026-10-01",
+      mode: "payment",
+      aggregation: "never",
+      items: [{ categoryId: m.food, genreId: m.groceries, amount: 1000 }],
+    });
+    setAdvance(sqlite, id, 500);
+    insertTransaction(sqlite, {
+      date: "2026-10-02",
+      mode: "payment",
+      items: [{ categoryId: m.food, genreId: m.groceries, amount: 200 }],
+    });
+
+    expect((await summarizeMonth(db, "2026-10")).payment.total).toBe(200);
+  });
+});

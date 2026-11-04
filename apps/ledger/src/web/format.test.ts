@@ -3,6 +3,7 @@ import {
   formatAmount,
   formatDay,
   formatDayOfMonth,
+  formatFullDay,
   formatPercent,
   formatSignedAmount,
   formatYen,
@@ -61,5 +62,11 @@ describe("formatSignedAmount", () => {
 describe("formatDayOfMonth", () => {
   test("日と曜日だけを書く", () => {
     expect(formatDayOfMonth("2026-10-28")).toBe("28 水");
+  });
+});
+
+describe("formatFullDay", () => {
+  test("年から書く", () => {
+    expect(formatFullDay("2026-10-28")).toBe("2026/10/28");
   });
 });
