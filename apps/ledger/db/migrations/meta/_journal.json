@@ -57,6 +57,13 @@
       "when": 1793726264762,
       "tag": "20261103171744_abnormal_dragon_lord",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793802601697,
+      "tag": "20261104143001_clever_longshot",
+      "breakpoints": true
     }
   ]
 }
