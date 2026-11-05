@@ -1,5 +1,5 @@
 /**
- * レシートとページからの読み取りで使う、速さと正確さの設定。
+ * AI の読み取りで使う、速さと正確さの設定。レシート、ページ、明細、履歴 CSV で共通にする。
  */
 import * as v from "valibot";
 
@@ -17,10 +17,11 @@ export type ReadQuality = v.InferOutput<typeof ReadQualitySchema>;
  * gpt-6-luna はレシートで 3.8 秒ほどかかるうえ、印字にない品名を書くことが多く、推論量を上げても直りきらなかったのでやめた。
  * 推論しない Clairic・Clef（Workers AI の抽出・判定モデル）も試したが、Clairic は画像の日本語を読み落とすので使えなかった。
  *
- * - fast：推論量を送らない。Gemini は none を受け付けず、minimal や low は推論トークンが増えても精度が上がらなかった
+ * - fast：low を送る。Gemini は none を受け付けない。レシートでは low で推論トークンが増えても精度が上がらなかったが、
+ *   モデルの既定に任せず読み取りごとの推論量を揃えるために明示する
  * - accurate：low を送る。送らないと推論トークンが 3000 を超え、20 秒以上かかることがあった
  */
-export const READ_SETTINGS: Record<ReadQuality, { model: string; reasoningEffort?: string }> = {
-  fast: { model: "google/gemini-3.1-flash-lite" },
+export const READ_SETTINGS: Record<ReadQuality, { model: string; reasoningEffort: string }> = {
+  fast: { model: "google/gemini-3.1-flash-lite", reasoningEffort: "low" },
   accurate: { model: "google/gemini-3.8-flash", reasoningEffort: "low" },
 };

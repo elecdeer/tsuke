@@ -9,6 +9,7 @@ import {
   unique,
   uniqueIndex,
 } from "void/schema-d1";
+import type { ColumnMapping } from "../src/import/statementCsvEvents.ts";
 
 /**
  * 作成・更新日時（ISO 8601、UTC、ミリ秒まで）。
@@ -105,7 +106,7 @@ export const places = sqliteTable("places", {
 /** 取り込みの記録。総入れ替えや取り消しのときに取り込み単位で取引を探す */
 export const importBatches = sqliteTable("import_batches", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  source: text("source", { enum: ["zaim_csv"] }).notNull(),
+  source: text("source", { enum: ["zaim_csv", "statement_csv"] }).notNull(),
   fileName: text("file_name").notNull(),
   rowCount: integer("row_count").notNull(),
   importedAt: text("imported_at")
@@ -119,6 +120,7 @@ export const importBatches = sqliteTable("import_batches", {
  * 口座の向きは振替・残高調整でもそろえ、from は残高が減る口座、to は増える口座にする。
  * 合計金額は品目の和なので持たない。receipt_image_key はレシートの写真から登録したときの R2 のキー。
  * advance_amount は支出のうち立替の額。残高や明細との突合が全額で合うよう、品目の金額は減らさない。
+ * is_favorite はよく使う取引の印。手入力の登録で雛形にする。
  */
 export const transactions = sqliteTable(
   "transactions",
@@ -136,12 +138,13 @@ export const transactions = sqliteTable(
     aggregation: text("aggregation", { enum: ["always", "never", "yearly_only"] })
       .notNull()
       .default("always"),
-    source: text("source", { enum: ["manual", "zaim_csv"] }).notNull(),
+    source: text("source", { enum: ["manual", "zaim_csv", "statement_csv"] }).notNull(),
     importBatchId: integer("import_batch_id").references(() => importBatches.id, {
       onDelete: "restrict",
     }),
     receiptImageKey: text("receipt_image_key"),
     advanceAmount: integer("advance_amount").notNull().default(0),
+    isFavorite: integer("is_favorite", { mode: "boolean" }).notNull().default(false),
     ...timestamps(),
   },
   (t) => [index("transactions_date_idx").on(t.date), index("transactions_place_idx").on(t.placeId)],
@@ -205,3 +208,34 @@ export const advanceReimbursements = sqliteTable(
     index("advance_reimbursements_income_idx").on(t.incomeTransactionId),
   ],
 );
+
+/**
+ * 履歴 CSV の形式。登録で確かめられた列の割り当てを見出しごとに覚え、次から AI の判定を省く。
+ *
+ * account_id は読み取りの初期値に使うだけなので、外部キーにせず読むときに確かめる。
+ */
+export const statementCsvFormats = sqliteTable("statement_csv_formats", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** 見出しの行のセルの配列を JSON にした文字列 */
+  header: text("header").notNull().unique(),
+  mapping: text("mapping", { mode: "json" }).$type<ColumnMapping>().notNull(),
+  accountId: integer("account_id"),
+  ...timestamps(),
+});
+
+/**
+ * 履歴 CSV の利用先の分類。登録で確かめられた分類を覚え、次から AI の分類を省く。
+ *
+ * 店舗の統合や口座の整理を妨げないよう、外部キーにせず読むときに今の台帳で確かめる。
+ */
+export const statementCsvDescriptions = sqliteTable("statement_csv_descriptions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** `descriptionKey` で揃えた、向き付きの利用先の表記 */
+  key: text("key").notNull().unique(),
+  mode: text("mode", { enum: ["payment", "income", "transfer"] }).notNull(),
+  placeName: text("place_name"),
+  genreId: integer("genre_id"),
+  categoryId: integer("category_id"),
+  counterAccountId: integer("counter_account_id"),
+  ...timestamps(),
+});
