@@ -37,7 +37,12 @@ import {
   resolvePlaceAlias,
   type ExtractPaymentContext,
 } from "./extractPayment.ts";
-import { runStructuredChat, truncate, type AiRunner } from "./structuredChat.ts";
+import {
+  runStructuredChat,
+  streamStructuredItems,
+  truncate,
+  type AiRunner,
+} from "./structuredChat.ts";
 
 /** 列の判定に渡す、先頭の行数。見出しの前の口座情報と利用の行の形がわかる長さ */
 const HEAD_ROWS = 20;
@@ -45,7 +50,7 @@ const HEAD_ROWS = 20;
 const TAIL_ROWS = 3;
 /** 列の判定に渡す 1 行の最大文字数 */
 const ROW_MAX_CHARS = 500;
-/** 1 回の分類で渡す利用先の数。小さいほど結果が早く順に届くが、毎回渡す候補の分だけ入力が増える */
+/** 1 回の分類で渡す利用先の数。並行に呼んで全体を速くするために分ける。小さいほど毎回渡す候補の分だけ入力が増える */
 const CLASSIFY_CHUNK_SIZE = 30;
 /** 分類の候補として渡す店舗の数 */
 const CLASSIFY_PLACES_LIMIT = 200;
@@ -262,9 +267,9 @@ const recallClassification = (
 };
 
 /**
- * 同じ利用先をまとめて分類し、分割ごとに終わった順で結果を渡す。
+ * 同じ利用先をまとめて分類し、利用先ごとに AI の応答が届いた順で結果を渡す。
  *
- * 分類は後から画面で直せるので、一部の分割で失敗しても読み取り全体は失敗にせず、その行を未分類で返す。
+ * 分類は後から画面で直せるので、失敗しても読み取り全体は失敗にせず、届かなかった利用先の行を未分類で渡す。
  */
 const classifyRows = async (params: {
   ai: AiRunner;
@@ -272,9 +277,7 @@ const classifyRows = async (params: {
   rows: StatementCsvRow[];
   context: ClassifyContext;
   abortSignal: AbortSignal;
-  onChunk: (
-    rows: Array<StatementCsvRow & RowClassification & { classified: boolean }>,
-  ) => Promise<void>;
+  onRows: (rows: Array<StatementCsvRow & RowClassification & { classified: boolean }>) => void;
 }): Promise<void> => {
   const rowsByTarget = new Map<string, StatementCsvRow[]>();
   for (const row of params.rows) {
@@ -292,41 +295,89 @@ const classifyRows = async (params: {
 
   await Promise.all(
     chunks.map(async (chunk) => {
-      const classified = new Map<string, RowClassification>();
+      const received = new Set<ClassifyTarget>();
       try {
-        const { object } = await runStructuredChat({
+        await streamStructuredItems({
           ai: params.ai,
           model: params.model,
           buildPrompt: () =>
             buildClassifyPrompt({ ...params.context, targets: chunk, accountName }),
           schemaName: "ClassifiedEntries",
           jsonSchema: CLASSIFIED_ENTRIES_JSON_SCHEMA,
-          schema: ClassifiedEntriesSchema,
+          itemSchema: ClassifiedEntrySchema,
           abortSignal: params.abortSignal,
+          onItem: (entry) => {
+            const target = chunk[entry.id];
+            if (target === undefined || received.has(target)) return;
+            received.add(target);
+            const classification = sanitizeClassification(entry, target, params.context);
+            params.onRows(
+              (rowsByTarget.get(targetKey(target)) ?? []).map((row) => ({
+                ...row,
+                ...classification,
+                classified: true,
+              })),
+            );
+          },
         });
-        for (const entry of object.entries) {
-          const target = chunk[entry.id];
-          if (target === undefined) continue;
-          classified.set(targetKey(target), sanitizeClassification(entry, target, params.context));
-        }
       } catch (error) {
         console.error("LLM classify-statement-csv failed", {
           error: error instanceof Error ? error.message : String(error),
         });
       }
       if (params.abortSignal.aborted) return;
-      await params.onChunk(
-        chunk.flatMap((target) => {
-          const classification = classified.get(targetKey(target));
-          return (rowsByTarget.get(targetKey(target)) ?? []).map((row) => ({
+      const missing = chunk.filter((target) => !received.has(target));
+      if (missing.length === 0) return;
+      params.onRows(
+        missing.flatMap((target) =>
+          (rowsByTarget.get(targetKey(target)) ?? []).map((row) => ({
             ...row,
-            ...(classification ?? unclassified(row.direction)),
-            classified: classification !== undefined,
-          }));
-        }),
+            ...unclassified(row.direction),
+            classified: false,
+          })),
+        ),
       );
     }),
   );
+};
+
+/**
+ * 届いた行を順に処理する入口を作る。処理の間に届いた行は次にまとめて渡す。
+ *
+ * 利用先ごとに DB を引くと行数の分だけ問い合わせが増えるが、まとめれば DB が速いほど細かく、遅いほど大きな単位で流れる。
+ */
+const createRowQueue = <T>(handle: (rows: T[]) => Promise<void>) => {
+  let pending: T[] = [];
+  let running: Promise<void> | null = null;
+  let failure: { error: unknown } | null = null;
+
+  /**
+   * 溜まった行がなくなるまで処理する。失敗は `finish` で伝える。
+   */
+  const drain = async (): Promise<void> => {
+    try {
+      while (pending.length > 0 && failure === null) {
+        const rows = pending;
+        pending = [];
+        await handle(rows);
+      }
+    } catch (error) {
+      failure = { error };
+    }
+    running = null;
+  };
+
+  return {
+    push: (rows: T[]): void => {
+      pending.push(...rows);
+      running ??= drain();
+    },
+    /** 溜まった行の処理を待ち、途中で失敗していれば投げる */
+    finish: async (): Promise<void> => {
+      while (running !== null) await running;
+      if (failure !== null) throw failure.error;
+    },
+  };
 };
 
 /** 列を読むまでの結果。`message` は画面に出す */
@@ -448,9 +499,9 @@ const toModeEntry = (row: StatementCsvRow & RowClassification): StatementModeEnt
 });
 
 /**
- * 読めた行の分類を、終わった分から NDJSON で順に流す。
+ * 読めた行の分類を、AI の応答が届いた分から NDJSON で順に流す。
  *
- * 覚えている利用先は最初の `rows` で分類を付けて送り、残りだけを AI に渡して `classified` で送る。
+ * 覚えている利用先は最初の `rows` で分類を付けて送り、残りだけを AI に渡して、利用先ごとに `classified` で送る。
  * 途中で通信が切れたら AI の呼び出しも止める。
  */
 export const streamStatementCsvClassification = (params: {
@@ -514,13 +565,8 @@ export const streamStatementCsvClassification = (params: {
       try {
         const { event, unknown } = await firstEvent();
         send(event);
-        await classifyRows({
-          ai: params.ai,
-          model: params.model,
-          rows: unknown,
-          context,
-          abortSignal: abort.signal,
-          onChunk: async (rows) => {
+        const queue = createRowQueue<StatementCsvRow & RowClassification & { classified: boolean }>(
+          async (rows) => {
             const registered = await params.findRegistered(rows.map(toModeEntry));
             if (abort.signal.aborted) return;
             send({
@@ -537,7 +583,16 @@ export const streamStatementCsvClassification = (params: {
               })),
             });
           },
+        );
+        await classifyRows({
+          ai: params.ai,
+          model: params.model,
+          rows: unknown,
+          context,
+          abortSignal: abort.signal,
+          onRows: queue.push,
         });
+        await queue.finish();
         if (abort.signal.aborted) return;
         send({ type: "done" });
       } catch (error) {

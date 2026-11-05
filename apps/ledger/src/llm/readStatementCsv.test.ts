@@ -15,6 +15,7 @@ import {
   type StatementCsvReadEvent,
 } from "../import/statementCsvEvents.ts";
 import type { StatementCsvMemory } from "../ledger/statementCsv.ts";
+import type { AiRunner } from "./structuredChat.ts";
 
 const context: StatementCsvContext = {
   paymentCategories: [{ id: 101, name: "食費", genres: [{ id: 10101, name: "食料品" }] }],
@@ -61,7 +62,7 @@ const fakeAi = (
 const noMemory: StatementCsvMemory = { formats: [], classifications: new Map() };
 
 const prepare = (
-  ai: ReturnType<typeof fakeAi>,
+  ai: AiRunner,
   text: string = CSV,
   memory: StatementCsvMemory = noMemory,
   redetect = false,
@@ -71,7 +72,7 @@ const prepare = (
  * 読み取りの全体を流し、届いた出来事を順に集める。
  */
 const collect = async (
-  ai: ReturnType<typeof fakeAi>,
+  ai: AiRunner,
   memory: StatementCsvMemory = noMemory,
   text: string = CSV,
   findRegistered: Parameters<typeof streamStatementCsvClassification>[0]["findRegistered"] = async (
@@ -332,25 +333,32 @@ describe("prepareStatementCsv", () => {
   });
 });
 
+/**
+ * 届いた分類の行を、行番号の順に集める。届く単位は処理の速さで変わるので単位には依存しない。
+ */
+const classifiedRows = (events: StatementCsvReadEvent[]) =>
+  events
+    .flatMap((event) => (event.type === "classified" ? event.rows : []))
+    .sort((a, b) => a.line - b.line);
+
 describe("streamStatementCsvClassification", () => {
   test("先に全行を分類待ちで送り、同じ利用先は 1 度だけ分類して全行に戻す", async () => {
     const ai = fakeAi(() => classified);
 
     const events = await collect(ai);
 
-    expect(events.map((event) => event.type)).toEqual(["rows", "classified", "done"]);
+    expect(events.at(0)?.type).toBe("rows");
+    expect(events.at(-1)?.type).toBe("done");
     expect(events[0]).toMatchObject({
       accountId: 1,
       skippedCount: 1,
       rows: [{ pending: true }, { pending: true }, { pending: true }],
     });
-    expect(events[1]).toMatchObject({
-      rows: [
-        { line: 2, mode: "payment", genreId: 10101, classified: true },
-        { line: 3, mode: "payment", genreId: 10101, classified: true },
-        { line: 4, mode: "income", categoryId: 201, classified: true },
-      ],
-    });
+    expect(classifiedRows(events)).toMatchObject([
+      { line: 2, mode: "payment", genreId: 10101, classified: true },
+      { line: 3, mode: "payment", genreId: 10101, classified: true },
+      { line: 4, mode: "income", categoryId: 201, classified: true },
+    ]);
     // 列の判定と分類で 1 回ずつ
     expect(ai.run).toHaveBeenCalledTimes(2);
   });
@@ -385,7 +393,7 @@ describe("streamStatementCsvClassification", () => {
         { line: 4, pending: true },
       ],
     });
-    expect(events[1]).toMatchObject({ rows: [{ line: 4, mode: "income" }] });
+    expect(classifiedRows(events)).toMatchObject([{ line: 4, mode: "income" }]);
     expect(ai.run).toHaveBeenCalledTimes(1);
   });
 
@@ -446,23 +454,111 @@ describe("streamStatementCsvClassification", () => {
       }),
     );
 
-    expect(events.map((event) => event.type)).toEqual(["rows", "classified", "done"]);
-    expect(events[1]).toMatchObject({
-      rows: [
-        { mode: "payment", classified: false },
-        { mode: "payment", classified: false },
-        { mode: "income", classified: false },
-      ],
-    });
+    expect(events.at(-1)?.type).toBe("done");
+    expect(classifiedRows(events)).toMatchObject([
+      { mode: "payment", classified: false },
+      { mode: "payment", classified: false },
+      { mode: "income", classified: false },
+    ]);
   });
 
-  test("利用先が多ければ分けて分類し、分けた分ごとに送る", async () => {
+  test("利用先が多ければ分けて分類する", async () => {
     const ai = fakeAi(() => ({ entries: [] }));
     const rows = Array.from({ length: 70 }, (_, index) => `2026/05/10,店${index},100,`);
 
     const events = await collect(ai, noMemory, ["日付,摘要,出金,入金", ...rows].join("\n"));
 
-    expect(events.filter((event) => event.type === "classified")).toHaveLength(3);
+    // 列の判定と、3 つに分けた分類
+    expect(ai.run).toHaveBeenCalledTimes(4);
+    expect(classifiedRows(events)).toHaveLength(70);
+  });
+
+  test("AI の応答が途中まででも、届いた利用先の分だけ先に送る", async () => {
+    const encoder = new TextEncoder();
+    let finishResponse = (): void => {};
+    const sse = (content: string) =>
+      encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`);
+    const ai = {
+      run: vi.fn(async (_model: string, inputs: Record<string, unknown>) => {
+        if (inputs["stream"] !== true) {
+          return { response: { mapping, accountId: 1, reasoning: "x" } };
+        }
+        return new ReadableStream<Uint8Array>({
+          start: (controller) => {
+            controller.enqueue(sse(`{"entries":[${JSON.stringify(paymentEntry)},`));
+            finishResponse = () => {
+              controller.enqueue(sse(`${JSON.stringify(incomeEntry)}]}`));
+              controller.close();
+            };
+          },
+        });
+      }),
+    };
+    const prepared = await prepare(ai);
+    if (!prepared.ok) throw new Error(prepared.message);
+    const stream = streamStatementCsvClassification({
+      ai,
+      model: "test",
+      prepared,
+      context,
+      memory: noMemory,
+      findRegistered: async (entries) => entries.map(() => null),
+    });
+    const events = readStatementCsvEvents(stream);
+
+    expect((await events.next()).value?.type).toBe("rows");
+    expect((await events.next()).value).toMatchObject({
+      type: "classified",
+      rows: [{ line: 2 }, { line: 3 }],
+    });
+
+    finishResponse();
+
+    expect((await events.next()).value).toMatchObject({ type: "classified", rows: [{ line: 4 }] });
+    expect((await events.next()).value?.type).toBe("done");
+  });
+
+  test("応答の途中で失敗しても、届かなかった利用先だけを未分類にする", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const ai = {
+      run: vi.fn(async (_model: string, inputs: Record<string, unknown>) => {
+        if (inputs["stream"] !== true) {
+          return { response: { mapping, accountId: 1, reasoning: "x" } };
+        }
+        return new ReadableStream<Uint8Array>({
+          start: (controller) => {
+            const content = `{"entries":[${JSON.stringify(paymentEntry)},`;
+            controller.enqueue(
+              new TextEncoder().encode(
+                `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`,
+              ),
+            );
+          },
+          pull: (controller) => controller.error(new Error("boom")),
+        });
+      }),
+    };
+    const prepared = await prepare(ai);
+    if (!prepared.ok) throw new Error(prepared.message);
+    const events: StatementCsvReadEvent[] = [];
+    for await (const event of readStatementCsvEvents(
+      streamStatementCsvClassification({
+        ai,
+        model: "test",
+        prepared,
+        context,
+        memory: noMemory,
+        findRegistered: async (entries) => entries.map(() => null),
+      }),
+    )) {
+      events.push(event);
+    }
+
+    expect(classifiedRows(events)).toMatchObject([
+      { line: 2, classified: true },
+      { line: 3, classified: true },
+      { line: 4, classified: false },
+    ]);
   });
 
   test("分類した行の登録済みの取引を、返金は負の金額で探す", async () => {
@@ -484,10 +580,12 @@ describe("streamStatementCsvClassification", () => {
       findRegistered,
     );
 
-    expect(events[1]).toMatchObject({
-      rows: [{ line: 2, registered }, { line: 3, registered: null }, { line: 4 }],
-    });
-    expect(findRegistered.mock.lastCall?.[0]).toContainEqual(
+    expect(classifiedRows(events)).toMatchObject([
+      { line: 2, registered },
+      { line: 3 },
+      { line: 4, registered: null },
+    ]);
+    expect(findRegistered.mock.calls.flatMap(([entries]) => entries)).toContainEqual(
       expect.objectContaining({ mode: "payment", amount: -200000 }),
     );
   });
@@ -507,7 +605,7 @@ describe("streamStatementCsvClassification", () => {
       },
     );
 
-    expect(events.map((event) => event.type)).toEqual(["rows", "error"]);
+    expect(events.at(-1)?.type).toBe("error");
   });
 
   test("読み手が止めたら AI の呼び出しも止める", async () => {

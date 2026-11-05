@@ -1,6 +1,6 @@
 import { Link } from "@void/react";
 import { CircleCheck, FileUp, LoaderCircle, TriangleAlert } from "lucide-react";
-import { useId, useState, type ChangeEvent } from "react";
+import { memo, useCallback, useId, useState, type ChangeEvent } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -79,8 +79,11 @@ const SELECT_CLASS = "col-start-2 w-full @2xl:col-start-auto";
 
 /**
  * 明細の 1 行。種類に応じて、内訳・カテゴリ・相手の口座のどれかを選ばせる。
+ *
+ * 分類は利用先ごとに届くので、届いた行だけを描き直せるよう memo にする。
  */
-const DraftRow = ({
+const DraftRow = memo(function DraftRow({
+  index,
   draft,
   problem,
   placeListId,
@@ -88,8 +91,9 @@ const DraftRow = ({
   paymentCategories,
   incomeCategories,
   disabled,
-  onChange,
+  onDraftChange,
 }: {
+  index: number;
   draft: StatementCsvDraft;
   problem: string | null;
   placeListId: string;
@@ -97,163 +101,168 @@ const DraftRow = ({
   paymentCategories: Props["paymentCategories"];
   incomeCategories: Props["incomeCategories"];
   disabled: boolean;
-  onChange: (next: StatementCsvDraft) => void;
-}) => (
-  <li
-    className={cn(
-      "grid grid-cols-[1.25rem_minmax(0,1fr)] gap-x-3 gap-y-2 border-b py-3 @2xl:grid-cols-[1.25rem_minmax(0,1fr)_6rem_7rem_minmax(0,1fr)]",
-      !draft.selected && "text-muted-foreground",
-    )}
-  >
-    <input
-      type="checkbox"
-      aria-label={`${formatDay(draft.date)} ${draft.description} を登録する`}
-      className="mt-1 size-4 accent-primary"
-      checked={draft.selected}
-      disabled={disabled}
-      onChange={(event) => onChange({ ...draft, selected: event.target.checked })}
-    />
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="flex items-baseline justify-between gap-3">
-        <span className="truncate" title={draft.description}>
-          {draft.description || "（利用先なし）"}
-        </span>
-        <span className="tabular-nums font-medium @2xl:hidden">
-          {draft.direction === "in" ? "+" : ""}
-          {formatYen(draft.amount)}
-        </span>
-      </span>
-      <span className="text-xs text-muted-foreground">
-        {formatDay(draft.date)}・{draft.line} 行目
-      </span>
-      {draft.registered !== null && (
-        <Link
-          href={`/transactions/${draft.registered.transactionId}`}
-          className="flex w-fit items-center gap-1 text-xs underline"
-        >
-          <CircleCheck className="size-3" aria-hidden="true" />
-          登録済みかもしれません（{formatDay(draft.registered.date)}
-          {draft.registered.placeName === null ? "" : `・${draft.registered.placeName}`}）
-        </Link>
+  onDraftChange: (index: number, next: StatementCsvDraft) => void;
+}) {
+  const onChange = (next: StatementCsvDraft) => onDraftChange(index, next);
+  return (
+    <li
+      className={cn(
+        "grid grid-cols-[1.25rem_minmax(0,1fr)] gap-x-3 gap-y-2 border-b py-3 @2xl:grid-cols-[1.25rem_minmax(0,1fr)_6rem_7rem_minmax(0,1fr)]",
+        !draft.selected && "text-muted-foreground",
       )}
-      {draft.pending && (
-        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <LoaderCircle className="size-3 animate-spin" aria-hidden="true" />
-          分類中…
-        </span>
-      )}
-      {draft.selected && problem !== null && (
-        <span className="flex items-center gap-1 text-xs text-destructive">
-          <TriangleAlert className="size-3" aria-hidden="true" />
-          {problem}
-        </span>
-      )}
-    </div>
-    <span className="hidden text-right tabular-nums font-medium @2xl:block">
-      {draft.direction === "in" ? "+" : ""}
-      {formatYen(draft.amount)}
-    </span>
-    <NativeSelect
-      size="sm"
-      className={cn(SELECT_CLASS, "self-start")}
-      aria-label="種類"
-      value={draft.mode}
-      disabled={disabled}
-      onChange={(event) => {
-        const mode = event.target.value;
-        if (mode === "payment" || mode === "income" || mode === "transfer") {
-          onChange(changeDraftMode(draft, mode));
-        }
-      }}
     >
-      <NativeSelectOption value="payment">
-        {draft.direction === "in" ? "支出の返金" : MODE_LABELS.payment}
-      </NativeSelectOption>
-      {draft.direction === "in" && (
-        <NativeSelectOption value="income">{MODE_LABELS.income}</NativeSelectOption>
-      )}
-      <NativeSelectOption value="transfer">{MODE_LABELS.transfer}</NativeSelectOption>
-    </NativeSelect>
-    <div className="col-start-2 flex min-w-0 flex-col gap-2 @2xl:col-start-auto">
-      {draft.mode === "payment" && (
-        <NativeSelect
-          size="sm"
-          className={SELECT_CLASS}
-          aria-label="内訳"
-          aria-invalid={draft.selected && !draft.pending && draft.genreId === null}
-          value={draft.genreId ?? ""}
-          disabled={disabled}
-          onChange={(event) => onChange({ ...draft, genreId: idFromValue(event.target.value) })}
-        >
-          <NativeSelectOption value="">内訳を選ぶ</NativeSelectOption>
-          {paymentCategories.map((category) => (
-            <NativeSelectOptGroup key={category.id} label={category.name}>
-              {category.genres.map((genre) => (
-                <NativeSelectOption key={genre.id} value={genre.id}>
-                  {genre.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelectOptGroup>
-          ))}
-        </NativeSelect>
-      )}
-      {draft.mode === "income" && (
-        <NativeSelect
-          size="sm"
-          className={SELECT_CLASS}
-          aria-label="カテゴリ"
-          value={draft.categoryId ?? ""}
-          disabled={disabled}
-          onChange={(event) => onChange({ ...draft, categoryId: idFromValue(event.target.value) })}
-        >
-          <NativeSelectOption value="">カテゴリなし</NativeSelectOption>
-          {incomeCategories.map((category) => (
-            <NativeSelectOption key={category.id} value={category.id}>
-              {category.name}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      )}
-      {draft.mode === "transfer" ? (
-        <NativeSelect
-          size="sm"
-          className={SELECT_CLASS}
-          aria-label={draft.direction === "out" ? "振替先の口座" : "振替元の口座"}
-          aria-invalid={draft.selected && !draft.pending && draft.counterAccountId === null}
-          value={draft.counterAccountId ?? ""}
-          disabled={disabled}
-          onChange={(event) =>
-            onChange({ ...draft, counterAccountId: idFromValue(event.target.value) })
+      <input
+        type="checkbox"
+        aria-label={`${formatDay(draft.date)} ${draft.description} を登録する`}
+        className="mt-1 size-4 accent-primary"
+        checked={draft.selected}
+        disabled={disabled}
+        onChange={(event) => onChange({ ...draft, selected: event.target.checked })}
+      />
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="flex items-baseline justify-between gap-3">
+          <span className="truncate" title={draft.description}>
+            {draft.description || "（利用先なし）"}
+          </span>
+          <span className="tabular-nums font-medium @2xl:hidden">
+            {draft.direction === "in" ? "+" : ""}
+            {formatYen(draft.amount)}
+          </span>
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {formatDay(draft.date)}・{draft.line} 行目
+        </span>
+        {draft.registered !== null && (
+          <Link
+            href={`/transactions/${draft.registered.transactionId}`}
+            className="flex w-fit items-center gap-1 text-xs underline"
+          >
+            <CircleCheck className="size-3" aria-hidden="true" />
+            登録済みかもしれません（{formatDay(draft.registered.date)}
+            {draft.registered.placeName === null ? "" : `・${draft.registered.placeName}`}）
+          </Link>
+        )}
+        {draft.pending && (
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <LoaderCircle className="size-3 animate-spin" aria-hidden="true" />
+            分類中…
+          </span>
+        )}
+        {draft.selected && problem !== null && (
+          <span className="flex items-center gap-1 text-xs text-destructive">
+            <TriangleAlert className="size-3" aria-hidden="true" />
+            {problem}
+          </span>
+        )}
+      </div>
+      <span className="hidden text-right tabular-nums font-medium @2xl:block">
+        {draft.direction === "in" ? "+" : ""}
+        {formatYen(draft.amount)}
+      </span>
+      <NativeSelect
+        size="sm"
+        className={cn(SELECT_CLASS, "self-start")}
+        aria-label="種類"
+        value={draft.mode}
+        disabled={disabled}
+        onChange={(event) => {
+          const mode = event.target.value;
+          if (mode === "payment" || mode === "income" || mode === "transfer") {
+            onChange(changeDraftMode(draft, mode));
           }
-        >
-          <NativeSelectOption value="">
-            {draft.direction === "out" ? "振替先を選ぶ" : "振替元を選ぶ"}
-          </NativeSelectOption>
-          {accounts.map((account) => (
-            <NativeSelectOption key={account.id} value={account.id}>
-              {account.name}
+        }}
+      >
+        <NativeSelectOption value="payment">
+          {draft.direction === "in" ? "支出の返金" : MODE_LABELS.payment}
+        </NativeSelectOption>
+        {draft.direction === "in" && (
+          <NativeSelectOption value="income">{MODE_LABELS.income}</NativeSelectOption>
+        )}
+        <NativeSelectOption value="transfer">{MODE_LABELS.transfer}</NativeSelectOption>
+      </NativeSelect>
+      <div className="col-start-2 flex min-w-0 flex-col gap-2 @2xl:col-start-auto">
+        {draft.mode === "payment" && (
+          <NativeSelect
+            size="sm"
+            className={SELECT_CLASS}
+            aria-label="内訳"
+            aria-invalid={draft.selected && !draft.pending && draft.genreId === null}
+            value={draft.genreId ?? ""}
+            disabled={disabled}
+            onChange={(event) => onChange({ ...draft, genreId: idFromValue(event.target.value) })}
+          >
+            <NativeSelectOption value="">内訳を選ぶ</NativeSelectOption>
+            {paymentCategories.map((category) => (
+              <NativeSelectOptGroup key={category.id} label={category.name}>
+                {category.genres.map((genre) => (
+                  <NativeSelectOption key={genre.id} value={genre.id}>
+                    {genre.name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelectOptGroup>
+            ))}
+          </NativeSelect>
+        )}
+        {draft.mode === "income" && (
+          <NativeSelect
+            size="sm"
+            className={SELECT_CLASS}
+            aria-label="カテゴリ"
+            value={draft.categoryId ?? ""}
+            disabled={disabled}
+            onChange={(event) =>
+              onChange({ ...draft, categoryId: idFromValue(event.target.value) })
+            }
+          >
+            <NativeSelectOption value="">カテゴリなし</NativeSelectOption>
+            {incomeCategories.map((category) => (
+              <NativeSelectOption key={category.id} value={category.id}>
+                {category.name}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        )}
+        {draft.mode === "transfer" ? (
+          <NativeSelect
+            size="sm"
+            className={SELECT_CLASS}
+            aria-label={draft.direction === "out" ? "振替先の口座" : "振替元の口座"}
+            aria-invalid={draft.selected && !draft.pending && draft.counterAccountId === null}
+            value={draft.counterAccountId ?? ""}
+            disabled={disabled}
+            onChange={(event) =>
+              onChange({ ...draft, counterAccountId: idFromValue(event.target.value) })
+            }
+          >
+            <NativeSelectOption value="">
+              {draft.direction === "out" ? "振替先を選ぶ" : "振替元を選ぶ"}
             </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      ) : (
-        <Input
-          aria-label="店舗"
-          placeholder="店舗（なければ品名に残します）"
-          list={placeListId}
-          className="h-7 text-sm"
-          value={draft.place}
-          disabled={disabled}
-          onChange={(event) => onChange({ ...draft, place: event.target.value })}
-        />
-      )}
-    </div>
-  </li>
-);
+            {accounts.map((account) => (
+              <NativeSelectOption key={account.id} value={account.id}>
+                {account.name}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        ) : (
+          <Input
+            aria-label="店舗"
+            placeholder="店舗（なければ品名に残します）"
+            list={placeListId}
+            className="h-7 text-sm"
+            value={draft.place}
+            disabled={disabled}
+            onChange={(event) => onChange({ ...draft, place: event.target.value })}
+          />
+        )}
+      </div>
+    </li>
+  );
+});
 
 /**
  * 銀行やカードの履歴 CSV を取り込む画面。
  *
- * ファイルを選ぶと列を読み取って行を出し、分類が終わった分から埋めていく。結果を確かめ、選んだ行をまとめて登録する。
+ * ファイルを選ぶと列を読み取って行を出し、分類を利用先ごとに届いた分から埋めていく。結果を確かめ、選んだ行をまとめて登録する。
  * 行数が多くなるので、行の選択欄には軽いネイティブの select を使う。
  */
 const StatementImportPage = ({
@@ -367,10 +376,13 @@ const StatementImportPage = ({
     }
   };
 
-  const updateDraft = (index: number, next: StatementCsvDraft) =>
-    setDrafts((current) =>
-      current.map((draft, i) => (i === index ? markDraftEdited(draft, next) : draft)),
-    );
+  const updateDraft = useCallback(
+    (index: number, next: StatementCsvDraft) =>
+      setDrafts((current) =>
+        current.map((draft, i) => (i === index ? markDraftEdited(draft, next) : draft)),
+      ),
+    [],
+  );
 
   const outTotal = selected
     .filter((draft) => draft.direction === "out")
@@ -480,6 +492,7 @@ const StatementImportPage = ({
               {drafts.map((draft, index) => (
                 <DraftRow
                   key={draft.line}
+                  index={index}
                   draft={draft}
                   problem={draftProblem(draft, accountId)}
                   placeListId={placeListId}
@@ -487,7 +500,7 @@ const StatementImportPage = ({
                   paymentCategories={paymentCategories}
                   incomeCategories={incomeCategories}
                   disabled={registering}
-                  onChange={(next) => updateDraft(index, next)}
+                  onDraftChange={updateDraft}
                 />
               ))}
             </ul>
