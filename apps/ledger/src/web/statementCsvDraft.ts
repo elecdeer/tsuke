@@ -5,6 +5,7 @@ import type { StatementCsvRegisterInput } from "@/ledger/statementCsv";
 import type {
   StatementCsvClassifiedRow,
   StatementCsvFormat,
+  StatementCsvReadColumns,
   StatementCsvReadResultRow,
 } from "@/import/statementCsvEvents";
 
@@ -17,6 +18,46 @@ export type StatementCsvDraft = StatementCsvReadResultRow & {
   edited: boolean;
   /** 手で選択を変えた行。後から届く登録済みの判定で選択を変えない */
   selectionEdited: boolean;
+};
+
+/** 画面に出す、列の読み取りの 1 行 */
+export type ColumnDescription = {
+  /** 取り込みでの役割 */
+  role: string;
+  /** CSV での列の名前。見出しがなければ列の番号 */
+  column: string;
+  /** 最初の利用の行の値 */
+  sample: string;
+};
+
+/**
+ * 列の読み取りの結果を、役割ごとの説明にする。
+ */
+export const describeColumns = ({
+  mapping,
+  header,
+  sampleRow,
+}: StatementCsvReadColumns): ColumnDescription[] => {
+  const describe = (role: string, column: number | null): ColumnDescription[] =>
+    column === null
+      ? []
+      : [
+          {
+            role,
+            // 見出しのセルが空の列もあるので、そのときも番号で示す
+            column: header?.[column] || `${column + 1} 列目`,
+            sample: sampleRow[column] ?? "",
+          },
+        ];
+  const amountRole =
+    mapping.amountPositiveMeans === "outflow" ? "金額（正の値が出金）" : "金額（正の値が入金）";
+  return [
+    ...describe("利用日", mapping.dateColumn),
+    ...mapping.descriptionColumns.flatMap((column) => describe("利用先", column)),
+    ...describe(amountRole, mapping.amountColumn),
+    ...describe("出金", mapping.amountColumn === null ? mapping.outflowColumn : null),
+    ...describe("入金", mapping.amountColumn === null ? mapping.inflowColumn : null),
+  ];
 };
 
 /**

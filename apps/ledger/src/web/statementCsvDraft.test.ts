@@ -3,6 +3,7 @@ import {
   applyClassifiedRows,
   changeDraftMode,
   decodeCsvBytes,
+  describeColumns,
   draftProblem,
   draftsFromRead,
   finishPendingDrafts,
@@ -48,6 +49,49 @@ describe("draftsFromRead", () => {
     expect(drafts.map((row) => [row.selected, row.place])).toEqual([
       [true, "スーパーA"],
       [false, ""],
+    ]);
+  });
+});
+
+describe("describeColumns", () => {
+  const mapping = {
+    firstDataRow: 1,
+    dateColumn: 0,
+    descriptionColumns: [1, 2],
+    amountColumn: null,
+    amountPositiveMeans: "outflow" as const,
+    outflowColumn: 3,
+    inflowColumn: 4,
+  };
+  const header = ["日付", "摘要", "", "出金", "入金"];
+  const sampleRow = ["2026/05/10", "ｽｰﾊﾟｰA", "店", "1000", ""];
+
+  test("役割ごとに見出しと最初の行の値を示し、空の見出しは番号にする", () => {
+    expect(describeColumns({ mapping, header, sampleRow })).toEqual([
+      { role: "利用日", column: "日付", sample: "2026/05/10" },
+      { role: "利用先", column: "摘要", sample: "ｽｰﾊﾟｰA" },
+      { role: "利用先", column: "3 列目", sample: "店" },
+      { role: "出金", column: "出金", sample: "1000" },
+      { role: "入金", column: "入金", sample: "" },
+    ]);
+  });
+
+  test("金額が 1 列なら正の値の向きを示し、見出しがなければ番号にする", () => {
+    const columns = describeColumns({
+      mapping: {
+        ...mapping,
+        descriptionColumns: [],
+        amountColumn: 1,
+        amountPositiveMeans: "inflow",
+        outflowColumn: 3,
+      },
+      header: null,
+      sampleRow: ["2026/05/10", "-100"],
+    });
+
+    expect(columns).toEqual([
+      { role: "利用日", column: "1 列目", sample: "2026/05/10" },
+      { role: "金額（正の値が入金）", column: "2 列目", sample: "-100" },
     ]);
   });
 });

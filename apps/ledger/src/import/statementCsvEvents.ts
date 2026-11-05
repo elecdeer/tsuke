@@ -34,6 +34,17 @@ export const StatementCsvFormatSchema = v.object({
 
 export type StatementCsvFormat = v.InferOutput<typeof StatementCsvFormatSchema>;
 
+/** 列の読み取りの結果。画面で確かめるために送る */
+const ReadColumnsSchema = v.object({
+  mapping: ColumnMappingSchema,
+  /** 利用の行の直前の行。見出しのない CSV は null */
+  header: v.nullable(v.array(v.string())),
+  /** 最初の利用の行 */
+  sampleRow: v.array(v.string()),
+});
+
+export type StatementCsvReadColumns = v.InferOutput<typeof ReadColumnsSchema>;
+
 /** 利用先の分類 */
 const RowClassificationSchema = v.object({
   mode: v.picklist(["payment", "income", "transfer"]),
@@ -91,6 +102,7 @@ const ReadEventSchema = v.variant("type", [
     format: v.nullable(StatementCsvFormatSchema),
     /** 覚えていた形式で列を読んだか */
     formatKnown: v.boolean(),
+    columns: ReadColumnsSchema,
     rows: v.array(ReadRowSchema),
   }),
   v.object({ type: v.literal("classified"), rows: v.array(ClassifiedRowSchema) }),

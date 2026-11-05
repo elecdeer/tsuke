@@ -21,6 +21,7 @@ import type {
   RowClassification,
   StatementCsvClassifiedRow,
   StatementCsvFormat,
+  StatementCsvReadColumns,
   StatementCsvReadEvent,
   StatementCsvReadResultRow,
 } from "../import/statementCsvEvents.ts";
@@ -392,6 +393,7 @@ export type PrepareStatementCsvResult =
       skippedCount: number;
       format: StatementCsvFormat | null;
       formatKnown: boolean;
+      columns: StatementCsvReadColumns;
     }
   | { ok: false; status: 400 | 502; message: string };
 
@@ -490,6 +492,11 @@ export const prepareStatementCsv = async (params: {
     skippedCount,
     format: formatFromMapping(table, detected.mapping),
     formatKnown: known !== null,
+    columns: {
+      mapping: detected.mapping,
+      header: table[detected.mapping.firstDataRow - 1] ?? null,
+      sampleRow: table[detected.mapping.firstDataRow] ?? [],
+    },
   };
 };
 
@@ -555,6 +562,7 @@ export const streamStatementCsvClassification = (params: {
         skippedCount: prepared.skippedCount,
         format: prepared.format,
         formatKnown: prepared.formatKnown,
+        columns: prepared.columns,
         rows,
       },
       unknown: recalled.flatMap(({ row, classification }) =>

@@ -230,6 +230,16 @@ describe("prepareStatementCsv", () => {
     ]);
   });
 
+  test("列の読み取りの結果として、見出しと最初の行を返す", async () => {
+    expect(await prepare(fakeAi(() => classified))).toMatchObject({
+      columns: {
+        mapping,
+        header: ["日付", "摘要", "出金", "入金"],
+        sampleRow: ["2026/05/10", "ｽｰﾊﾟｰA", "1000", ""],
+      },
+    });
+  });
+
   test("覚えていた形式なら AI を呼ばず、前回の口座を使う", async () => {
     const ai = fakeAi(() => classified);
 
@@ -651,6 +661,7 @@ describe("streamStatementCsvClassification", () => {
         skippedCount: 0,
         format: null,
         formatKnown: false,
+        columns: { mapping, header: null, sampleRow: [] },
         rows: [{ line: 1, date: "2026-05-10", description: "店", direction: "out", amount: 1 }],
       },
       context,

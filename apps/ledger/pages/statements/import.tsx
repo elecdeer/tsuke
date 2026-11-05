@@ -1,25 +1,39 @@
 import { Link } from "@void/react";
-import { CircleCheck, FileUp, LoaderCircle, TriangleAlert } from "lucide-react";
+import { ChevronRight, CircleCheck, FileUp, LoaderCircle, TriangleAlert } from "lucide-react";
 import { memo, useCallback, useId, useState, type ChangeEvent } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   NativeSelect,
   NativeSelectOptGroup,
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import { createLedgerClient, LedgerFetchError } from "@/client";
-import { readStatementCsvEvents, type StatementCsvFormat } from "@/import/statementCsvEvents";
+import {
+  readStatementCsvEvents,
+  type StatementCsvFormat,
+  type StatementCsvReadColumns,
+} from "@/import/statementCsvEvents";
 import type { ReadQuality } from "@/llm/readQuality";
 import { cn } from "@/lib/utils";
 import { ErrorMessage } from "@/web/components/ErrorMessage";
 import { Section } from "@/web/components/Section";
 import { formatDay, formatYen } from "@/web/format";
 import { MODE_LABELS } from "@/web/labels";
+import { formatReadTime } from "@/web/receiptQueue";
 import {
   applyClassifiedRows,
   changeDraftMode,
   decodeCsvBytes,
+  describeColumns,
   draftProblem,
   draftsFromRead,
   finishPendingDrafts,
@@ -50,10 +64,16 @@ type ReadSummary = {
   file: File;
   skippedCount: number;
   unclassifiedCount: number;
+  rowCount: number;
   /** AI を呼ばずに覚えていた分類を使った行数 */
   recalledCount: number;
   format: StatementCsvFormat | null;
   formatKnown: boolean;
+  columns: StatementCsvReadColumns;
+  /** 読み取りを始めてから行が届くまでの時間 */
+  columnsReadMs: number;
+  /** 読み取り全体の時間。読み取り中は null */
+  readMs: number | null;
 };
 
 /** 読み取りの API のエラーの本文から、画面に出す文言を取り出す */
@@ -75,6 +95,54 @@ const readErrorMessage = async (response: Response): Promise<string> => {
  * 空文字を null に、それ以外を数値にする。選択肢の値を ID に戻すのに使う。
  */
 const idFromValue = (value: string): number | null => (value === "" ? null : Number(value));
+
+/**
+ * 読み取りの所要時間と列の読み取りの結果。普段は見なくてよいので折りたたんでおく。
+ */
+const ReadDetails = ({ summary }: { summary: ReadSummary }) => (
+  <details className="group text-xs text-muted-foreground">
+    <summary className="flex w-fit cursor-pointer list-none items-center gap-1 hover:text-foreground [&::-webkit-details-marker]:hidden">
+      <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
+      読み取りの詳細
+    </summary>
+    <div className="flex flex-col gap-2 pt-2">
+      <p>
+        読み取りにかかった時間:{" "}
+        {summary.readMs === null ? (
+          "読み取り中"
+        ) : (
+          <>
+            {formatReadTime(summary.readMs)}
+            {summary.recalledCount < summary.rowCount &&
+              `（列 ${formatReadTime(summary.columnsReadMs)}・分類 ${formatReadTime(summary.readMs - summary.columnsReadMs)}）`}
+          </>
+        )}
+      </p>
+      <p>
+        列の読み取り: {summary.formatKnown ? "覚えていた形式" : "AI の判定"}・
+        {summary.columns.mapping.firstDataRow + 1} 行目から
+      </p>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>項目</TableHead>
+            <TableHead>CSV の列</TableHead>
+            <TableHead>最初の行の値</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {describeColumns(summary.columns).map(({ role, column, sample }) => (
+            <TableRow key={`${role}:${column}`}>
+              <TableCell className="whitespace-normal">{role}</TableCell>
+              <TableCell className="whitespace-normal break-all">{column}</TableCell>
+              <TableCell className="whitespace-normal break-all">{sample}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  </details>
+);
 
 const SELECT_CLASS = "col-start-2 w-full @2xl:col-start-auto";
 
@@ -305,6 +373,8 @@ const StatementImportPage = ({
       setDrafts([]);
     }
     let finished = false;
+    let receivedRows = false;
+    const startedAt = performance.now();
     try {
       const text = decodeCsvBytes(new Uint8Array(await file.arrayBuffer()));
       // 型付きクライアントは本文を読み切ってから返すので、順に読むここだけ fetch を直接使う
@@ -320,6 +390,7 @@ const StatementImportPage = ({
       }
       for await (const event of readStatementCsvEvents(response.body)) {
         if (event.type === "rows") {
+          receivedRows = true;
           setRereading(false);
           setDrafts(draftsFromRead(event.rows));
           setAccountId(event.accountId);
@@ -327,9 +398,13 @@ const StatementImportPage = ({
             file,
             skippedCount: event.skippedCount,
             unclassifiedCount: 0,
+            rowCount: event.rows.length,
             recalledCount: event.rows.filter((row) => !row.pending).length,
             format: event.format,
             formatKnown: event.formatKnown,
+            columns: event.columns,
+            columnsReadMs: performance.now() - startedAt,
+            readMs: null,
           });
         } else if (event.type === "classified") {
           setDrafts((current) => applyClassifiedRows(current, event.rows));
@@ -351,6 +426,11 @@ const StatementImportPage = ({
       setError("CSV を読み取れませんでした。読めた行があれば手で選べます");
     } finally {
       setDrafts(finishPendingDrafts);
+      // 読み直しが行の届く前に失敗したら、残している前の結果の時間を変えない
+      if (receivedRows) {
+        const readMs = performance.now() - startedAt;
+        setSummary((current) => current && { ...current, readMs });
+      }
       setReading(false);
       setRereading(false);
     }
@@ -505,6 +585,7 @@ const StatementImportPage = ({
                   より正確に読み直す
                 </button>
               </p>
+              <ReadDetails summary={summary} />
             </div>
           </Section>
 
