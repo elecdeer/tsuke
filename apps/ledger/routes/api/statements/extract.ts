@@ -1,7 +1,6 @@
 import * as v from "valibot";
 import { defineHandler } from "void";
 import { db } from "void/db";
-import { env } from "void/env";
 import {
   listAccountsWithHint,
   listCategories,
@@ -9,6 +8,7 @@ import {
 } from "../../../src/ledger/masters.ts";
 import { PageContentSchema } from "../../../src/llm/extractPayment.ts";
 import { runExtractStatement } from "../../../src/llm/extractStatement.ts";
+import { READ_SETTINGS } from "../../../src/llm/readQuality.ts";
 
 const ExtractBodySchema = v.object({ pageContent: PageContentSchema });
 
@@ -24,14 +24,16 @@ export const POST = defineHandler.withValidator({ body: ExtractBodySchema })(asy
     listAccountsWithHint(db),
     listPlacesForExtraction(db),
   ]);
+  const { model, reasoningEffort } = READ_SETTINGS.fast;
   try {
     const { object, usage, timing } = await runExtractStatement({
       ai: c.env.AI,
-      model: env.LLM_MODEL,
+      model,
+      reasoningEffort,
       input: { pageContent: body.pageContent, categories, accounts, places },
     });
     console.info("LLM extract-statement completed", {
-      model: env.LLM_MODEL,
+      model,
       usage,
       confidence: object.confidence,
       rowCount: object.rows.length,

@@ -9,6 +9,7 @@ import {
   unique,
   uniqueIndex,
 } from "void/schema-d1";
+import type { ColumnMapping } from "../src/import/statementCsvEvents.ts";
 
 /**
  * 作成・更新日時（ISO 8601、UTC、ミリ秒まで）。
@@ -207,3 +208,34 @@ export const advanceReimbursements = sqliteTable(
     index("advance_reimbursements_income_idx").on(t.incomeTransactionId),
   ],
 );
+
+/**
+ * 履歴 CSV の形式。登録で確かめられた列の割り当てを見出しごとに覚え、次から AI の判定を省く。
+ *
+ * account_id は読み取りの初期値に使うだけなので、外部キーにせず読むときに確かめる。
+ */
+export const statementCsvFormats = sqliteTable("statement_csv_formats", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** 見出しの行のセルの配列を JSON にした文字列 */
+  header: text("header").notNull().unique(),
+  mapping: text("mapping", { mode: "json" }).$type<ColumnMapping>().notNull(),
+  accountId: integer("account_id"),
+  ...timestamps(),
+});
+
+/**
+ * 履歴 CSV の利用先の分類。登録で確かめられた分類を覚え、次から AI の分類を省く。
+ *
+ * 店舗の統合や口座の整理を妨げないよう、外部キーにせず読むときに今の台帳で確かめる。
+ */
+export const statementCsvDescriptions = sqliteTable("statement_csv_descriptions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** `descriptionKey` で揃えた、向き付きの利用先の表記 */
+  key: text("key").notNull().unique(),
+  mode: text("mode", { enum: ["payment", "income", "transfer"] }).notNull(),
+  placeName: text("place_name"),
+  genreId: integer("genre_id"),
+  categoryId: integer("category_id"),
+  counterAccountId: integer("counter_account_id"),
+  ...timestamps(),
+});

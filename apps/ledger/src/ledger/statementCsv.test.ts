@@ -2,7 +2,12 @@ import type { DatabaseSync } from "node:sqlite";
 import { beforeEach, describe, expect, test } from "vite-plus/test";
 import { createTestLedgerDb, insert } from "../../db/testing.ts";
 import type { LedgerDb } from "../db.ts";
-import { registerStatementCsv, type StatementCsvRegisterInput } from "./statementCsv.ts";
+import { descriptionKey } from "../import/statementCsv.ts";
+import {
+  loadStatementCsvMemory,
+  registerStatementCsv,
+  type StatementCsvRegisterInput,
+} from "./statementCsv.ts";
 import { findRegisteredTransactions } from "./statements.ts";
 
 describe("履歴 CSV の登録", () => {
@@ -200,5 +205,112 @@ describe("履歴 CSV の登録", () => {
     ]);
 
     expect(matches.map((match) => match?.amount ?? null)).toEqual([1000, 50000, null]);
+  });
+
+  describe("形式と分類を覚える", () => {
+    const mapping = {
+      firstDataRow: 1,
+      dateColumn: 0,
+      descriptionColumns: [1],
+      amountColumn: 2,
+      amountPositiveMeans: "outflow" as const,
+      outflowColumn: null,
+      inflowColumn: null,
+    };
+    const payment = {
+      mode: "payment" as const,
+      date: "2026-05-10",
+      amount: 1000,
+      placeName: "スーパーA",
+      name: null,
+      genreId: 0,
+    };
+
+    test("登録すると形式と口座を覚え、同じ見出しは上書きする", async () => {
+      const format = { header: '["日付"]', mapping };
+      await registerStatementCsv(db, {
+        fileName: "a.csv",
+        accountId: bank,
+        format,
+        rows: [{ ...payment, genreId: genre }],
+      });
+      await registerStatementCsv(db, {
+        fileName: "a.csv",
+        accountId: card,
+        format,
+        rows: [{ ...payment, genreId: genre }],
+      });
+
+      expect((await loadStatementCsvMemory(db)).formats).toEqual([{ ...format, accountId: card }]);
+    });
+
+    test("利用先ごとに直した後の分類を覚え、向きで分ける", async () => {
+      await register([
+        { ...payment, genreId: genre, description: "ｽｰﾊﾟｰA" },
+        { ...payment, genreId: genre, amount: -300, description: "ﾍﾝﾋﾟﾝ" },
+        {
+          mode: "income",
+          description: "ｷﾕｳﾖ",
+          date: "2026-05-25",
+          amount: 200000,
+          placeName: null,
+          name: null,
+          categoryId: incomeCategory,
+        },
+        {
+          mode: "transfer",
+          description: "ｶｰﾄﾞ",
+          date: "2026-05-27",
+          amount: 50000,
+          name: null,
+          direction: "out",
+          counterAccountId: card,
+        },
+      ]);
+
+      const { classifications } = await loadStatementCsvMemory(db);
+
+      expect(classifications.get(descriptionKey("ｽｰﾊﾟｰA", "out"))).toEqual({
+        mode: "payment",
+        placeName: "スーパーA",
+        genreId: genre,
+        categoryId: null,
+        counterAccountId: null,
+      });
+      expect(classifications.get(descriptionKey("ﾍﾝﾋﾟﾝ", "in"))?.mode).toBe("payment");
+      expect(classifications.get(descriptionKey("ｷﾕｳﾖ", "in"))).toMatchObject({
+        mode: "income",
+        categoryId: incomeCategory,
+      });
+      expect(classifications.get(descriptionKey("ｶｰﾄﾞ", "out"))).toMatchObject({
+        mode: "transfer",
+        counterAccountId: card,
+        placeName: null,
+      });
+    });
+
+    test("次の登録で直した分類に置き換わる", async () => {
+      const other = insert(
+        sqlite,
+        "INSERT INTO genres (category_id, name) VALUES (?, '外食')",
+        paymentCategory,
+      );
+      await register([{ ...payment, genreId: genre, description: "ｽｰﾊﾟｰA" }]);
+      await register([{ ...payment, genreId: other, description: "ｽｰﾊﾟｰA" }]);
+
+      const { classifications } = await loadStatementCsvMemory(db);
+
+      expect(classifications.get(descriptionKey("ｽｰﾊﾟｰA", "out"))?.genreId).toBe(other);
+      expect(classifications.size).toBe(1);
+    });
+
+    test("利用先のない行は覚えない", async () => {
+      await register([
+        { ...payment, genreId: genre, description: " " },
+        { ...payment, genreId: genre },
+      ]);
+
+      expect((await loadStatementCsvMemory(db)).classifications.size).toBe(0);
+    });
   });
 });

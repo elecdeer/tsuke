@@ -2,6 +2,9 @@ import { describe, expect, test } from "vite-plus/test";
 import {
   applyColumnMapping,
   checkColumnMapping,
+  descriptionKey,
+  findKnownFormat,
+  formatFromMapping,
   parseCsvTable,
   parseStatementAmount,
   parseStatementDate,
@@ -195,5 +198,78 @@ describe("checkColumnMapping", () => {
     expect(checkColumnMapping(table, { ...cardMapping, amountColumn: null })).toBe(
       "金額の列がありません",
     );
+  });
+});
+
+const baseMapping: ColumnMapping = {
+  firstDataRow: 1,
+  dateColumn: 0,
+  descriptionColumns: [],
+  amountColumn: 1,
+  amountPositiveMeans: "outflow",
+  outflowColumn: null,
+  inflowColumn: null,
+};
+
+describe("formatFromMapping", () => {
+  const table = [
+    ["日付", "金額"],
+    ["2026/05/10", "100"],
+  ];
+
+  test("利用の行の直前の行を見出しにする", () => {
+    expect(formatFromMapping(table, baseMapping)?.header).toBe('["日付","金額"]');
+  });
+
+  test("見出しのない CSV と長すぎる見出しは覚えない", () => {
+    expect(formatFromMapping(table, { ...baseMapping, firstDataRow: 0 })).toBeNull();
+    expect(formatFromMapping([["x".repeat(6000)], ["2026/05/10", "100"]], baseMapping)).toBeNull();
+  });
+});
+
+describe("findKnownFormat", () => {
+  const format = { header: '["日付","金額"]', mapping: baseMapping };
+
+  test("見出しの位置から利用の行を決め直す", () => {
+    const table = [
+      ["口座", "123"],
+      ["日付", "金額"],
+      ["2026/05/10", "100"],
+    ];
+
+    expect(findKnownFormat(table, [format])?.mapping.firstDataRow).toBe(2);
+  });
+
+  test("見出しがなければ見つからない", () => {
+    expect(
+      findKnownFormat(
+        [
+          ["別", "形式"],
+          ["2026/05/10", "100"],
+        ],
+        [format],
+      ),
+    ).toBeNull();
+  });
+
+  test("その形式で 1 行も読めなければ見つからない", () => {
+    expect(
+      findKnownFormat(
+        [
+          ["日付", "金額"],
+          ["合計", "100"],
+        ],
+        [format],
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("descriptionKey", () => {
+  test("全角と半角、大文字と小文字、空白の違いを無視し、向きで分ける", () => {
+    expect(descriptionKey("ＡＭＡＺＯＮ  ｼﾞｬﾊﾟﾝ", "out")).toBe(
+      descriptionKey(" amazon ジャパン", "out"),
+    );
+    expect(descriptionKey("AMAZON", "out")).not.toBe(descriptionKey("AMAZON", "in"));
   });
 });

@@ -9,10 +9,19 @@ import {
   genres,
   importBatches,
   places,
+  statementCsvDescriptions,
+  statementCsvFormats,
   transactionItems,
   transactions,
 } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
+import { descriptionKey } from "../import/statementCsv.ts";
+import {
+  ColumnMappingSchema,
+  StatementCsvFormatSchema,
+  type RowClassification,
+  type StatementCsvFormat,
+} from "../import/statementCsvEvents.ts";
 import { upsertPlaceByName } from "./places.ts";
 
 /** 1 回の登録で受け付ける行数の上限 */
@@ -22,17 +31,22 @@ const IdSchema = v.pipe(v.number(), v.integer());
 const DateSchema = v.pipe(v.string(), v.isoDate());
 const TextSchema = v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(200)));
 const PositiveAmountSchema = v.pipe(v.number(), v.safeInteger(), v.minValue(1));
+/** 明細の利用先の表記。分類を覚えるのに使う */
+const DescriptionSchema = v.optional(v.pipe(v.string(), v.maxLength(200)));
 
 /** 一括登録の入力 */
 export const StatementCsvRegisterSchema = v.object({
   fileName: v.pipe(v.string(), v.maxLength(200)),
   /** CSV の口座。支出の支払元、収入の入金先、振替の片方になる */
   accountId: IdSchema,
+  /** 読み取りで使った形式。登録できた結果なので、次の読み取りのために覚える */
+  format: v.optional(v.nullable(StatementCsvFormatSchema)),
   rows: v.pipe(
     v.array(
       v.variant("mode", [
         v.object({
           mode: v.literal("payment"),
+          description: DescriptionSchema,
           date: DateSchema,
           /** 返金は負の金額にする */
           amount: v.pipe(v.number(), v.safeInteger()),
@@ -42,6 +56,7 @@ export const StatementCsvRegisterSchema = v.object({
         }),
         v.object({
           mode: v.literal("income"),
+          description: DescriptionSchema,
           date: DateSchema,
           amount: PositiveAmountSchema,
           placeName: TextSchema,
@@ -50,6 +65,7 @@ export const StatementCsvRegisterSchema = v.object({
         }),
         v.object({
           mode: v.literal("transfer"),
+          description: DescriptionSchema,
           date: DateSchema,
           amount: PositiveAmountSchema,
           name: TextSchema,
@@ -134,12 +150,82 @@ const accountColumns = (
     : { fromAccountId: row.counterAccountId, toAccountId: accountId };
 };
 
+/** 覚えている形式と分類 */
+export type StatementCsvMemory = {
+  formats: ReadonlyArray<StatementCsvFormat & { accountId: number | null }>;
+  classifications: ReadonlyMap<string, RowClassification>;
+};
+
+/**
+ * 覚えている形式と分類を読む。
+ *
+ * 利用先ごとに IN で聞くと D1 のバインド数の上限に当たりうるので、丸ごと読む。
+ */
+export const loadStatementCsvMemory = async (db: LedgerDb): Promise<StatementCsvMemory> => {
+  const [formatRows, descriptionRows] = await Promise.all([
+    db.select().from(statementCsvFormats),
+    db.select().from(statementCsvDescriptions),
+  ]);
+  return {
+    formats: formatRows.flatMap(({ header, mapping, accountId }) => {
+      // JSON の列の中身は型で保証されないので、読めない形式は覚えていないものとして扱う
+      const parsed = v.safeParse(ColumnMappingSchema, mapping);
+      return parsed.success ? [{ header, mapping: parsed.output, accountId }] : [];
+    }),
+    classifications: new Map(
+      descriptionRows.map((row) => [
+        row.key,
+        {
+          mode: row.mode,
+          placeName: row.placeName,
+          genreId: row.genreId,
+          categoryId: row.categoryId,
+          counterAccountId: row.counterAccountId,
+        },
+      ]),
+    ),
+  };
+};
+
+/**
+ * 行の、口座から見たお金の向きを返す。返金は負の金額の支出で、口座に入るお金になる。
+ */
+const directionOf = (row: RegisterRow): "out" | "in" => {
+  if (row.mode === "transfer") return row.direction;
+  if (row.mode === "income") return "in";
+  return row.amount < 0 ? "in" : "out";
+};
+
+/**
+ * 登録する行から、覚える分類を作る。同じ利用先が複数あれば後の行を残す。
+ */
+const classificationsFromRows = (
+  rows: ReadonlyArray<RegisterRow>,
+): Array<RowClassification & { key: string }> => {
+  const byKey = new Map<string, RowClassification & { key: string }>();
+  for (const row of rows) {
+    if (row.description === undefined || row.description.trim() === "") continue;
+    const direction = directionOf(row);
+    const key = descriptionKey(row.description, direction);
+    byKey.set(key, {
+      key,
+      mode: row.mode,
+      placeName: placeNameOf(row),
+      genreId: row.mode === "payment" ? row.genreId : null,
+      categoryId: row.mode === "income" ? row.categoryId : null,
+      counterAccountId: row.mode === "transfer" ? row.counterAccountId : null,
+    });
+  }
+  return [...byKey.values()];
+};
+
 /**
  * 履歴 CSV の行をまとめて登録する。
  *
  * 全体を 1 回の batch で入れるので、途中で失敗しても一部の行だけが残って、やり直しで二重に登録されることはない。
  * batch の中では作った行の ID を受け渡せないので、createPayment と同じく取引は取り込みの記録を MAX(id) で、
  * 品目は直前に入れた取引を MAX(id) で参照する。
+ * 形式と分類は、人が確かめた結果だけを覚えるよう、読み取りではなく登録のときに同じ batch で覚える。
  */
 export const registerStatementCsv = async (
   db: LedgerDb,
@@ -189,6 +275,30 @@ export const registerStatementCsv = async (
     }),
     ...placeNames.map((name) => upsertPlaceByName(db, name, null)),
     ...rowStatements,
+    ...(input.format == null
+      ? []
+      : [
+          db
+            .insert(statementCsvFormats)
+            .values({ ...input.format, accountId: input.accountId })
+            .onConflictDoUpdate({
+              target: statementCsvFormats.header,
+              set: {
+                mapping: input.format.mapping,
+                accountId: input.accountId,
+                updatedAt: new Date().toISOString(),
+              },
+            }),
+        ]),
+    ...classificationsFromRows(input.rows).map(({ key, ...classification }) =>
+      db
+        .insert(statementCsvDescriptions)
+        .values({ key, ...classification })
+        .onConflictDoUpdate({
+          target: statementCsvDescriptions.key,
+          set: { ...classification, updatedAt: new Date().toISOString() },
+        }),
+    ),
   ]);
   return { ok: true, count: input.rows.length };
 };
