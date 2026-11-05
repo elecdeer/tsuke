@@ -120,6 +120,7 @@ export const importBatches = sqliteTable("import_batches", {
  * 口座の向きは振替・残高調整でもそろえ、from は残高が減る口座、to は増える口座にする。
  * 合計金額は品目の和なので持たない。receipt_image_key はレシートの写真から登録したときの R2 のキー。
  * advance_amount は支出のうち立替の額。残高や明細との突合が全額で合うよう、品目の金額は減らさない。
+ * is_favorite はよく使う取引の印。手入力の登録で雛形にする。
  */
 export const transactions = sqliteTable(
   "transactions",
@@ -143,6 +144,7 @@ export const transactions = sqliteTable(
     }),
     receiptImageKey: text("receipt_image_key"),
     advanceAmount: integer("advance_amount").notNull().default(0),
+    isFavorite: integer("is_favorite", { mode: "boolean" }).notNull().default(false),
     ...timestamps(),
   },
   (t) => [index("transactions_date_idx").on(t.date), index("transactions_place_idx").on(t.placeId)],
