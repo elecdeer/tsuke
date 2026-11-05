@@ -1,13 +1,16 @@
 import { describe, expect, test } from "vite-plus/test";
 import {
+  applyClassifiedRows,
   changeDraftMode,
   decodeCsvBytes,
   draftProblem,
   draftsFromRead,
+  finishPendingDrafts,
+  markDraftEdited,
   registerInputFromDrafts,
   type StatementCsvDraft,
-  type StatementCsvReadResultRow,
 } from "./statementCsvDraft.ts";
+import type { StatementCsvReadResultRow } from "../import/statementCsvEvents.ts";
 
 const readRow = (
   overrides: Partial<StatementCsvReadResultRow> = {},
@@ -23,6 +26,7 @@ const readRow = (
   categoryId: null,
   counterAccountId: null,
   registered: null,
+  pending: false,
   ...overrides,
 });
 
@@ -30,6 +34,8 @@ const draft = (overrides: Partial<StatementCsvDraft> = {}): StatementCsvDraft =>
   ...readRow(),
   selected: true,
   place: "",
+  edited: false,
+  selectionEdited: false,
   ...overrides,
 });
 
@@ -43,6 +49,88 @@ describe("draftsFromRead", () => {
       [true, "スーパーA"],
       [false, ""],
     ]);
+  });
+});
+
+describe("applyClassifiedRows", () => {
+  const classified = {
+    line: 2,
+    mode: "payment" as const,
+    placeName: "スーパーA",
+    genreId: 20,
+    categoryId: null,
+    counterAccountId: null,
+    registered: null,
+    classified: true,
+  };
+  const registered = { transactionId: 1, date: "2026-05-10", amount: 1000, placeName: null };
+
+  test("分類を埋めて、分類待ちを解く", () => {
+    const [applied] = applyClassifiedRows([draft({ pending: true, genreId: null })], [classified]);
+
+    expect(applied).toMatchObject({ pending: false, genreId: 20, place: "スーパーA" });
+  });
+
+  test("登録済みと分かったら選択を外す", () => {
+    const [applied] = applyClassifiedRows(
+      [draft({ pending: true })],
+      [{ ...classified, registered }],
+    );
+
+    expect(applied).toMatchObject({ selected: false, registered });
+  });
+
+  test("手で変えた選択はそのまま残す", () => {
+    const [applied] = applyClassifiedRows(
+      [draft({ pending: true, selected: true, selectionEdited: true })],
+      [{ ...classified, registered }],
+    );
+
+    expect(applied?.selected).toBe(true);
+  });
+
+  test("手で直した行は上書きしない", () => {
+    const edited = draft({ edited: true, genreId: 10, place: "手入力" });
+
+    expect(applyClassifiedRows([edited], [classified])).toEqual([edited]);
+  });
+
+  test("届いていない行は分類待ちのまま", () => {
+    const waiting = draft({ line: 9, pending: true });
+
+    expect(applyClassifiedRows([waiting], [classified])).toEqual([waiting]);
+  });
+});
+
+describe("markDraftEdited", () => {
+  test("分類を直すと印を付け、分類待ちを解く", () => {
+    const previous = draft({ pending: true });
+
+    expect(markDraftEdited(previous, { ...previous, genreId: 20 })).toMatchObject({
+      edited: true,
+      pending: false,
+      selectionEdited: false,
+    });
+  });
+
+  test("選択だけを変えても分類は待ち続ける", () => {
+    const previous = draft({ pending: true });
+
+    expect(markDraftEdited(previous, { ...previous, selected: false })).toMatchObject({
+      edited: false,
+      pending: true,
+      selectionEdited: true,
+    });
+  });
+});
+
+describe("finishPendingDrafts", () => {
+  test("分類待ちを解いて、足りない項目を見せる", () => {
+    const [finished] = finishPendingDrafts([draft({ pending: true, genreId: null })]);
+
+    expect(finished?.pending).toBe(false);
+    expect(draftProblem(draft({ pending: true, genreId: null }), 1)).toBeNull();
+    expect(finished && draftProblem(finished, 1)).toBe("内訳を選んでください");
   });
 });
 
@@ -105,6 +193,7 @@ describe("registerInputFromDrafts", () => {
     ).toEqual([
       {
         mode: "income",
+        description: "ｽｰﾊﾟｰA",
         date: "2026-05-10",
         amount: 1000,
         placeName: null,
@@ -113,6 +202,7 @@ describe("registerInputFromDrafts", () => {
       },
       {
         mode: "transfer",
+        description: "ｽｰﾊﾟｰA",
         date: "2026-05-10",
         amount: 1000,
         name: "ｽｰﾊﾟｰA",

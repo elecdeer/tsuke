@@ -10,10 +10,23 @@ import {
   applyColumnMapping,
   checkColumnMapping,
   ColumnMappingSchema,
+  descriptionKey,
+  findKnownFormat,
+  formatFromMapping,
   parseCsvTable,
+  type ColumnMapping,
   type StatementCsvRow,
 } from "../import/statementCsv.ts";
+import type {
+  RowClassification,
+  StatementCsvClassifiedRow,
+  StatementCsvFormat,
+  StatementCsvReadEvent,
+  StatementCsvReadResultRow,
+} from "../import/statementCsvEvents.ts";
 import type { CategoryWithGenres } from "../ledger/masters.ts";
+import type { StatementCsvMemory } from "../ledger/statementCsv.ts";
+import type { RegisteredPayment, StatementModeEntry } from "../ledger/statements.ts";
 import {
   ACCOUNT_NOTES_RULE,
   findPlaceName,
@@ -32,8 +45,8 @@ const HEAD_ROWS = 20;
 const TAIL_ROWS = 3;
 /** 列の判定に渡す 1 行の最大文字数 */
 const ROW_MAX_CHARS = 500;
-/** 1 回の分類で渡す利用先の数。応答が長くなりすぎると途中で切れるので分ける */
-const CLASSIFY_CHUNK_SIZE = 100;
+/** 1 回の分類で渡す利用先の数。小さいほど結果が早く順に届くが、毎回渡す候補の分だけ入力が増える */
+const CLASSIFY_CHUNK_SIZE = 30;
 /** 分類の候補として渡す店舗の数 */
 const CLASSIFY_PLACES_LIMIT = 200;
 /** 1 回の読み取りで受け付ける利用の行数の上限 */
@@ -166,18 +179,6 @@ export const buildClassifyPrompt = (
   ].join("\n"),
 });
 
-/** 分類を台帳の値に確かめた結果 */
-export type RowClassification = {
-  mode: "payment" | "income" | "transfer";
-  placeName: string | null;
-  genreId: number | null;
-  categoryId: number | null;
-  counterAccountId: number | null;
-};
-
-/** 読み取った 1 行 */
-export type StatementCsvReadRow = StatementCsvRow & RowClassification;
-
 /**
  * AI が分類を返さなかった行の既定の分類。画面でカテゴリを選べば登録できる。
  */
@@ -238,8 +239,30 @@ export const sanitizeClassification = (
 
 const targetKey = (target: ClassifyTarget): string => `${target.direction}:${target.description}`;
 
+/** 読み取りで使う台帳の候補と口座 */
+type ClassifyContext = StatementCsvContext & { accountId: number | null };
+
 /**
- * 同じ利用先をまとめて分類し、各行に結果を戻す。
+ * 覚えた分類を今の台帳で確かめる。
+ *
+ * 内訳や相手の口座がなくなっていて登録に足りなければ、人に選ばせるより AI に任せるので null を返す。
+ */
+const recallClassification = (
+  row: StatementCsvRow,
+  memory: StatementCsvMemory,
+  context: ClassifyContext,
+): RowClassification | null => {
+  const learned = memory.classifications.get(descriptionKey(row.description, row.direction));
+  if (learned === undefined) return null;
+  const classification = sanitizeClassification({ ...learned, id: 0 }, row, context);
+  if (classification.mode !== learned.mode) return null;
+  if (classification.mode === "payment" && classification.genreId === null) return null;
+  if (classification.mode === "transfer" && classification.counterAccountId === null) return null;
+  return classification;
+};
+
+/**
+ * 同じ利用先をまとめて分類し、分割ごとに終わった順で結果を渡す。
  *
  * 分類は後から画面で直せるので、一部の分割で失敗しても読み取り全体は失敗にせず、その行を未分類で返す。
  */
@@ -247,85 +270,127 @@ const classifyRows = async (params: {
   ai: AiRunner;
   model: string;
   rows: StatementCsvRow[];
-  accountId: number | null;
-  context: StatementCsvContext;
-  abortSignal?: AbortSignal;
-}): Promise<{ rows: StatementCsvReadRow[]; unclassifiedCount: number }> => {
-  const targets = [
-    ...new Map(params.rows.map((row) => [targetKey(row), row] as const)).values(),
-  ].map(({ description, direction }) => ({ description, direction }));
+  context: ClassifyContext;
+  abortSignal: AbortSignal;
+  onChunk: (
+    rows: Array<StatementCsvRow & RowClassification & { classified: boolean }>,
+  ) => Promise<void>;
+}): Promise<void> => {
+  const rowsByTarget = new Map<string, StatementCsvRow[]>();
+  for (const row of params.rows) {
+    rowsByTarget.set(targetKey(row), [...(rowsByTarget.get(targetKey(row)) ?? []), row]);
+  }
+  const targets = [...rowsByTarget.values()].flatMap((rows) =>
+    rows.slice(0, 1).map(({ description, direction }) => ({ description, direction })),
+  );
   const accountName =
-    params.context.accounts.find((account) => account.id === params.accountId)?.name ?? null;
-
+    params.context.accounts.find((account) => account.id === params.context.accountId)?.name ??
+    null;
   const chunks = Array.from({ length: Math.ceil(targets.length / CLASSIFY_CHUNK_SIZE) }, (_, i) =>
     targets.slice(i * CLASSIFY_CHUNK_SIZE, (i + 1) * CLASSIFY_CHUNK_SIZE),
   );
-  const results = await Promise.allSettled(
-    chunks.map((chunk) =>
-      runStructuredChat({
-        ai: params.ai,
-        model: params.model,
-        buildPrompt: () => buildClassifyPrompt({ ...params.context, targets: chunk, accountName }),
-        schemaName: "ClassifiedEntries",
-        jsonSchema: CLASSIFIED_ENTRIES_JSON_SCHEMA,
-        schema: ClassifiedEntriesSchema,
-        abortSignal: params.abortSignal,
-      }),
-    ),
-  );
 
-  const classified = new Map<string, RowClassification>();
-  results.forEach((result, chunkIndex) => {
-    if (result.status === "rejected") {
-      console.error("LLM classify-statement-csv failed", {
-        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
-      });
-      return;
-    }
-    const chunk = chunks[chunkIndex] ?? [];
-    for (const entry of result.value.object.entries) {
-      const target = chunk[entry.id];
-      if (target === undefined) continue;
-      classified.set(
-        targetKey(target),
-        sanitizeClassification(entry, target, { ...params.context, accountId: params.accountId }),
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const classified = new Map<string, RowClassification>();
+      try {
+        const { object } = await runStructuredChat({
+          ai: params.ai,
+          model: params.model,
+          buildPrompt: () =>
+            buildClassifyPrompt({ ...params.context, targets: chunk, accountName }),
+          schemaName: "ClassifiedEntries",
+          jsonSchema: CLASSIFIED_ENTRIES_JSON_SCHEMA,
+          schema: ClassifiedEntriesSchema,
+          abortSignal: params.abortSignal,
+        });
+        for (const entry of object.entries) {
+          const target = chunk[entry.id];
+          if (target === undefined) continue;
+          classified.set(targetKey(target), sanitizeClassification(entry, target, params.context));
+        }
+      } catch (error) {
+        console.error("LLM classify-statement-csv failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      if (params.abortSignal.aborted) return;
+      await params.onChunk(
+        chunk.flatMap((target) => {
+          const classification = classified.get(targetKey(target));
+          return (rowsByTarget.get(targetKey(target)) ?? []).map((row) => ({
+            ...row,
+            ...(classification ?? unclassified(row.direction)),
+            classified: classification !== undefined,
+          }));
+        }),
       );
-    }
-  });
-
-  let unclassifiedCount = 0;
-  const rows = params.rows.map((row) => {
-    const classification = classified.get(targetKey(row));
-    if (classification === undefined) unclassifiedCount += 1;
-    return { ...row, ...(classification ?? unclassified(row.direction)) };
-  });
-  return { rows, unclassifiedCount };
+    }),
+  );
 };
 
-/** 読み取りの失敗。`message` は画面に出す */
-export type ReadStatementCsvResult =
+/** 列を読むまでの結果。`message` は画面に出す */
+export type PrepareStatementCsvResult =
   | {
       ok: true;
       accountId: number | null;
-      rows: StatementCsvReadRow[];
+      rows: StatementCsvRow[];
       /** 日付か金額を読めず除いた行数 */
       skippedCount: number;
-      /** AI が分類を返さなかった行数 */
-      unclassifiedCount: number;
+      format: StatementCsvFormat | null;
+      formatKnown: boolean;
     }
   | { ok: false; status: 400 | 502; message: string };
 
 /**
- * 履歴 CSV を読み取る。AI で列を判定して値を読み、利用先を分類する。
+ * AI で CSV の列を判定する。使えない結果なら null を返す。
  */
-export const readStatementCsv = async (params: {
+const detectColumns = async (params: {
+  ai: AiRunner;
+  model: string;
+  fileName: string;
+  table: string[][];
+  accounts: StatementCsvContext["accounts"];
+  abortSignal?: AbortSignal;
+}): Promise<{ mapping: ColumnMapping; accountId: number | null } | null> => {
+  try {
+    const { object } = await runStructuredChat({
+      ai: params.ai,
+      model: params.model,
+      buildPrompt: () => buildDetectColumnsPrompt(params),
+      schemaName: "DetectedColumns",
+      jsonSchema: DETECTED_COLUMNS_JSON_SCHEMA,
+      schema: DetectedColumnsSchema,
+      abortSignal: params.abortSignal,
+    });
+    const mappingError = checkColumnMapping(params.table, object.mapping);
+    if (mappingError === null) return object;
+    console.error("LLM detected invalid statement csv columns", {
+      mappingError,
+      mapping: object.mapping,
+    });
+  } catch (error) {
+    console.error("LLM detect-statement-csv-columns failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return null;
+};
+
+/**
+ * 履歴 CSV の列を読み、利用の行にする。覚えていた形式の CSV なら AI を呼ばない。
+ */
+export const prepareStatementCsv = async (params: {
   ai: AiRunner;
   model: string;
   fileName: string;
   text: string;
   context: StatementCsvContext;
+  memory: StatementCsvMemory;
+  /** 覚えていた形式を使わず、AI で判定し直す */
+  redetect?: boolean;
   abortSignal?: AbortSignal;
-}): Promise<ReadStatementCsvResult> => {
+}): Promise<PrepareStatementCsvResult> => {
   let table: string[][];
   try {
     table = parseCsvTable(params.text);
@@ -334,35 +399,19 @@ export const readStatementCsv = async (params: {
   }
   if (table.length === 0) return { ok: false, status: 400, message: "CSV に行がありません" };
 
-  let detected: v.InferOutput<typeof DetectedColumnsSchema>;
-  try {
-    ({ object: detected } = await runStructuredChat({
-      ai: params.ai,
-      model: params.model,
-      buildPrompt: () =>
-        buildDetectColumnsPrompt({
+  const known = params.redetect === true ? null : findKnownFormat(table, params.memory.formats);
+  const detected =
+    known !== null
+      ? { mapping: known.mapping, accountId: known.format.accountId }
+      : await detectColumns({
+          ai: params.ai,
+          model: params.model,
           fileName: params.fileName,
           table,
           accounts: params.context.accounts,
-        }),
-      schemaName: "DetectedColumns",
-      jsonSchema: DETECTED_COLUMNS_JSON_SCHEMA,
-      schema: DetectedColumnsSchema,
-      abortSignal: params.abortSignal,
-    }));
-  } catch (error) {
-    console.error("LLM detect-statement-csv-columns failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return { ok: false, status: 502, message: "CSV の列を判定できませんでした" };
-  }
-
-  const mappingError = checkColumnMapping(table, detected.mapping);
-  if (mappingError !== null) {
-    console.error("LLM detected invalid statement csv columns", {
-      mappingError,
-      mapping: detected.mapping,
-    });
+          abortSignal: params.abortSignal,
+        });
+  if (detected === null) {
     return { ok: false, status: 502, message: "CSV の列を判定できませんでした" };
   }
 
@@ -377,17 +426,129 @@ export const readStatementCsv = async (params: {
       message: `一度に取り込めるのは ${STATEMENT_CSV_ROWS_MAX} 行までです（${rows.length} 行あります）。期間を分けて書き出してください`,
     };
   }
-
-  const accountId = params.context.accounts.some((account) => account.id === detected.accountId)
-    ? detected.accountId
-    : null;
-  const classified = await classifyRows({
-    ai: params.ai,
-    model: params.model,
+  return {
+    ok: true,
+    accountId: params.context.accounts.some((account) => account.id === detected.accountId)
+      ? detected.accountId
+      : null,
     rows,
-    accountId,
-    context: params.context,
-    abortSignal: params.abortSignal,
+    skippedCount,
+    format: formatFromMapping(table, detected.mapping),
+    formatKnown: known !== null,
+  };
+};
+
+/**
+ * 登録済みの判定に渡す形にする。返金は負の品目として登録するので、負の金額で比べる。
+ */
+const toModeEntry = (row: StatementCsvRow & RowClassification): StatementModeEntry => ({
+  date: row.date,
+  mode: row.mode,
+  amount: row.mode === "payment" && row.direction === "in" ? -row.amount : row.amount,
+});
+
+/**
+ * 読めた行の分類を、終わった分から NDJSON で順に流す。
+ *
+ * 覚えている利用先は最初の `rows` で分類を付けて送り、残りだけを AI に渡して `classified` で送る。
+ * 途中で通信が切れたら AI の呼び出しも止める。
+ */
+export const streamStatementCsvClassification = (params: {
+  ai: AiRunner;
+  model: string;
+  prepared: Extract<PrepareStatementCsvResult, { ok: true }>;
+  context: StatementCsvContext;
+  memory: StatementCsvMemory;
+  findRegistered: (
+    entries: ReadonlyArray<StatementModeEntry>,
+  ) => Promise<Array<RegisteredPayment | null>>;
+}): ReadableStream<Uint8Array> => {
+  const abort = new AbortController();
+  const encoder = new TextEncoder();
+  const { prepared } = params;
+  const context = { ...params.context, accountId: prepared.accountId };
+
+  /**
+   * 分類を読み取りの最初の出来事の形にする。
+   */
+  const firstEvent = async (): Promise<{
+    event: StatementCsvReadEvent;
+    unknown: StatementCsvRow[];
+  }> => {
+    const recalled = prepared.rows.map((row) => ({
+      row,
+      classification: recallClassification(row, params.memory, context),
+    }));
+    const knownRows = recalled.flatMap(({ row, classification }) =>
+      classification === null ? [] : [{ ...row, ...classification }],
+    );
+    const registered = await params.findRegistered(knownRows.map(toModeEntry));
+    const registeredByLine = new Map(
+      knownRows.map((row, index) => [row.line, registered[index] ?? null]),
+    );
+    const rows = recalled.map(({ row, classification }): StatementCsvReadResultRow => ({
+      ...row,
+      ...(classification ?? unclassified(row.direction)),
+      registered: registeredByLine.get(row.line) ?? null,
+      pending: classification === null,
+    }));
+    return {
+      event: {
+        type: "rows",
+        accountId: prepared.accountId,
+        skippedCount: prepared.skippedCount,
+        format: prepared.format,
+        formatKnown: prepared.formatKnown,
+        rows,
+      },
+      unknown: recalled.flatMap(({ row, classification }) =>
+        classification === null ? [row] : [],
+      ),
+    };
+  };
+
+  return new ReadableStream<Uint8Array>({
+    start: async (controller) => {
+      const send = (event: StatementCsvReadEvent) =>
+        controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      try {
+        const { event, unknown } = await firstEvent();
+        send(event);
+        await classifyRows({
+          ai: params.ai,
+          model: params.model,
+          rows: unknown,
+          context,
+          abortSignal: abort.signal,
+          onChunk: async (rows) => {
+            const registered = await params.findRegistered(rows.map(toModeEntry));
+            if (abort.signal.aborted) return;
+            send({
+              type: "classified",
+              rows: rows.map((row, index): StatementCsvClassifiedRow => ({
+                line: row.line,
+                mode: row.mode,
+                placeName: row.placeName,
+                genreId: row.genreId,
+                categoryId: row.categoryId,
+                counterAccountId: row.counterAccountId,
+                classified: row.classified,
+                registered: registered[index] ?? null,
+              })),
+            });
+          },
+        });
+        if (abort.signal.aborted) return;
+        send({ type: "done" });
+      } catch (error) {
+        if (abort.signal.aborted) return;
+        console.error("read-statement-csv stream failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        send({ type: "error", message: "分類の途中で失敗しました。残りの行は手で選んでください" });
+      }
+      controller.close();
+    },
+    cancel: () => abort.abort(),
   });
-  return { ok: true, accountId, skippedCount, ...classified };
 };

@@ -57,6 +57,13 @@
       "when": 1793726264762,
       "tag": "20261103171744_abnormal_dragon_lord",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793891805359,
+      "tag": "20261105151645_fearless_starbolt",
+      "breakpoints": true
     }
   ]
 }

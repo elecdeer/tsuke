@@ -5,24 +5,14 @@
  * 数百行を LLM に書き写させると、気づきにくい金額の誤りが混ざりうるため。
  */
 import { parse } from "csv-parse/sync";
-import * as v from "valibot";
+import {
+  ColumnMappingSchema,
+  FORMAT_HEADER_MAX_CHARS,
+  type ColumnMapping,
+  type StatementCsvFormat,
+} from "./statementCsvEvents.ts";
 
-/** CSV の列の割り当て。列と行の番号は 0 始まり */
-export const ColumnMappingSchema = v.strictObject({
-  /** 最初の利用の行。見出しや口座情報の行はこれより前にある */
-  firstDataRow: v.number(),
-  dateColumn: v.number(),
-  /** 利用先や摘要の列。複数あれば空白でつなぐ */
-  descriptionColumns: v.array(v.number()),
-  /** 1 つの列に符号付きで金額が入る形式の列。出金と入金で列が分かれていれば null */
-  amountColumn: v.nullable(v.number()),
-  /** `amountColumn` の正の値が表す向き */
-  amountPositiveMeans: v.picklist(["outflow", "inflow"]),
-  outflowColumn: v.nullable(v.number()),
-  inflowColumn: v.nullable(v.number()),
-});
-
-export type ColumnMapping = v.InferOutput<typeof ColumnMappingSchema>;
+export { ColumnMappingSchema, type ColumnMapping };
 
 /** CSV から読み取った利用の 1 行 */
 export type StatementCsvRow = {
@@ -224,3 +214,55 @@ export const applyColumnMapping = (
   });
   return { rows, skippedCount };
 };
+
+/** 覚えていた形式の見出しを探す範囲。見出しの前の口座情報の行は多くない */
+const FORMAT_HEADER_SEARCH_ROWS = 20;
+
+/**
+ * 列の割り当てから、登録のときに覚える形式を作る。
+ *
+ * 利用の行の直前の行を見出しと見なす。直前の行がない CSV は見分ける手がかりがないので覚えない。
+ */
+export const formatFromMapping = (
+  table: string[][],
+  mapping: ColumnMapping,
+): StatementCsvFormat | null => {
+  const headerRow = table[mapping.firstDataRow - 1];
+  if (headerRow === undefined) return null;
+  const header = JSON.stringify(headerRow);
+  return header.length > FORMAT_HEADER_MAX_CHARS ? null : { header, mapping };
+};
+
+/**
+ * 表の中から覚えていた形式の見出しを探し、その形式で読める列の割り当てを返す。
+ *
+ * 見出しの前の行数はファイルごとに変わりうるので、利用の行の位置は見出しの位置から決め直す。
+ * 見出しが同じでも読めなければ、形式が変わったと見なして AI の判定に回す。
+ */
+export const findKnownFormat = <T extends StatementCsvFormat>(
+  table: string[][],
+  formats: ReadonlyArray<T>,
+): { format: T; mapping: ColumnMapping } | null => {
+  const byHeader = new Map(formats.map((format) => [format.header, format]));
+  for (const [index, row] of table.slice(0, FORMAT_HEADER_SEARCH_ROWS).entries()) {
+    const format = byHeader.get(JSON.stringify(row));
+    if (format === undefined) continue;
+    const mapping = { ...format.mapping, firstDataRow: index + 1 };
+    if (
+      index + 1 < table.length &&
+      checkColumnMapping(table, mapping) === null &&
+      applyColumnMapping(table, mapping).rows.length > 0
+    ) {
+      return { format, mapping };
+    }
+  }
+  return null;
+};
+
+/**
+ * 覚えた分類を引くための、利用先の表記のキーを作る。
+ *
+ * 全角と半角、大文字と小文字、空白の違いだけなら同じ利用先と見なす。日付や番号が入る表記は別の利用先になる。
+ */
+export const descriptionKey = (description: string, direction: StatementCsvRow["direction"]) =>
+  `${direction}:${description.normalize("NFKC").trim().replace(/\s+/g, " ").toUpperCase()}`;

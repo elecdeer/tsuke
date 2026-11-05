@@ -9,16 +9,20 @@ import {
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import { createLedgerClient, LedgerFetchError } from "@/client";
+import { readStatementCsvEvents, type StatementCsvFormat } from "@/import/statementCsvEvents";
 import { cn } from "@/lib/utils";
 import { ErrorMessage } from "@/web/components/ErrorMessage";
 import { Section } from "@/web/components/Section";
 import { formatDay, formatYen } from "@/web/format";
 import { MODE_LABELS } from "@/web/labels";
 import {
+  applyClassifiedRows,
   changeDraftMode,
   decodeCsvBytes,
   draftProblem,
   draftsFromRead,
+  finishPendingDrafts,
+  markDraftEdited,
   registerInputFromDrafts,
   type StatementCsvDraft,
 } from "@/web/statementCsvDraft";
@@ -42,9 +46,28 @@ const apiErrorMessage = (error: unknown, fallback: string): string => {
 
 /** 読み取りの結果のうち、行以外の情報 */
 type ReadSummary = {
-  fileName: string;
+  file: File;
   skippedCount: number;
   unclassifiedCount: number;
+  /** AI を呼ばずに覚えていた分類を使った行数 */
+  recalledCount: number;
+  format: StatementCsvFormat | null;
+  formatKnown: boolean;
+};
+
+/** 読み取りの API のエラーの本文から、画面に出す文言を取り出す */
+const readErrorMessage = async (response: Response): Promise<string> => {
+  const fallback = "CSV を読み取れませんでした";
+  try {
+    const data: unknown = await response.json();
+    if (typeof data === "object" && data !== null && "error" in data) {
+      const message: unknown = data.error;
+      if (typeof message === "string") return message;
+    }
+  } catch {
+    // 認証の画面などで JSON でない応答が返ることがある
+  }
+  return fallback;
 };
 
 /**
@@ -113,6 +136,12 @@ const DraftRow = ({
           {draft.registered.placeName === null ? "" : `・${draft.registered.placeName}`}）
         </Link>
       )}
+      {draft.pending && (
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <LoaderCircle className="size-3 animate-spin" aria-hidden="true" />
+          分類中…
+        </span>
+      )}
       {draft.selected && problem !== null && (
         <span className="flex items-center gap-1 text-xs text-destructive">
           <TriangleAlert className="size-3" aria-hidden="true" />
@@ -151,7 +180,7 @@ const DraftRow = ({
           size="sm"
           className={SELECT_CLASS}
           aria-label="内訳"
-          aria-invalid={draft.selected && draft.genreId === null}
+          aria-invalid={draft.selected && !draft.pending && draft.genreId === null}
           value={draft.genreId ?? ""}
           disabled={disabled}
           onChange={(event) => onChange({ ...draft, genreId: idFromValue(event.target.value) })}
@@ -190,7 +219,7 @@ const DraftRow = ({
           size="sm"
           className={SELECT_CLASS}
           aria-label={draft.direction === "out" ? "振替先の口座" : "振替元の口座"}
-          aria-invalid={draft.selected && draft.counterAccountId === null}
+          aria-invalid={draft.selected && !draft.pending && draft.counterAccountId === null}
           value={draft.counterAccountId ?? ""}
           disabled={disabled}
           onChange={(event) =>
@@ -224,7 +253,7 @@ const DraftRow = ({
 /**
  * 銀行やカードの履歴 CSV を取り込む画面。
  *
- * ファイルを選ぶと AI が列を判定して行を分類する。結果を確かめ、選んだ行をまとめて登録する。
+ * ファイルを選ぶと列を読み取って行を出し、分類が終わった分から埋めていく。結果を確かめ、選んだ行をまとめて登録する。
  * 行数が多くなるので、行の選択欄には軽いネイティブの select を使う。
  */
 const StatementImportPage = ({
@@ -244,34 +273,66 @@ const StatementImportPage = ({
   const [registeredCount, setRegisteredCount] = useState<number | null>(null);
 
   const busy = reading || registering;
+  const pendingCount = drafts.filter((draft) => draft.pending).length;
   const selected = drafts.filter((draft) => draft.selected);
   const problemCount = selected.filter((draft) => draftProblem(draft, accountId) !== null).length;
   const canRegister = accountId !== null && selected.length > 0 && problemCount === 0 && !busy;
 
   /**
-   * ファイルを読み取り、結果を確かめる行にする。
+   * ファイルを読み取り、届いた分から結果を確かめる行にする。
    */
-  const readFile = async (file: File) => {
+  const readFile = async (file: File, redetect = false) => {
     setReading(true);
     setError(null);
     setRegisteredCount(null);
     setSummary(null);
     setDrafts([]);
+    let finished = false;
     try {
       const text = decodeCsvBytes(new Uint8Array(await file.arrayBuffer()));
-      const result = await ledgerApi()("/api/statements/csv/read", "POST", {
-        body: { fileName: file.name.slice(0, 200), text },
+      // 型付きクライアントは本文を読み切ってから返すので、順に読むここだけ fetch を直接使う
+      const response = await fetch("/api/statements/csv/read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name.slice(0, 200), text, redetect }),
       });
-      setDrafts(draftsFromRead(result.rows));
-      setAccountId(result.accountId);
-      setSummary({
-        fileName: file.name,
-        skippedCount: result.skippedCount,
-        unclassifiedCount: result.unclassifiedCount,
-      });
+      if (!response.ok || response.body === null) {
+        setError(await readErrorMessage(response));
+        finished = true;
+        return;
+      }
+      for await (const event of readStatementCsvEvents(response.body)) {
+        if (event.type === "rows") {
+          setDrafts(draftsFromRead(event.rows));
+          setAccountId(event.accountId);
+          setSummary({
+            file,
+            skippedCount: event.skippedCount,
+            unclassifiedCount: 0,
+            recalledCount: event.rows.filter((row) => !row.pending).length,
+            format: event.format,
+            formatKnown: event.formatKnown,
+          });
+        } else if (event.type === "classified") {
+          setDrafts((current) => applyClassifiedRows(current, event.rows));
+          const failed = event.rows.filter((row) => !row.classified).length;
+          setSummary(
+            (current) =>
+              current && { ...current, unclassifiedCount: current.unclassifiedCount + failed },
+          );
+        } else if (event.type === "error") {
+          setError(event.message);
+          finished = true;
+        } else {
+          finished = true;
+        }
+      }
+      if (!finished) setError("読み取りが途中で切れました。残りの行は手で選んでください");
     } catch (readError) {
-      setError(apiErrorMessage(readError, "CSV を読み取れませんでした"));
+      console.error("CSV の読み取りに失敗しました", readError);
+      setError("CSV を読み取れませんでした。読めた行があれば手で選べます");
     } finally {
+      setDrafts(finishPendingDrafts);
       setReading(false);
     }
   };
@@ -290,8 +351,9 @@ const StatementImportPage = ({
     try {
       const { count } = await ledgerApi()("/api/statements/csv/register", "POST", {
         body: registerInputFromDrafts({
-          fileName: summary.fileName.slice(0, 200),
+          fileName: summary.file.name.slice(0, 200),
           accountId,
+          format: summary.format,
           drafts,
         }),
       });
@@ -306,7 +368,9 @@ const StatementImportPage = ({
   };
 
   const updateDraft = (index: number, next: StatementCsvDraft) =>
-    setDrafts((current) => current.map((draft, i) => (i === index ? next : draft)));
+    setDrafts((current) =>
+      current.map((draft, i) => (i === index ? markDraftEdited(draft, next) : draft)),
+    );
 
   const outTotal = selected
     .filter((draft) => draft.direction === "out")
@@ -320,7 +384,9 @@ const StatementImportPage = ({
       <Section label={<h1 className="text-2xl font-semibold">CSV の取り込み</h1>}>
         <div className="flex flex-col gap-3 border-t border-foreground pt-3">
           <p className="text-sm text-muted-foreground">
-            銀行やクレジットカードの履歴 CSV を選ぶと、AI が列を判定して店舗とカテゴリを分類します。
+            銀行やクレジットカードの履歴 CSV
+            を選ぶと、列を読み取って店舗とカテゴリを分類します。登録した形式と利用先は覚えていて、次からは新しいものだけを
+            AI が判定します。
           </p>
           <div>
             <label
@@ -335,7 +401,7 @@ const StatementImportPage = ({
               ) : (
                 <FileUp className="size-4" aria-hidden="true" />
               )}
-              {reading ? "読み取り中…" : "CSV ファイルを選ぶ"}
+              {reading ? (summary === null ? "列を読み取り中…" : "分類中…") : "CSV ファイルを選ぶ"}
               <input
                 id={fileInputId}
                 type="file"
@@ -368,7 +434,7 @@ const StatementImportPage = ({
                 aria-label="取り込む口座"
                 aria-invalid={accountId === null}
                 value={accountId ?? ""}
-                disabled={busy}
+                disabled={registering}
                 onChange={(event) => setAccountId(idFromValue(event.target.value))}
               >
                 <NativeSelectOption value="">口座を選ぶ</NativeSelectOption>
@@ -379,12 +445,28 @@ const StatementImportPage = ({
                 ))}
               </NativeSelect>
               <output className="text-xs text-muted-foreground">
-                {summary.fileName}：{drafts.length} 行を読み取りました
+                {summary.file.name}：{drafts.length} 行を読み取りました
+                {pendingCount > 0 && `。${pendingCount} 行を分類しています`}
+                {summary.recalledCount > 0 &&
+                  `。${summary.recalledCount} 行は覚えていた分類を使いました`}
                 {summary.skippedCount > 0 &&
                   `。日付か金額を読めなかった ${summary.skippedCount} 行は除きました`}
                 {summary.unclassifiedCount > 0 &&
                   `。${summary.unclassifiedCount} 行は分類できなかったので、手で選んでください`}
               </output>
+              {summary.formatKnown && (
+                <p className="text-xs text-muted-foreground">
+                  覚えていた列の形式で読み取りました。日付や金額が違うときは
+                  <button
+                    type="button"
+                    className="underline hover:text-foreground disabled:opacity-50"
+                    disabled={busy}
+                    onClick={() => void readFile(summary.file, true)}
+                  >
+                    AI で判定し直す
+                  </button>
+                </p>
+              )}
             </div>
           </Section>
 
@@ -404,7 +486,7 @@ const StatementImportPage = ({
                   accounts={accounts}
                   paymentCategories={paymentCategories}
                   incomeCategories={incomeCategories}
-                  disabled={busy}
+                  disabled={registering}
                   onChange={(next) => updateDraft(index, next)}
                 />
               ))}
