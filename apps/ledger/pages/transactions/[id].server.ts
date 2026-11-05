@@ -13,6 +13,10 @@ import {
   TransactionUpdateSchema,
   updateTransaction,
 } from "../../src/ledger/transactionEdit.ts";
+import {
+  isTransactionFavorite,
+  setTransactionFavorite,
+} from "../../src/ledger/transactionTemplates.ts";
 import { MODE_LABELS } from "../../src/web/labels.ts";
 import { transactionsHref } from "../../src/web/transactionsHref.ts";
 
@@ -26,20 +30,29 @@ export const loader = defineHandler.withValidator({ params: ParamsSchema })(asyn
   _c,
   { params },
 ) => {
-  const [transaction, accounts, paymentCategories, incomeCategories, places, chainNames] =
-    await Promise.all([
-      getTransaction(db, params.id),
-      listAccounts(db),
-      listCategories(db, "payment"),
-      listCategories(db, "income"),
-      listPlaces(db),
-      listChains(db),
-    ]);
+  const [
+    transaction,
+    isFavorite,
+    accounts,
+    paymentCategories,
+    incomeCategories,
+    places,
+    chainNames,
+  ] = await Promise.all([
+    getTransaction(db, params.id),
+    isTransactionFavorite(db, params.id),
+    listAccounts(db),
+    listCategories(db, "payment"),
+    listCategories(db, "income"),
+    listPlaces(db),
+    listChains(db),
+  ]);
   if (transaction === undefined) {
     throw new HTTPException(404, { message: "取引が見つかりません" });
   }
   return {
     transaction,
+    isFavorite,
     reimbursementCandidates:
       transaction.mode === "income" ? await listReimbursementCandidates(db, transaction.id) : [],
     accounts,
@@ -62,6 +75,15 @@ export const actions = {
       return undefined;
     },
   ),
+
+  favorite: defineHandler.withValidator({
+    params: ParamsSchema,
+    body: v.object({ favorite: v.boolean() }),
+  })(async (c, { params, body }) => {
+    const result = await setTransactionFavorite(db, params.id, body.favorite);
+    if (!result.ok) return c.json({ error: result.error }, result.status);
+    return undefined;
+  }),
 
   delete: defineHandler.withValidator({ params: ParamsSchema })(async (c, { params }) => {
     const transaction = await getTransaction(db, params.id);
