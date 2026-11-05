@@ -66,17 +66,17 @@ describe("describeColumns", () => {
   const header = ["日付", "摘要", "", "出金", "入金"];
   const sampleRow = ["2026/05/10", "ｽｰﾊﾟｰA", "店", "1000", ""];
 
-  test("役割ごとに見出しと最初の行の値を示し、空の見出しは番号にする", () => {
+  test("役割ごとに列の番号と見出しと最初の行の値を示す", () => {
     expect(describeColumns({ mapping, header, sampleRow })).toEqual([
-      { role: "利用日", column: "日付", sample: "2026/05/10" },
-      { role: "利用先", column: "摘要", sample: "ｽｰﾊﾟｰA" },
-      { role: "利用先", column: "3 列目", sample: "店" },
-      { role: "出金", column: "出金", sample: "1000" },
-      { role: "入金", column: "入金", sample: "" },
+      { role: "利用日", columnNumber: 1, columnName: "日付", sample: "2026/05/10" },
+      { role: "利用先", columnNumber: 2, columnName: "摘要", sample: "ｽｰﾊﾟｰA" },
+      { role: "利用先", columnNumber: 3, columnName: "", sample: "店" },
+      { role: "出金", columnNumber: 4, columnName: "出金", sample: "1000" },
+      { role: "入金", columnNumber: 5, columnName: "入金", sample: "" },
     ]);
   });
 
-  test("金額が 1 列なら正の値の向きを示し、見出しがなければ番号にする", () => {
+  test("金額が 1 列なら正の値の向きを示し、見出しがなければ空にする", () => {
     const columns = describeColumns({
       mapping: {
         ...mapping,
@@ -90,8 +90,8 @@ describe("describeColumns", () => {
     });
 
     expect(columns).toEqual([
-      { role: "利用日", column: "1 列目", sample: "2026/05/10" },
-      { role: "金額（正の値が入金）", column: "2 列目", sample: "-100" },
+      { role: "利用日", columnNumber: 1, columnName: "", sample: "2026/05/10" },
+      { role: "金額（正の値が入金）", columnNumber: 2, columnName: "", sample: "-100" },
     ]);
   });
 });

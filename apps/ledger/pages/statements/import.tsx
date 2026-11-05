@@ -96,6 +96,9 @@ const readErrorMessage = async (response: Response): Promise<string> => {
  */
 const idFromValue = (value: string): number | null => (value === "" ? null : Number(value));
 
+const DETAIL_HEAD_CLASS = "h-7 px-2 text-xs";
+const DETAIL_CELL_CLASS = "whitespace-normal px-2 py-1";
+
 /**
  * 読み取りの所要時間と列の読み取りの結果。普段は見なくてよいので折りたたんでおく。
  */
@@ -122,20 +125,26 @@ const ReadDetails = ({ summary }: { summary: ReadSummary }) => (
         列の読み取り: {summary.formatKnown ? "覚えていた形式" : "AI の判定"}・
         {summary.columns.mapping.firstDataRow + 1} 行目から
       </p>
-      <Table>
+      <Table className="w-auto text-xs">
         <TableHeader>
           <TableRow>
-            <TableHead>項目</TableHead>
-            <TableHead>CSV の列</TableHead>
-            <TableHead>最初の行の値</TableHead>
+            <TableHead className={DETAIL_HEAD_CLASS}>項目</TableHead>
+            <TableHead className={DETAIL_HEAD_CLASS}>列</TableHead>
+            <TableHead className={DETAIL_HEAD_CLASS}>見出し</TableHead>
+            <TableHead className={DETAIL_HEAD_CLASS}>最初の行の値</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {describeColumns(summary.columns).map(({ role, column, sample }) => (
-            <TableRow key={`${role}:${column}`}>
-              <TableCell className="whitespace-normal">{role}</TableCell>
-              <TableCell className="whitespace-normal break-all">{column}</TableCell>
-              <TableCell className="whitespace-normal break-all">{sample}</TableCell>
+          {describeColumns(summary.columns).map(({ role, columnNumber, columnName, sample }) => (
+            <TableRow key={`${role}:${columnNumber}`}>
+              <TableCell className={DETAIL_CELL_CLASS}>{role}</TableCell>
+              <TableCell className={cn(DETAIL_CELL_CLASS, "tabular-nums")}>
+                {columnNumber}
+              </TableCell>
+              <TableCell className={cn(DETAIL_CELL_CLASS, "break-all")}>
+                {columnName || "—"}
+              </TableCell>
+              <TableCell className={cn(DETAIL_CELL_CLASS, "break-all")}>{sample}</TableCell>
             </TableRow>
           ))}
         </TableBody>

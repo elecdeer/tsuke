@@ -24,8 +24,10 @@ export type StatementCsvDraft = StatementCsvReadResultRow & {
 export type ColumnDescription = {
   /** 取り込みでの役割 */
   role: string;
-  /** CSV での列の名前。見出しがなければ列の番号 */
-  column: string;
+  /** CSV での列の番号（1 始まり。行の番号と揃える） */
+  columnNumber: number;
+  /** CSV での見出し。見出しがなければ空 */
+  columnName: string;
   /** 最初の利用の行の値 */
   sample: string;
 };
@@ -44,8 +46,8 @@ export const describeColumns = ({
       : [
           {
             role,
-            // 見出しのセルが空の列もあるので、そのときも番号で示す
-            column: header?.[column] || `${column + 1} 列目`,
+            columnNumber: column + 1,
+            columnName: header?.[column] ?? "",
             sample: sampleRow[column] ?? "",
           },
         ];
