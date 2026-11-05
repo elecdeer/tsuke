@@ -61,12 +61,8 @@ const fakeAi = (
 
 const noMemory: StatementCsvMemory = { formats: [], classifications: new Map() };
 
-const prepare = (
-  ai: AiRunner,
-  text: string = CSV,
-  memory: StatementCsvMemory = noMemory,
-  redetect = false,
-) => prepareStatementCsv({ ai, model: "test", fileName: "a.csv", text, context, memory, redetect });
+const prepare = (ai: AiRunner, text: string = CSV, memory: StatementCsvMemory = noMemory) =>
+  prepareStatementCsv({ ai, model: "test", fileName: "a.csv", text, context, memory });
 
 /**
  * 読み取りの全体を流し、届いた出来事を順に集める。
@@ -254,13 +250,20 @@ describe("prepareStatementCsv", () => {
     expect(ai.run).not.toHaveBeenCalled();
   });
 
-  test("判定し直すときは覚えていた形式を使わない", async () => {
+  test("推論量を指定したら列の判定に送る", async () => {
     const ai = fakeAi(() => classified);
 
-    const result = await prepare(ai, CSV, memoryWithFormat, true);
+    await prepareStatementCsv({
+      ai,
+      model: "test",
+      reasoningEffort: "low",
+      fileName: "a.csv",
+      text: CSV,
+      context,
+      memory: noMemory,
+    });
 
-    expect(result).toMatchObject({ ok: true, accountId: 1, formatKnown: false });
-    expect(ai.run).toHaveBeenCalledTimes(1);
+    expect(ai.run.mock.calls[0]?.[1]).toMatchObject({ reasoning_effort: "low" });
   });
 
   test("見出しが同じでも読めなければ AI の判定に回す", async () => {
@@ -443,6 +446,27 @@ describe("streamStatementCsvClassification", () => {
     expect(events[0]).toMatchObject({
       rows: [{ pending: true }, { pending: true }, { pending: true }],
     });
+  });
+
+  test("推論量を指定したら分類にも送る", async () => {
+    const ai = fakeAi(() => classified);
+    const prepared = await prepare(ai);
+    if (!prepared.ok) throw new Error(prepared.message);
+
+    const stream = streamStatementCsvClassification({
+      ai,
+      model: "test",
+      reasoningEffort: "low",
+      prepared,
+      context,
+      memory: noMemory,
+      findRegistered: async (entries) => entries.map(() => null),
+    });
+    for await (const _ of readStatementCsvEvents(stream)) {
+      // 最後まで流す
+    }
+
+    expect(ai.run.mock.lastCall?.[1]).toMatchObject({ stream: true, reasoning_effort: "low" });
   });
 
   test("分類に失敗しても読み取りは続け、未分類の行として返す", async () => {

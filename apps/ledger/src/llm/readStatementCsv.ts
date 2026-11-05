@@ -274,6 +274,7 @@ const recallClassification = (
 const classifyRows = async (params: {
   ai: AiRunner;
   model: string;
+  reasoningEffort?: string;
   rows: StatementCsvRow[];
   context: ClassifyContext;
   abortSignal: AbortSignal;
@@ -305,6 +306,7 @@ const classifyRows = async (params: {
           schemaName: "ClassifiedEntries",
           jsonSchema: CLASSIFIED_ENTRIES_JSON_SCHEMA,
           itemSchema: ClassifiedEntrySchema,
+          reasoningEffort: params.reasoningEffort,
           abortSignal: params.abortSignal,
           onItem: (entry) => {
             const target = chunk[entry.id];
@@ -399,6 +401,7 @@ export type PrepareStatementCsvResult =
 const detectColumns = async (params: {
   ai: AiRunner;
   model: string;
+  reasoningEffort?: string;
   fileName: string;
   table: string[][];
   accounts: StatementCsvContext["accounts"];
@@ -412,6 +415,7 @@ const detectColumns = async (params: {
       schemaName: "DetectedColumns",
       jsonSchema: DETECTED_COLUMNS_JSON_SCHEMA,
       schema: DetectedColumnsSchema,
+      reasoningEffort: params.reasoningEffort,
       abortSignal: params.abortSignal,
     });
     const mappingError = checkColumnMapping(params.table, object.mapping);
@@ -434,12 +438,11 @@ const detectColumns = async (params: {
 export const prepareStatementCsv = async (params: {
   ai: AiRunner;
   model: string;
+  reasoningEffort?: string;
   fileName: string;
   text: string;
   context: StatementCsvContext;
   memory: StatementCsvMemory;
-  /** 覚えていた形式を使わず、AI で判定し直す */
-  redetect?: boolean;
   abortSignal?: AbortSignal;
 }): Promise<PrepareStatementCsvResult> => {
   let table: string[][];
@@ -450,13 +453,14 @@ export const prepareStatementCsv = async (params: {
   }
   if (table.length === 0) return { ok: false, status: 400, message: "CSV に行がありません" };
 
-  const known = params.redetect === true ? null : findKnownFormat(table, params.memory.formats);
+  const known = findKnownFormat(table, params.memory.formats);
   const detected =
     known !== null
       ? { mapping: known.mapping, accountId: known.format.accountId }
       : await detectColumns({
           ai: params.ai,
           model: params.model,
+          reasoningEffort: params.reasoningEffort,
           fileName: params.fileName,
           table,
           accounts: params.context.accounts,
@@ -507,6 +511,7 @@ const toModeEntry = (row: StatementCsvRow & RowClassification): StatementModeEnt
 export const streamStatementCsvClassification = (params: {
   ai: AiRunner;
   model: string;
+  reasoningEffort?: string;
   prepared: Extract<PrepareStatementCsvResult, { ok: true }>;
   context: StatementCsvContext;
   memory: StatementCsvMemory;
@@ -587,6 +592,7 @@ export const streamStatementCsvClassification = (params: {
         await classifyRows({
           ai: params.ai,
           model: params.model,
+          reasoningEffort: params.reasoningEffort,
           rows: unknown,
           context,
           abortSignal: abort.signal,

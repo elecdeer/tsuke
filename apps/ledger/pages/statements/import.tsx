@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/native-select";
 import { createLedgerClient, LedgerFetchError } from "@/client";
 import { readStatementCsvEvents, type StatementCsvFormat } from "@/import/statementCsvEvents";
+import type { ReadQuality } from "@/llm/readQuality";
 import { cn } from "@/lib/utils";
 import { ErrorMessage } from "@/web/components/ErrorMessage";
 import { Section } from "@/web/components/Section";
@@ -274,6 +275,8 @@ const StatementImportPage = ({
   const fileInputId = useId();
   const placeListId = useId();
   const [reading, setReading] = useState(false);
+  /** 読み直しの結果の行が届くまでの間。前の結果を残したまま、結果で置き換わる入力を止める */
+  const [rereading, setRereading] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<ReadSummary | null>(null);
@@ -289,13 +292,18 @@ const StatementImportPage = ({
 
   /**
    * ファイルを読み取り、届いた分から結果を確かめる行にする。
+   *
+   * 読み直しは結果の行が届くまで前の結果を残し、失敗しても失わないようにする。
    */
-  const readFile = async (file: File, redetect = false) => {
+  const readFile = async (file: File, quality: ReadQuality = "fast") => {
     setReading(true);
+    setRereading(quality === "accurate");
     setError(null);
     setRegisteredCount(null);
-    setSummary(null);
-    setDrafts([]);
+    if (quality === "fast") {
+      setSummary(null);
+      setDrafts([]);
+    }
     let finished = false;
     try {
       const text = decodeCsvBytes(new Uint8Array(await file.arrayBuffer()));
@@ -303,7 +311,7 @@ const StatementImportPage = ({
       const response = await fetch("/api/statements/csv/read", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: file.name.slice(0, 200), text, redetect }),
+        body: JSON.stringify({ fileName: file.name.slice(0, 200), text, quality }),
       });
       if (!response.ok || response.body === null) {
         setError(await readErrorMessage(response));
@@ -312,6 +320,7 @@ const StatementImportPage = ({
       }
       for await (const event of readStatementCsvEvents(response.body)) {
         if (event.type === "rows") {
+          setRereading(false);
           setDrafts(draftsFromRead(event.rows));
           setAccountId(event.accountId);
           setSummary({
@@ -343,7 +352,19 @@ const StatementImportPage = ({
     } finally {
       setDrafts(finishPendingDrafts);
       setReading(false);
+      setRereading(false);
     }
+  };
+
+  /**
+   * より正確なモデルで読み直す。読み取りの結果で置き換わるので、直した内容があれば先に確かめる。
+   */
+  const rereadAccurately = (file: File) => {
+    const edited = drafts.some((draft) => draft.edited);
+    if (edited && !window.confirm("直した内容は読み取りの結果に置き換わります。読み直しますか？")) {
+      return;
+    }
+    void readFile(file, "accurate");
   };
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -413,7 +434,13 @@ const StatementImportPage = ({
               ) : (
                 <FileUp className="size-4" aria-hidden="true" />
               )}
-              {reading ? (summary === null ? "列を読み取り中…" : "分類中…") : "CSV ファイルを選ぶ"}
+              {rereading
+                ? "読み直し中…"
+                : reading
+                  ? summary === null
+                    ? "列を読み取り中…"
+                    : "分類中…"
+                  : "CSV ファイルを選ぶ"}
               <input
                 id={fileInputId}
                 type="file"
@@ -446,7 +473,7 @@ const StatementImportPage = ({
                 aria-label="取り込む口座"
                 aria-invalid={accountId === null}
                 value={accountId ?? ""}
-                disabled={registering}
+                disabled={registering || rereading}
                 onChange={(event) => setAccountId(idFromValue(event.target.value))}
               >
                 <NativeSelectOption value="">口座を選ぶ</NativeSelectOption>
@@ -466,19 +493,18 @@ const StatementImportPage = ({
                 {summary.unclassifiedCount > 0 &&
                   `。${summary.unclassifiedCount} 行は分類できなかったので、手で選んでください`}
               </output>
-              {summary.formatKnown && (
-                <p className="text-xs text-muted-foreground">
-                  覚えていた列の形式で読み取りました。日付や金額が違うときは
-                  <button
-                    type="button"
-                    className="underline hover:text-foreground disabled:opacity-50"
-                    disabled={busy}
-                    onClick={() => void readFile(summary.file, true)}
-                  >
-                    AI で判定し直す
-                  </button>
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground">
+                {summary.formatKnown && "覚えていた列の形式で読み取りました。"}
+                読み取りが違うときは
+                <button
+                  type="button"
+                  className="underline hover:text-foreground disabled:opacity-50"
+                  disabled={busy}
+                  onClick={() => rereadAccurately(summary.file)}
+                >
+                  より正確に読み直す
+                </button>
+              </p>
             </div>
           </Section>
 
@@ -499,7 +525,7 @@ const StatementImportPage = ({
                   accounts={accounts}
                   paymentCategories={paymentCategories}
                   incomeCategories={incomeCategories}
-                  disabled={registering}
+                  disabled={registering || rereading}
                   onDraftChange={updateDraft}
                 />
               ))}

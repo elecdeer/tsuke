@@ -5,6 +5,4 @@ export default defineEnv({
   ACCESS_TEAM_DOMAIN: url().default("https://elecdeer.cloudflareaccess.com"),
   // Worker を保護している Access アプリケーションの AUD タグ。未設定なら JWT 検証は行わない
   ACCESS_AUD: string().optional(),
-  // 明細の読み取りに使う Workers AI のモデル ID。レシートとページからの読み取りは src/llm/readQuality.ts で決める
-  LLM_MODEL: string().default("openai/gpt-6-luna"),
 });

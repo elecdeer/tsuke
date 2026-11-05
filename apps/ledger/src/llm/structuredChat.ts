@@ -235,6 +235,7 @@ export const streamStructuredItems = async <TSchema extends v.GenericSchema>(par
   schemaName: string;
   jsonSchema: unknown;
   itemSchema: TSchema;
+  reasoningEffort?: string;
   abortSignal?: AbortSignal;
   onItem: (item: v.InferOutput<TSchema>) => void;
 }): Promise<void> => {
@@ -255,6 +256,7 @@ export const streamStructuredItems = async <TSchema extends v.GenericSchema>(par
         type: "json_schema",
         json_schema: { name: params.schemaName, strict: true, schema: params.jsonSchema },
       },
+      ...(params.reasoningEffort === undefined ? {} : { reasoning_effort: params.reasoningEffort }),
     },
     { signal: params.abortSignal },
   );
