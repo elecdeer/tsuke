@@ -529,13 +529,21 @@ const TransactionsPage = ({
             />
             <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
               <ListTotals transactions={transactions} />
-              <Link
-                href="/transactions/new"
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-              >
-                <Plus aria-hidden="true" />
-                追加
-              </Link>
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/statements/import"
+                  className="text-xs text-muted-foreground underline hover:text-foreground"
+                >
+                  CSV の取り込み
+                </Link>
+                <Link
+                  href="/transactions/new"
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                >
+                  <Plus aria-hidden="true" />
+                  追加
+                </Link>
+              </div>
             </div>
           </div>
         </div>

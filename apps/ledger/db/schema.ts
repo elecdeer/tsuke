@@ -105,7 +105,7 @@ export const places = sqliteTable("places", {
 /** 取り込みの記録。総入れ替えや取り消しのときに取り込み単位で取引を探す */
 export const importBatches = sqliteTable("import_batches", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  source: text("source", { enum: ["zaim_csv"] }).notNull(),
+  source: text("source", { enum: ["zaim_csv", "statement_csv"] }).notNull(),
   fileName: text("file_name").notNull(),
   rowCount: integer("row_count").notNull(),
   importedAt: text("imported_at")
@@ -137,7 +137,7 @@ export const transactions = sqliteTable(
     aggregation: text("aggregation", { enum: ["always", "never", "yearly_only"] })
       .notNull()
       .default("always"),
-    source: text("source", { enum: ["manual", "zaim_csv"] }).notNull(),
+    source: text("source", { enum: ["manual", "zaim_csv", "statement_csv"] }).notNull(),
     importBatchId: integer("import_batch_id").references(() => importBatches.id, {
       onDelete: "restrict",
     }),
