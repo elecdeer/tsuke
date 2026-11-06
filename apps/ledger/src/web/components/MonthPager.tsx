@@ -2,6 +2,7 @@ import { useRouter } from "@void/react";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { shiftMonth } from "@/ledger/dates";
 import { cn } from "@/lib/utils";
+import type { MonthSlideDirection } from "@/web/monthSlide";
 import { neighborOffset, snappedPage } from "@/web/monthPager";
 
 /** scrollend の来ないブラウザで、スクロールが止まったとみなすまでの時間（ms） */
@@ -19,6 +20,25 @@ const isServer = (): boolean => false;
  */
 const viewportTopOf = (): number =>
   document.querySelector("body header")?.getBoundingClientRect().bottom ?? 0;
+
+/** 月を並べたスクロールの箱に付ける印。見出しのリンクから箱を探すのに使う */
+const PAGER_ATTRIBUTE = "data-month-pager";
+
+/**
+ * 画面の月の並びを隣の月まで滑らかに横へ送る。送り終えると MonthPager がその月へ移る。
+ *
+ * 前後の月へのリンクを押したときも、払ったときと同じ所を同じように動かすために使う。
+ * 取引の一覧では見出しが並びの外にあるので、React の木ではなく DOM から箱を探す。
+ * 並びがない（未入金の一覧）か、隣の月をまだ足していない（読み込み中）ときは false を返す。
+ */
+export const scrollMonthPager = (direction: MonthSlideDirection): boolean => {
+  const scroller = document.querySelector(`[${PAGER_ATTRIBUTE}]`);
+  const page = scroller?.children[direction === "next" ? 2 : 0];
+  if (scroller === null || !(page instanceof HTMLElement)) return false;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  scroller.scrollTo({ left: page.offsetLeft, behavior: reduceMotion ? "instant" : "smooth" });
+  return true;
+};
 
 /**
  * 前後の月を左右に並べ、横にスクロールして月を移れるようにする。左へ送ると次の月、右へ送ると前の月。
@@ -146,6 +166,7 @@ export const MonthPager = ({
     // （付けないと中央に寄せた main の外からの位置になり、広い画面で止まったページを見分けられない）
     <div
       ref={scroller}
+      {...{ [PAGER_ATTRIBUTE]: "" }}
       className="relative -mx-4 flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {hydrated && neighbor(previous, 0)}
