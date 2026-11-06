@@ -135,10 +135,12 @@ export const MonthPager = ({
   );
 
   return (
-    // main の左右の余白の分だけ広げ、隣の月が画面の端まで動いて見えるようにする
+    // main の左右の余白の分だけ広げ、隣の月が画面の端まで動いて見えるようにする。
+    // relative にして各ページの offsetLeft をこの箱からの位置にし、スクロール位置と比べられるようにする
+    // （付けないと中央に寄せた main の外からの位置になり、広い画面で止まったページを見分けられない）
     <div
       ref={scroller}
-      className="-mx-4 flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="relative -mx-4 flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {hydrated && neighbor(previous, 0)}
       <div
