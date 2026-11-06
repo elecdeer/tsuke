@@ -7,6 +7,7 @@ import {
   monthRange,
   shiftMonth,
   todayInTokyo,
+  monthsOfYear,
 } from "./dates.ts";
 
 describe("todayInTokyo", () => {
@@ -70,5 +71,24 @@ describe("monthRange", () => {
 describe("formatMonth", () => {
   test("年と月を日本語で書く", () => {
     expect(formatMonth("2026-03")).toBe("2026年3月");
+  });
+});
+
+describe("monthsOfYear", () => {
+  test("1 月から 12 月を YYYY-MM で返す", () => {
+    expect(monthsOfYear(2026)).toEqual([
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07",
+      "2026-08",
+      "2026-09",
+      "2026-10",
+      "2026-11",
+      "2026-12",
+    ]);
   });
 });

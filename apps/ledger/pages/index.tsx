@@ -5,43 +5,16 @@ import { cn } from "@/lib/utils";
 import { MonthHeading } from "@/web/components/MonthHeading";
 import { MonthSwipe } from "@/web/components/MonthSwipe";
 import { Section } from "@/web/components/Section";
-import { formatAmount, formatPercent, formatSignedAmount } from "@/web/format";
+import { ROW_COLUMNS, SummaryTotals } from "@/web/components/SummaryTotals";
+import { SummaryViewSwitch } from "@/web/components/SummaryViewSwitch";
+import { YearHeading } from "@/web/components/YearHeading";
+import { YearSummaryBody } from "@/web/components/YearSummary";
+import { monthForYear, monthSummaryHref, yearSummaryHref } from "@/web/summaryView";
+import { formatAmount, formatPercent } from "@/web/format";
 import { transactionsHref } from "@/web/transactionsHref";
 import type { Props } from "./index.server";
 
 type Mode = "payment" | "income";
-
-/** 名前・割合・金額の 3 列。カテゴリの行と内訳の行で列をそろえる */
-const ROW_COLUMNS = "grid grid-cols-[minmax(0,1fr)_4rem_7rem] items-baseline gap-x-4";
-
-/**
- * 支出・収入・収支の合計。収支はこの画面で一番見てほしい数字なので、アクセントの色で出す。
- */
-const Totals = ({ payment, income }: { payment: number; income: number }) => {
-  const items = [
-    { label: "支出", value: formatAmount(payment), accent: false },
-    { label: "収入", value: formatAmount(income), accent: false },
-    { label: "収支", value: formatSignedAmount(income - payment), accent: true },
-  ];
-  return (
-    <dl className="grid grid-cols-3 gap-x-4">
-      {items.map((item) => (
-        <div
-          key={item.label}
-          className={cn(
-            "flex flex-col gap-1 border-t pt-1.5",
-            item.accent ? "border-primary text-primary" : "border-foreground",
-          )}
-        >
-          <dt className={cn("text-xs", !item.accent && "text-muted-foreground")}>{item.label}</dt>
-          <dd className="text-xl font-semibold tracking-tight tabular-nums sm:text-3xl">
-            {item.value}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
-};
 
 /**
  * カテゴリ 1 つ分の行。開くと内訳ごとの合計と、そのカテゴリの取引の一覧へのリンクが出る。
@@ -156,22 +129,25 @@ const CategoryBreakdown = ({
     </div>
   );
 
-/**
- * 集計の画面の URL を月から作る。
- */
-const summaryHref = (month: string): string => `/?month=${month}`;
+type MonthProps = Extract<Props, { view: "month" }>;
+type YearProps = Extract<Props, { view: "year" }>;
 
 /**
  * 月ごとの集計の画面。左右に払うと前後の月へ移る。
  */
-const SummaryPage = ({ month, summary }: Props) => (
-  <MonthSwipe month={month} hrefOf={summaryHref} className="flex flex-col gap-12">
+const MonthSummaryPage = ({ month, summary }: MonthProps) => (
+  <MonthSwipe month={month} hrefOf={monthSummaryHref} className="flex flex-col gap-12">
     <div className="grid gap-x-4 gap-y-6 md:grid-cols-12 md:items-end">
-      <div className="md:col-span-3">
-        <MonthHeading month={month} hrefOf={summaryHref} />
+      <div className="flex flex-col gap-4 md:col-span-3">
+        <SummaryViewSwitch
+          view="month"
+          monthHref={monthSummaryHref(month)}
+          yearHref={yearSummaryHref(Number(month.slice(0, 4)))}
+        />
+        <MonthHeading month={month} hrefOf={monthSummaryHref} />
       </div>
       <div className="md:col-span-9">
-        <Totals payment={summary.payment.total} income={summary.income.total} />
+        <SummaryTotals payment={summary.payment.total} income={summary.income.total} />
       </div>
     </div>
     <Section label="支出">
@@ -182,5 +158,33 @@ const SummaryPage = ({ month, summary }: Props) => (
     </Section>
   </MonthSwipe>
 );
+
+/**
+ * 年の集計の画面。月ごとの推移のグラフと、カテゴリ別の年の合計を出す。
+ */
+const YearSummaryPage = ({ year, currentMonth, summary }: YearProps) => (
+  <div className="flex flex-col gap-12">
+    <div className="grid gap-x-4 gap-y-6 md:grid-cols-12 md:items-end">
+      <div className="flex flex-col gap-4 md:col-span-3">
+        <SummaryViewSwitch
+          view="year"
+          monthHref={monthSummaryHref(monthForYear(year, currentMonth))}
+          yearHref={yearSummaryHref(year)}
+        />
+        <YearHeading year={year} />
+      </div>
+      <div className="md:col-span-9">
+        <SummaryTotals payment={summary.payment.total} income={summary.income.total} />
+      </div>
+    </div>
+    <YearSummaryBody year={year} summary={summary} />
+  </div>
+);
+
+/**
+ * 集計の画面。クエリの年の指定で、月の表示と年の表示を切り替える。
+ */
+const SummaryPage = (props: Props) =>
+  props.view === "year" ? <YearSummaryPage {...props} /> : <MonthSummaryPage {...props} />;
 
 export default SummaryPage;
