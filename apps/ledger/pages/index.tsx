@@ -138,9 +138,17 @@ type YearProps = Extract<Props, { view: "year" }>;
  */
 const SummaryPlaceholder = ({ month }: { month: string }) => (
   <div className="flex flex-col gap-12">
-    {/* 前後の月へのリンクの行の高さだけ空ける */}
-    <div className="flex flex-col gap-1 pt-4">
-      <MonthTitle month={month} />
+    <div className="flex flex-col gap-4">
+      {/* 本物と同じ切り替えを置き、月の見出しの高さをそろえる。隣のページは操作できない（inert） */}
+      <SummaryViewSwitch
+        view="month"
+        monthHref={monthSummaryHref(month)}
+        yearHref={yearSummaryHref(Number(month.slice(0, 4)))}
+      />
+      {/* 前後の月へのリンクの行の高さだけ空ける */}
+      <div className="pt-5">
+        <MonthTitle month={month} />
+      </div>
     </div>
     <Skeleton rows={6} />
   </div>
