@@ -134,42 +134,63 @@ type MonthProps = Extract<Props, { view: "month" }>;
 type YearProps = Extract<Props, { view: "year" }>;
 
 /**
+ * 月の集計の見出し。月・年の切り替えと、前後の月へのリンクの付いた月。
+ */
+const MonthSummaryHeading = ({ month }: { month: string }) => (
+  <>
+    <SummaryViewSwitch
+      view="month"
+      monthHref={monthSummaryHref(month)}
+      yearHref={yearSummaryHref(Number(month.slice(0, 4)))}
+    />
+    <MonthHeading month={month} hrefOf={monthSummaryHref} />
+  </>
+);
+
+/**
  * 月ごとの集計の画面。横に送ると前後の月へ移る。
  *
- * 取引の一覧とそろえ、月の見出しと月・年の切り替えは動かさず、合計とカテゴリ別の内訳だけを横に送る。
+ * 取引の一覧とそろえ、月の見出しは動かさず、合計とカテゴリ別の内訳だけを横に送る。
+ * 広い画面では合計を見出しの右に並べたいので、横に送る並びを見出しの高さから始め、見出しをその上に重ねる。
+ * 並びの 1 行目には同じ見出しを見えないように置き、合計の下端を見出しの下端にそろえる
+ * （見出しの高さを測って並びに渡すと、描くまで位置が決まらずにずれる）。
  */
 const MonthSummaryPage = ({ month, summary }: MonthProps) => (
-  <div className="flex flex-col gap-12">
-    <div className="grid gap-x-4 gap-y-6 md:grid-cols-12 md:items-end">
-      <div className="flex flex-col gap-4 md:col-span-3">
-        <SummaryViewSwitch
-          view="month"
-          monthHref={monthSummaryHref(month)}
-          yearHref={yearSummaryHref(Number(month.slice(0, 4)))}
-        />
-        <MonthHeading month={month} hrefOf={monthSummaryHref} />
-      </div>
+  <div className="flex flex-col gap-12 md:grid md:grid-cols-12 md:gap-x-4">
+    {/* 送っている途中の合計が見出しの後ろをくぐるよう、地の色で塗って上に重ねる。左右の余白も塗る */}
+    <div className="relative z-10 flex flex-col gap-4 bg-background md:col-span-3 md:col-start-1 md:row-start-1 md:-mx-4 md:self-start md:px-4">
+      <MonthSummaryHeading month={month} />
     </div>
-    <MonthPager
-      month={month}
-      hrefOf={monthSummaryHref}
-      placeholder={() => (
-        <Section label="" className="gap-y-0">
-          <Skeleton rows={6} />
+    <div className="min-w-0 md:col-span-12 md:col-start-1 md:row-start-1">
+      <MonthPager
+        month={month}
+        hrefOf={monthSummaryHref}
+        placeholder={() => (
+          <Section label="" className="gap-y-0">
+            <Skeleton rows={6} />
+          </Section>
+        )}
+        className="flex flex-col gap-12"
+      >
+        <div className="grid gap-x-4 gap-y-6 md:grid-cols-12 md:items-end">
+          <div
+            aria-hidden
+            className="hidden md:invisible md:col-span-3 md:flex md:flex-col md:gap-4"
+          >
+            <MonthSummaryHeading month={month} />
+          </div>
+          <div className="md:col-span-9">
+            <SummaryTotals payment={summary.payment.total} income={summary.income.total} />
+          </div>
+        </div>
+        <Section label="支出">
+          <CategoryBreakdown summary={summary.payment} month={month} mode="payment" />
         </Section>
-      )}
-      className="flex flex-col gap-12"
-    >
-      <Section label="" className="gap-y-0">
-        <SummaryTotals payment={summary.payment.total} income={summary.income.total} />
-      </Section>
-      <Section label="支出">
-        <CategoryBreakdown summary={summary.payment} month={month} mode="payment" />
-      </Section>
-      <Section label="収入">
-        <CategoryBreakdown summary={summary.income} month={month} mode="income" />
-      </Section>
-    </MonthPager>
+        <Section label="収入">
+          <CategoryBreakdown summary={summary.income} month={month} mode="income" />
+        </Section>
+      </MonthPager>
+    </div>
   </div>
 );
 
