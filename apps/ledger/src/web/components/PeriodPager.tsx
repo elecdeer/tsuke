@@ -1,8 +1,7 @@
 import { useRouter } from "@void/react";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
-import { shiftMonth } from "@/ledger/dates";
 import { cn } from "@/lib/utils";
-import type { MonthSlideDirection } from "@/web/monthSlide";
+import { type MonthSlideDirection, setMonthSlide } from "@/web/monthSlide";
 import { neighborOffset, revealHeight, snappedPage } from "@/web/monthPager";
 
 /** scrollend の来ないブラウザで、スクロールが止まったとみなすまでの時間（ms） */
@@ -16,22 +15,22 @@ const isClient = (): boolean => true;
 const isServer = (): boolean => false;
 
 /**
- * 隣の月を見せはじめる位置（ビューポートの上からの px）。上に固定したヘッダーの下端にする。
+ * 隣の期間を見せはじめる位置（ビューポートの上からの px）。上に固定したヘッダーの下端にする。
  */
 const viewportTopOf = (): number =>
   document.querySelector("body header")?.getBoundingClientRect().bottom ?? 0;
 
-/** 月を並べたスクロールの箱に付ける印。見出しのリンクから箱を探すのに使う */
-const PAGER_ATTRIBUTE = "data-month-pager";
+/** 期間を並べたスクロールの箱に付ける印。見出しのリンクから箱を探すのに使う */
+const PAGER_ATTRIBUTE = "data-period-pager";
 
 /**
- * 画面の月の並びを隣の月まで滑らかに横へ送る。送り終えると MonthPager がその月へ移る。
+ * 画面の期間の並びを隣の期間まで滑らかに横へ送る。送り終えると PeriodPager がその期間へ移る。
  *
- * 前後の月へのリンクを押したときも、払ったときと同じ所を同じように動かすために使う。
+ * 前後の月や年へのリンクを押したときも、払ったときと同じ所を同じように動かすために使う。
  * 取引の一覧では見出しが並びの外にあるので、React の木ではなく DOM から箱を探す。
- * 並びがない（未入金の一覧）か、隣の月をまだ足していない（読み込み中）ときは false を返す。
+ * 並びがない（未入金の一覧）か、隣の期間をまだ足していない（読み込み中）ときは false を返す。
  */
-export const scrollMonthPager = (direction: MonthSlideDirection): boolean => {
+const scrollPeriodPager = (direction: MonthSlideDirection): boolean => {
   const scroller = document.querySelector(`[${PAGER_ATTRIBUTE}]`);
   const page = scroller?.children[direction === "next" ? 2 : 0];
   if (scroller === null || !(page instanceof HTMLElement)) return false;
@@ -41,24 +40,45 @@ export const scrollMonthPager = (direction: MonthSlideDirection): boolean => {
 };
 
 /**
- * 前後の月を左右に並べ、横にスクロールして月を移れるようにする。左へ送ると次の月、右へ送ると前の月。
+ * 前後の期間へのリンクの onNavigate に渡す処理を作る。
  *
- * 指への追従と止まる位置はブラウザのスクロールスナップに任せ、隣の月のページで止まったらその月の URL へ移る。
- * 隣の月の中身は移るまで読まず、placeholder（月の見出しと骨組みなど）を出しておく。
+ * 期間の並び（PeriodPager）があれば横に送って移り、リンクでは移らない。
+ * 並びがなければ、リンクで移りつつ本文を横にずらすビュー遷移の向きを伝える（src/styles.css）。
+ */
+export const navigatePeriod =
+  (direction: MonthSlideDirection) =>
+  (event: { preventDefault: () => void }): void => {
+    if (scrollPeriodPager(direction)) {
+      event.preventDefault();
+      return;
+    }
+    setMonthSlide(document.documentElement, direction);
+  };
+
+/**
+ * 前後の期間（月や年）を左右に並べ、横にスクロールして移れるようにする。左へ送ると次、右へ送ると前の期間。
+ * 期間は URL を作るための文字列で、前後の期間は呼ぶ側が previous と next で渡す。
  *
- * 隣の月は、縦にスクロールした途中でもその先頭が画面の上端に来るよう縦にずらして見せ、
+ * 指への追従と止まる位置はブラウザのスクロールスナップに任せ、隣の期間のページで止まったらその URL へ移る。
+ * 隣の期間の中身は移るまで読まず、placeholder（覚えておいた中身か骨組み）を出しておく。
+ *
+ * 隣の期間は、縦にスクロールした途中でもその先頭が画面の上端に来るよう縦にずらして見せ、
  * 移ったあとは並びの上端がヘッダーのすぐ下に来るよう縦のスクロールを戻す。
  */
-export const MonthPager = ({
-  month,
+export const PeriodPager = ({
+  period,
+  previous,
+  next,
   hrefOf,
   placeholder,
   className,
   children,
 }: {
-  month: string;
-  hrefOf: (month: string) => string;
-  placeholder: (month: string) => ReactNode;
+  period: string;
+  previous: string;
+  next: string;
+  hrefOf: (period: string) => string;
+  placeholder: (period: string) => ReactNode;
   className?: string;
   children: ReactNode;
 }) => {
@@ -66,17 +86,14 @@ export const MonthPager = ({
   const scroller = useRef<HTMLDivElement>(null);
   const current = useRef<HTMLDivElement>(null);
   const neighbors = useRef<HTMLDivElement[]>([]);
-  // 移る先の月。読み込みの間に同じ月へ何度も移らないようにし、移り終えたら縦のスクロールを戻す目印にする
+  // 移る先の期間。読み込みの間に同じ月へ何度も移らないようにし、移り終えたら縦のスクロールを戻す目印にする
   const pending = useRef<string | null>(null);
-  // サーバーで描いた HTML は横のスクロール位置を持てないので、隣の月は読み込みのあとに足す。
-  // 先に足すと、スクリプトが動くまで前の月の仮の中身が正面に見えてしまう
+  // サーバーで描いた HTML は横のスクロール位置を持てないので、隣の期間は読み込みのあとに足す。
+  // 先に足すと、スクリプトが動くまで前の期間の仮の中身が正面に見えてしまう
   const hydrated = useSyncExternalStore(subscribeNothing, isClient, isServer);
 
-  const previous = shiftMonth(month, -1);
-  const next = shiftMonth(month, 1);
-
   /**
-   * 隣の月のページを、その先頭がヘッダーのすぐ下に来るよう縦にずらす。
+   * 隣の期間のページを、その先頭がヘッダーのすぐ下に来るよう縦にずらす。
    */
   const alignNeighbors = () => {
     const element = scroller.current;
@@ -88,7 +105,7 @@ export const MonthPager = ({
   };
 
   /**
-   * 横に送っている間、今の月より長い隣の月が切れないよう、並びの箱を画面の下端まで伸ばす。
+   * 横に送っている間、今の期間より長い隣の期間が切れないよう、並びの箱を画面の下端まで伸ばす。
    */
   const revealNeighbors = () => {
     const element = scroller.current;
@@ -101,33 +118,33 @@ export const MonthPager = ({
   };
 
   /**
-   * 今の月で止まったら、伸ばした高さを戻す。伸ばしたままだと短い月の下に空きが残る。
+   * 今の期間で止まったら、伸ばした高さを戻す。伸ばしたままだと短い期間の下に空きが残る。
    */
   const settleHeight = () => {
     if (scroller.current !== null) scroller.current.style.minHeight = "";
   };
 
-  // 月が変わったら（隣の月へ移り終えたら）今の月のページを正面に戻す。描く前に戻し、隣の月が一瞬見えないようにする
+  // 期間が変わったら（隣の期間へ移り終えたら）今の期間のページを正面に戻す。描く前に戻し、隣の期間が一瞬見えないようにする
   useLayoutEffect(() => {
     const element = scroller.current;
     const page = current.current;
     if (!hydrated || element === null || page === null) return;
     element.scrollTo({ left: page.offsetLeft, behavior: "instant" });
-    if (pending.current === month) {
+    if (pending.current === period) {
       const top = element.getBoundingClientRect().top - viewportTopOf();
       if (top < 0) window.scrollBy({ top, behavior: "instant" });
     }
     pending.current = null;
     settleHeight();
     alignNeighbors();
-  }, [hydrated, month]);
+  }, [hydrated, period]);
 
   useEffect(() => {
     const element = scroller.current;
     if (!hydrated || element === null) return;
 
     /**
-     * 横のスクロールが止まったとき、隣の月のページにいればその月へ移る。
+     * 横のスクロールが止まったとき、隣の期間のページにいればその期間へ移る。
      */
     const onSettle = () => {
       const lefts = [...element.children].map((child) =>
@@ -168,9 +185,9 @@ export const MonthPager = ({
   }, [hydrated, router, hrefOf, previous, next]);
 
   /**
-   * 隣の月のページ。高さは今の月に合わせ、仮の中身はその上に重ねて縦にずらせるようにする。
+   * 隣の期間のページ。高さは今の期間に合わせ、仮の中身はその上に重ねて縦にずらせるようにする。
    */
-  const neighbor = (neighborMonth: string, index: number) => (
+  const neighbor = (neighborPeriod: string, index: number) => (
     <div aria-hidden inert className="relative w-full shrink-0 snap-center snap-always px-4">
       <div
         ref={(element) => {
@@ -178,13 +195,13 @@ export const MonthPager = ({
         }}
         className="absolute inset-x-4 top-0"
       >
-        {placeholder(neighborMonth)}
+        {placeholder(neighborPeriod)}
       </div>
     </div>
   );
 
   return (
-    // main の左右の余白の分だけ広げ、隣の月が画面の端まで動いて見えるようにする。
+    // main の左右の余白の分だけ広げ、隣の期間が画面の端まで動いて見えるようにする。
     // relative にして各ページの offsetLeft をこの箱からの位置にし、スクロール位置と比べられるようにする
     // （付けないと中央に寄せた main の外からの位置になり、広い画面で止まったページを見分けられない）
     <div

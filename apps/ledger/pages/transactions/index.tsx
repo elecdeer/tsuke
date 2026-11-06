@@ -16,6 +16,7 @@ import type {
   TransactionMode,
 } from "@/ledger/transactions";
 import { advanceStatusOf, unreceivedAmountOf } from "@/ledger/advance";
+import { shiftMonth } from "@/ledger/dates";
 import { cn } from "@/lib/utils";
 import { categoryLabels, categoryValueOf, parseCategoryValue } from "@/web/categoryValue";
 import { Section } from "@/web/components/Section";
@@ -23,7 +24,7 @@ import { FavoriteButton } from "@/web/components/FavoriteButton";
 import { TransactionEditor } from "@/web/components/TransactionEditor";
 import { CategoryOptions } from "@/web/components/CategoryOptions";
 import { MonthHeading } from "@/web/components/MonthHeading";
-import { MonthPager } from "@/web/components/MonthPager";
+import { PeriodPager } from "@/web/components/PeriodPager";
 import { SkeletonBlock, SkeletonText } from "@/web/components/Skeleton";
 import { formatAmount, formatDayOfMonth, formatFullDay } from "@/web/format";
 import { groupByDate } from "@/web/groupByDate";
@@ -651,15 +652,17 @@ const TransactionsPage = ({
         {unreceivedOnly ? (
           list
         ) : (
-          <MonthPager
-            month={filter.month}
+          <PeriodPager
+            period={filter.month}
+            previous={shiftMonth(filter.month, -1)}
+            next={shiftMonth(filter.month, 1)}
             hrefOf={monthHref}
             placeholder={(neighbor) => (
               <NeighborList href={monthHref(neighbor)} filter={{ ...filter, month: neighbor }} />
             )}
           >
             {list}
-          </MonthPager>
+          </PeriodPager>
         )}
       </div>
       {/*

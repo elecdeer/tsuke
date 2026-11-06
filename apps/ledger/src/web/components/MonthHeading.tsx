@@ -1,7 +1,6 @@
 import { Link } from "@void/react";
 import { formatMonth, shiftMonth } from "@/ledger/dates";
-import { scrollMonthPager } from "@/web/components/MonthPager";
-import { type MonthSlideDirection, setMonthSlide } from "@/web/monthSlide";
+import { navigatePeriod } from "@/web/components/PeriodPager";
 
 /**
  * 「10月」の形で月だけを書く。前後の月へのリンクは年をまたいでも月だけで足りる。
@@ -21,23 +20,9 @@ const MonthTitle = ({ month }: { month: string }) => (
 );
 
 /**
- * 前後の月へのリンクを押したとき、月の並び（MonthPager）があれば横に送って移り、リンクでは移らない。
- * 並びがなければ、リンクで移りつつ本文を横にずらすビュー遷移の向きを伝える。
- */
-const navigateMonth =
-  (direction: MonthSlideDirection) =>
-  (event: { preventDefault: () => void }): void => {
-    if (scrollMonthPager(direction)) {
-      event.preventDefault();
-      return;
-    }
-    setMonthSlide(document.documentElement, direction);
-  };
-
-/**
  * 画面が扱う月。年の下に月を大きく出し、前後の月へのリンクを添える。移り先の URL は hrefOf で月から作る。
  *
- * 前後の月へのリンクを押すと、払ったときと同じく月の並び（MonthPager）を横に送って移る。
+ * 前後の月へのリンクを押すと、払ったときと同じく期間の並び（PeriodPager）を横に送って移る。
  */
 export const MonthHeading = ({
   month,
@@ -54,7 +39,7 @@ export const MonthHeading = ({
         <Link
           href={hrefOf(previous)}
           viewTransition
-          onNavigate={navigateMonth("prev")}
+          onNavigate={navigatePeriod("prev")}
           className="hover:text-foreground"
         >
           ← {monthLabel(previous)}
@@ -62,7 +47,7 @@ export const MonthHeading = ({
         <Link
           href={hrefOf(next)}
           viewTransition
-          onNavigate={navigateMonth("next")}
+          onNavigate={navigatePeriod("next")}
           className="hover:text-foreground"
         >
           {monthLabel(next)} →
