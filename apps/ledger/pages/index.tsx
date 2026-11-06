@@ -190,9 +190,10 @@ const SummaryLayout = ({ heading, children }: { heading: ReactNode; children: Re
   <div className="flex flex-col gap-12 md:grid md:grid-cols-12 md:gap-x-4">
     {/*
      * 送っている途中の合計が見出しの後ろをくぐるよう、地の色で塗って上に重ねる。
-     * 塗るのは見出しの幅（と左の余白）だけにし、右の端は地の色へ溶かしてぼかし、切れ目を目立たせない
+     * 塗るのは見出しの幅（と左の余白）だけにし、右の端は地の色へ溶かしてぼかし、切れ目を目立たせない。
+     * 字間を詰めた大きな数字は字形が文字の箱より右にはみ出すので、右にも少し余白を取ってぼかしに掛けない
      */}
-    <div className="relative z-10 flex flex-col gap-4 bg-background md:col-span-3 md:col-start-1 md:row-start-1 md:-ml-4 md:w-max md:self-start md:pl-4 md:after:pointer-events-none md:after:absolute md:after:inset-y-0 md:after:left-full md:after:w-10 md:after:bg-linear-to-r md:after:from-background md:after:to-transparent md:after:backdrop-blur-[3px] md:after:mask-[linear-gradient(to_right,black,transparent)] md:after:content-['']">
+    <div className="relative z-10 flex flex-col gap-4 bg-background md:col-span-3 md:col-start-1 md:row-start-1 md:-ml-4 md:w-max md:self-start md:pr-3 md:pl-4 md:after:pointer-events-none md:after:absolute md:after:inset-y-0 md:after:left-full md:after:w-10 md:after:bg-linear-to-r md:after:from-background md:after:to-transparent md:after:backdrop-blur-[3px] md:after:mask-[linear-gradient(to_right,black,transparent)] md:after:content-['']">
       {heading}
     </div>
     <div className="min-w-0 md:col-span-12 md:col-start-1 md:row-start-1">{children}</div>
