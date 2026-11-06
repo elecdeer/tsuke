@@ -22,7 +22,8 @@ import { Section } from "@/web/components/Section";
 import { TransactionEditor } from "@/web/components/TransactionEditor";
 import { CategoryOptions } from "@/web/components/CategoryOptions";
 import { MonthHeading } from "@/web/components/MonthHeading";
-import { MonthSwipe } from "@/web/components/MonthSwipe";
+import { MonthPager } from "@/web/components/MonthPager";
+import { Skeleton } from "@/web/components/Skeleton";
 import { formatAmount, formatDayOfMonth, formatFullDay } from "@/web/format";
 import { groupByDate } from "@/web/groupByDate";
 import { ADVANCE_STATUS_LABELS, MODE_LABELS, TRANSACTION_MODES } from "@/web/labels";
@@ -497,10 +498,50 @@ const TransactionsPage = ({
     if (event.propertyName === "grid-template-columns" && selected === null) setShown(null);
   };
 
+  // 月を移るときに横に送るのは件数と合計、取引の一覧だけにし、月の見出しと絞り込みは動かさない
+  const list = (
+    <div className="flex flex-col gap-8">
+      <Section label="" className="gap-y-0">
+        <ListTotals transactions={transactions} />
+      </Section>
+      {transactions.length === 0 ? (
+        <Section label="">
+          <p className="border-t border-foreground py-2.5 text-sm text-muted-foreground">
+            条件に合う取引はありません
+          </p>
+        </Section>
+      ) : (
+        <div>
+          {groupByDate(transactions).map((group, index) => (
+            <Section
+              key={group.date}
+              className="gap-y-0"
+              label={
+                <span className="block pt-2.5 text-xs font-normal text-muted-foreground tabular-nums">
+                  {unreceivedOnly ? formatFullDay(group.date) : formatDayOfMonth(group.date)}
+                </span>
+              }
+            >
+              {/* 一覧の始まりにだけ黒の線を引く */}
+              <ul className={cn(index === 0 && "border-t border-foreground")}>
+                {group.items.map((transaction) => (
+                  <TransactionRow
+                    key={transaction.id}
+                    transaction={transaction}
+                    filter={filter}
+                    selected={selected?.transaction.id === transaction.id}
+                  />
+                ))}
+              </ul>
+            </Section>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <MonthSwipe
-      month={filter.month}
-      hrefOf={monthHref}
+    <div
       // パネルの列は閉じていても 0 幅で置いておき、開け閉めで列の幅を動かす。
       // 一覧の幅も同時にレイアウトの最大幅のトランジションで広がるので、同じ長さにそろえる
       className={cn(
@@ -519,18 +560,17 @@ const TransactionsPage = ({
             )}
           </div>
           <div className="flex flex-col gap-3 md:col-span-9">
-            <Filters
-              filter={filter}
-              accounts={accounts}
-              categories={categories}
-              placeName={placeName}
-              chainNames={chainNames}
-            />
-            <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
-              <ListTotals transactions={transactions} />
+            <div className="flex items-start justify-between gap-x-5">
+              <Filters
+                filter={filter}
+                accounts={accounts}
+                categories={categories}
+                placeName={placeName}
+                chainNames={chainNames}
+              />
               <Link
                 href="/transactions/new"
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
               >
                 <Plus aria-hidden="true" />
                 追加
@@ -538,38 +578,20 @@ const TransactionsPage = ({
             </div>
           </div>
         </div>
-        {transactions.length === 0 ? (
-          <Section label="">
-            <p className="border-t border-foreground py-2.5 text-sm text-muted-foreground">
-              条件に合う取引はありません
-            </p>
-          </Section>
+        {unreceivedOnly ? (
+          list
         ) : (
-          <div>
-            {groupByDate(transactions).map((group, index) => (
-              <Section
-                key={group.date}
-                className="gap-y-0"
-                label={
-                  <span className="block pt-2.5 text-xs font-normal text-muted-foreground tabular-nums">
-                    {unreceivedOnly ? formatFullDay(group.date) : formatDayOfMonth(group.date)}
-                  </span>
-                }
-              >
-                {/* 一覧の始まりにだけ黒の線を引く */}
-                <ul className={cn(index === 0 && "border-t border-foreground")}>
-                  {group.items.map((transaction) => (
-                    <TransactionRow
-                      key={transaction.id}
-                      transaction={transaction}
-                      filter={filter}
-                      selected={selected?.transaction.id === transaction.id}
-                    />
-                  ))}
-                </ul>
+          <MonthPager
+            month={filter.month}
+            hrefOf={monthHref}
+            placeholder={() => (
+              <Section label="" className="gap-y-0">
+                <Skeleton rows={8} />
               </Section>
-            ))}
-          </div>
+            )}
+          >
+            {list}
+          </MonthPager>
         )}
       </div>
       {/*
@@ -588,7 +610,7 @@ const TransactionsPage = ({
           />
         )}
       </div>
-    </MonthSwipe>
+    </div>
   );
 };
 

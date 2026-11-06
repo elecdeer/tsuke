@@ -2,9 +2,10 @@ import { Link } from "@void/react";
 import { ChevronRight } from "lucide-react";
 import type { CategoryTotal, ModeSummary } from "@/ledger/summary";
 import { cn } from "@/lib/utils";
-import { MonthHeading } from "@/web/components/MonthHeading";
-import { MonthSwipe } from "@/web/components/MonthSwipe";
+import { MonthHeading, MonthTitle } from "@/web/components/MonthHeading";
+import { MonthPager } from "@/web/components/MonthPager";
 import { Section } from "@/web/components/Section";
+import { Skeleton } from "@/web/components/Skeleton";
 import { formatAmount, formatPercent, formatSignedAmount } from "@/web/format";
 import { transactionsHref } from "@/web/transactionsHref";
 import type { Props } from "./index.server";
@@ -162,10 +163,28 @@ const CategoryBreakdown = ({
 const summaryHref = (month: string): string => `/?month=${month}`;
 
 /**
- * 月ごとの集計の画面。左右に払うと前後の月へ移る。
+ * 隣の月の集計を読むまで出しておく仮の中身。月の見出しの位置を本物にそろえる。
+ */
+const SummaryPlaceholder = ({ month }: { month: string }) => (
+  <div className="flex flex-col gap-12">
+    {/* 前後の月へのリンクの行の高さだけ空ける */}
+    <div className="flex flex-col gap-1 pt-4">
+      <MonthTitle month={month} />
+    </div>
+    <Skeleton rows={6} />
+  </div>
+);
+
+/**
+ * 月ごとの集計の画面。横に送ると前後の月へ移る。
  */
 const SummaryPage = ({ month, summary }: Props) => (
-  <MonthSwipe month={month} hrefOf={summaryHref} className="flex flex-col gap-12">
+  <MonthPager
+    month={month}
+    hrefOf={summaryHref}
+    placeholder={(neighbor) => <SummaryPlaceholder month={neighbor} />}
+    className="flex flex-col gap-12"
+  >
     <div className="grid gap-x-4 gap-y-6 md:grid-cols-12 md:items-end">
       <div className="md:col-span-3">
         <MonthHeading month={month} hrefOf={summaryHref} />
@@ -180,7 +199,7 @@ const SummaryPage = ({ month, summary }: Props) => (
     <Section label="収入">
       <CategoryBreakdown summary={summary.income} month={month} mode="income" />
     </Section>
-  </MonthSwipe>
+  </MonthPager>
 );
 
 export default SummaryPage;
