@@ -9,9 +9,9 @@ import { type MonthSlideDirection, setMonthSlide } from "@/web/monthSlide";
 const monthLabel = (month: string): string => `${Number(month.slice(5))}月`;
 
 /**
- * 年の下に月を大きく出す見出し。前後の月の仮の中身（MonthPager の placeholder）でも使う。
+ * 年の下に月を大きく出す見出し。
  */
-export const MonthTitle = ({ month }: { month: string }) => (
+const MonthTitle = ({ month }: { month: string }) => (
   <h1 aria-label={formatMonth(month)} className="flex flex-col">
     <span className="text-xs text-muted-foreground">{month.slice(0, 4)}</span>
     <span className="text-6xl leading-none font-semibold tracking-tighter">

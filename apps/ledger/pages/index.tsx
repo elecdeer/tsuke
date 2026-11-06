@@ -2,7 +2,7 @@ import { Link } from "@void/react";
 import { ChevronRight } from "lucide-react";
 import type { CategoryTotal, ModeSummary } from "@/ledger/summary";
 import { cn } from "@/lib/utils";
-import { MonthHeading, MonthTitle } from "@/web/components/MonthHeading";
+import { MonthHeading } from "@/web/components/MonthHeading";
 import { MonthPager } from "@/web/components/MonthPager";
 import { Section } from "@/web/components/Section";
 import { Skeleton } from "@/web/components/Skeleton";
@@ -134,36 +134,12 @@ type MonthProps = Extract<Props, { view: "month" }>;
 type YearProps = Extract<Props, { view: "year" }>;
 
 /**
- * 隣の月の集計を読むまで出しておく仮の中身。月の見出しの位置を本物にそろえる。
- */
-const SummaryPlaceholder = ({ month }: { month: string }) => (
-  <div className="flex flex-col gap-12">
-    <div className="flex flex-col gap-4">
-      {/* 本物と同じ切り替えを置き、月の見出しの高さをそろえる。隣のページは操作できない（inert） */}
-      <SummaryViewSwitch
-        view="month"
-        monthHref={monthSummaryHref(month)}
-        yearHref={yearSummaryHref(Number(month.slice(0, 4)))}
-      />
-      {/* 前後の月へのリンクの行の高さだけ空ける */}
-      <div className="pt-5">
-        <MonthTitle month={month} />
-      </div>
-    </div>
-    <Skeleton rows={6} />
-  </div>
-);
-
-/**
  * 月ごとの集計の画面。横に送ると前後の月へ移る。
+ *
+ * 取引の一覧とそろえ、月の見出しと月・年の切り替えは動かさず、合計とカテゴリ別の内訳だけを横に送る。
  */
 const MonthSummaryPage = ({ month, summary }: MonthProps) => (
-  <MonthPager
-    month={month}
-    hrefOf={monthSummaryHref}
-    placeholder={(neighbor) => <SummaryPlaceholder month={neighbor} />}
-    className="flex flex-col gap-12"
-  >
+  <div className="flex flex-col gap-12">
     <div className="grid gap-x-4 gap-y-6 md:grid-cols-12 md:items-end">
       <div className="flex flex-col gap-4 md:col-span-3">
         <SummaryViewSwitch
@@ -173,17 +149,28 @@ const MonthSummaryPage = ({ month, summary }: MonthProps) => (
         />
         <MonthHeading month={month} hrefOf={monthSummaryHref} />
       </div>
-      <div className="md:col-span-9">
-        <SummaryTotals payment={summary.payment.total} income={summary.income.total} />
-      </div>
     </div>
-    <Section label="支出">
-      <CategoryBreakdown summary={summary.payment} month={month} mode="payment" />
-    </Section>
-    <Section label="収入">
-      <CategoryBreakdown summary={summary.income} month={month} mode="income" />
-    </Section>
-  </MonthPager>
+    <MonthPager
+      month={month}
+      hrefOf={monthSummaryHref}
+      placeholder={() => (
+        <Section label="" className="gap-y-0">
+          <Skeleton rows={6} />
+        </Section>
+      )}
+      className="flex flex-col gap-12"
+    >
+      <Section label="" className="gap-y-0">
+        <SummaryTotals payment={summary.payment.total} income={summary.income.total} />
+      </Section>
+      <Section label="支出">
+        <CategoryBreakdown summary={summary.payment} month={month} mode="payment" />
+      </Section>
+      <Section label="収入">
+        <CategoryBreakdown summary={summary.income} month={month} mode="income" />
+      </Section>
+    </MonthPager>
+  </div>
 );
 
 /**
