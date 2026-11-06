@@ -3,7 +3,7 @@ import { type ReactNode, useEffect, useLayoutEffect, useRef, useSyncExternalStor
 import { shiftMonth } from "@/ledger/dates";
 import { cn } from "@/lib/utils";
 import type { MonthSlideDirection } from "@/web/monthSlide";
-import { neighborOffset, snappedPage } from "@/web/monthPager";
+import { neighborOffset, revealHeight, snappedPage } from "@/web/monthPager";
 
 /** scrollend の来ないブラウザで、スクロールが止まったとみなすまでの時間（ms） */
 const SCROLL_IDLE = 120;
@@ -87,6 +87,26 @@ export const MonthPager = ({
     }
   };
 
+  /**
+   * 横に送っている間、今の月より長い隣の月が切れないよう、並びの箱を画面の下端まで伸ばす。
+   */
+  const revealNeighbors = () => {
+    const element = scroller.current;
+    if (element === null) return;
+    const top = element.getBoundingClientRect().top;
+    const bottoms = neighbors.current.map(
+      (neighbor) => neighbor.getBoundingClientRect().bottom - top,
+    );
+    element.style.minHeight = `${revealHeight(bottoms, top, window.innerHeight)}px`;
+  };
+
+  /**
+   * 今の月で止まったら、伸ばした高さを戻す。伸ばしたままだと短い月の下に空きが残る。
+   */
+  const settleHeight = () => {
+    if (scroller.current !== null) scroller.current.style.minHeight = "";
+  };
+
   // 月が変わったら（隣の月へ移り終えたら）今の月のページを正面に戻す。描く前に戻し、隣の月が一瞬見えないようにする
   useLayoutEffect(() => {
     const element = scroller.current;
@@ -98,6 +118,7 @@ export const MonthPager = ({
       if (top < 0) window.scrollBy({ top, behavior: "instant" });
     }
     pending.current = null;
+    settleHeight();
     alignNeighbors();
   }, [hydrated, month]);
 
@@ -115,6 +136,7 @@ export const MonthPager = ({
       const [prevLeft, currentLeft, nextLeft] = lefts;
       if (prevLeft === undefined || currentLeft === undefined || nextLeft === undefined) return;
       const page = snappedPage(element.scrollLeft, [prevLeft, currentLeft, nextLeft]);
+      if (page === "current") settleHeight();
       if (page === null || page === "current") return;
       const target = page === "prev" ? previous : next;
       if (pending.current === target) return;
@@ -126,6 +148,7 @@ export const MonthPager = ({
     const supportsScrollEnd = "onscrollend" in window;
     const onScroll = () => {
       alignNeighbors();
+      revealNeighbors();
       if (supportsScrollEnd) return;
       clearTimeout(idle);
       idle = setTimeout(onSettle, SCROLL_IDLE);

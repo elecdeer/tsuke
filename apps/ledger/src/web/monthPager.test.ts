@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
-import { neighborOffset, snappedPage } from "./monthPager.ts";
+import { neighborOffset, revealHeight, snappedPage } from "./monthPager.ts";
 
 describe("snappedPage", () => {
   const lefts = [0, 375, 750] as const;
@@ -29,5 +29,19 @@ describe("neighborOffset", () => {
 
   test("並びの上端が見えていればずらさない", () => {
     expect(neighborOffset(120, 56)).toBe(0);
+  });
+});
+
+describe("revealHeight", () => {
+  test("隣の月の下端のうち、深い方まで伸ばす", () => {
+    expect(revealHeight([300, 550], 100, 900)).toBe(550);
+  });
+
+  test("画面の下端より先は伸ばさない", () => {
+    expect(revealHeight([1200], 100, 900)).toBe(800);
+  });
+
+  test("箱の上端が画面の下にあれば伸ばさない", () => {
+    expect(revealHeight([300], 1000, 900)).toBe(0);
   });
 });

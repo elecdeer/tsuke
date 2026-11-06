@@ -29,3 +29,15 @@ export const snappedPage = (
  */
 export const neighborOffset = (scrollerTop: number, viewportTop: number): number =>
   Math.max(0, viewportTop - scrollerTop);
+
+/**
+ * 横に送っている間、隣の月が切れずに見えるよう、並びの箱に持たせる最低の高さを返す（px）。
+ *
+ * 箱の高さは今の月に合わせてあり、今の月が短いと隣の月の下が切れる。隣の月の下端（縦にずらした分を含む）まで伸ばすが、
+ * 画面の下端より先は見えないので、そこで止めて縦のスクロールできる量を増やしすぎない。
+ */
+export const revealHeight = (
+  neighborBottoms: readonly number[],
+  scrollerTop: number,
+  viewportBottom: number,
+): number => Math.max(0, Math.min(Math.max(0, ...neighborBottoms), viewportBottom - scrollerTop));
