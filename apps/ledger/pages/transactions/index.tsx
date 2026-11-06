@@ -1,5 +1,5 @@
 import { Link, useRouter } from "@void/react";
-import { type TransitionEvent, useState } from "react";
+import { type TransitionEvent, useEffect, useState } from "react";
 import { submitAction } from "void/pages-client";
 import { Maximize2, Plus, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
@@ -29,6 +29,7 @@ import { formatAmount, formatDayOfMonth, formatFullDay } from "@/web/format";
 import { groupByDate } from "@/web/groupByDate";
 import { ADVANCE_STATUS_LABELS, MODE_LABELS, TRANSACTION_MODES } from "@/web/labels";
 import { titleOf } from "@/web/transactionTitle";
+import { createMonthPageCache } from "@/web/monthPageCache";
 import { isFiltered, transactionsHref } from "@/web/transactionsHref";
 import type { Props } from "./index.server";
 
@@ -466,6 +467,79 @@ const SidePanel = ({
   );
 };
 
+/** 最近見た月の一覧。キーは月と絞り込みの条件を含む一覧の URL */
+const listCache = createMonthPageCache<TransactionListItem[]>();
+
+/**
+ * 件数と合計、日ごとの取引の一覧。月を移るときに横に送る部分。
+ */
+const TransactionList = ({
+  transactions,
+  filter,
+  selectedId,
+}: {
+  transactions: TransactionListItem[];
+  filter: TransactionFilter;
+  selectedId: number | undefined;
+}) => {
+  const unreceivedOnly = filter.advance === "unreceived";
+  return (
+    <div className="flex flex-col gap-8">
+      <Section label="" className="gap-y-0">
+        <ListTotals transactions={transactions} />
+      </Section>
+      {transactions.length === 0 ? (
+        <Section label="">
+          <p className="border-t border-foreground py-2.5 text-sm text-muted-foreground">
+            条件に合う取引はありません
+          </p>
+        </Section>
+      ) : (
+        <div>
+          {groupByDate(transactions).map((group, index) => (
+            <Section
+              key={group.date}
+              className="gap-y-0"
+              label={
+                <span className="block pt-2.5 text-xs font-normal text-muted-foreground tabular-nums">
+                  {unreceivedOnly ? formatFullDay(group.date) : formatDayOfMonth(group.date)}
+                </span>
+              }
+            >
+              {/* 一覧の始まりにだけ黒の線を引く */}
+              <ul className={cn(index === 0 && "border-t border-foreground")}>
+                {group.items.map((transaction) => (
+                  <TransactionRow
+                    key={transaction.id}
+                    transaction={transaction}
+                    filter={filter}
+                    selected={selectedId === transaction.id}
+                  />
+                ))}
+              </ul>
+            </Section>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * 隣の月の仮の中身。前に見た月なら覚えている一覧を、まだ見ていなければ骨組みを出す。
+ */
+const NeighborList = ({ href, filter }: { href: string; filter: TransactionFilter }) => {
+  const cached = listCache.recall(href);
+  if (cached !== undefined) {
+    return <TransactionList transactions={cached} filter={filter} selectedId={undefined} />;
+  }
+  return (
+    <Section label="" className="gap-y-0">
+      <Skeleton rows={8} />
+    </Section>
+  );
+};
+
 /**
  * 取引の一覧の画面。日付ごとにまとめ、日付を左の列に出す。
  * 広い画面で取引を選ぶと、一覧の右にサイドパネルを開いてその場で編集できる。
@@ -501,45 +575,14 @@ const TransactionsPage = ({
 
   // 月を移るときに横に送るのは件数と合計、取引の一覧だけにし、月の見出しと絞り込みは動かさない
   const list = (
-    <div className="flex flex-col gap-8">
-      <Section label="" className="gap-y-0">
-        <ListTotals transactions={transactions} />
-      </Section>
-      {transactions.length === 0 ? (
-        <Section label="">
-          <p className="border-t border-foreground py-2.5 text-sm text-muted-foreground">
-            条件に合う取引はありません
-          </p>
-        </Section>
-      ) : (
-        <div>
-          {groupByDate(transactions).map((group, index) => (
-            <Section
-              key={group.date}
-              className="gap-y-0"
-              label={
-                <span className="block pt-2.5 text-xs font-normal text-muted-foreground tabular-nums">
-                  {unreceivedOnly ? formatFullDay(group.date) : formatDayOfMonth(group.date)}
-                </span>
-              }
-            >
-              {/* 一覧の始まりにだけ黒の線を引く */}
-              <ul className={cn(index === 0 && "border-t border-foreground")}>
-                {group.items.map((transaction) => (
-                  <TransactionRow
-                    key={transaction.id}
-                    transaction={transaction}
-                    filter={filter}
-                    selected={selected?.transaction.id === transaction.id}
-                  />
-                ))}
-              </ul>
-            </Section>
-          ))}
-        </div>
-      )}
-    </div>
+    <TransactionList
+      transactions={transactions}
+      filter={filter}
+      selectedId={selected?.transaction.id}
+    />
   );
+  const currentHref = monthHref(filter.month);
+  useEffect(() => listCache.remember(currentHref, transactions), [currentHref, transactions]);
 
   return (
     <div
@@ -593,10 +636,8 @@ const TransactionsPage = ({
           <MonthPager
             month={filter.month}
             hrefOf={monthHref}
-            placeholder={() => (
-              <Section label="" className="gap-y-0">
-                <Skeleton rows={8} />
-              </Section>
+            placeholder={(neighbor) => (
+              <NeighborList href={monthHref(neighbor)} filter={{ ...filter, month: neighbor }} />
             )}
           >
             {list}
