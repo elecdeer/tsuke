@@ -42,6 +42,8 @@ vp run dev
 
 台帳の URL をブラウザで開くと、月ごとの集計（`/`）、取引の一覧と編集（`/transactions`）、口座の残高（`/accounts`）が見られる。設計は [phase3-design.md](apps/ledger/docs/phase3-design.md)。
 
+集計の画面は「月 / 年」で切り替えられ、年（`/?year=2026`）では月ごとの支出と収入のグラフと、カテゴリ別の年の合計が見られる。グラフは [TanStack Charts](https://tanstack.com/charts) で描く。設計は [yearly-summary-design.md](apps/ledger/docs/yearly-summary-design.md)。
+
 登録されている店舗は設定の下の `/settings/places` で整理する（名前の変更・統合・未使用の店舗の削除、AI の読み取り用の別名とヒント）。設計は [places-design.md](apps/ledger/docs/places-design.md)。
 
 口座は設定の下の `/settings/accounts`、カテゴリと内訳は `/settings/categories` で管理する（追加・名前の変更・並び替え・アーカイブ、口座の AI の読み取り用のヒント）。設計は [masters-design.md](apps/ledger/docs/masters-design.md)。
