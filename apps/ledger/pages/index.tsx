@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { MonthHeading } from "@/web/components/MonthHeading";
 import { MonthPager } from "@/web/components/MonthPager";
 import { Section } from "@/web/components/Section";
-import { SkeletonText } from "@/web/components/Skeleton";
+import { SkeletonBlock } from "@/web/components/Skeleton";
 import { ROW_COLUMNS, SummaryTotals } from "@/web/components/SummaryTotals";
 import { SummaryViewSwitch } from "@/web/components/SummaryViewSwitch";
 import { YearHeading } from "@/web/components/YearHeading";
@@ -154,35 +154,9 @@ type MonthSummary = MonthProps["summary"];
 /** 最近見た月の集計。隣の月を、骨組みではなく前に見た集計で見せる */
 const summaryCache = createMonthPageCache<MonthSummary>();
 
-/** 隣の月を読む前に、カテゴリの行の代わりに出す数 */
-const SKELETON_CATEGORY_ROWS = 3;
-
-/**
- * カテゴリ別の内訳を読む前の骨組み。罫線と列は本物と同じにし、名前・割合・金額だけを棒にする。
- */
-const CategoryBreakdownSkeleton = () => (
-  <div className="border-t border-foreground">
-    {Array.from({ length: SKELETON_CATEGORY_ROWS }, (_, index) => (
-      // 中身のない飾りの行なので、並びの位置をそのまま key にする
-      <div key={index} className={cn(ROW_COLUMNS, "border-b py-2.5")}>
-        <span className="pl-5">
-          <SkeletonText className={index % 2 === 0 ? "w-20" : "w-14"} />
-        </span>
-        <span className="text-right">
-          <SkeletonText className="w-8" />
-        </span>
-        <span className="text-right">
-          <SkeletonText />
-        </span>
-        <span className="col-span-3 mt-1.5 h-0.5" />
-      </div>
-    ))}
-  </div>
-);
-
 /**
  * 月の合計とカテゴリ別の内訳。月を移るときに横に送る部分。
- * 集計をまだ読んでいない隣の月（summary が null）では、数字と名前の所だけを骨組みにする。
+ * 集計をまだ読んでいない隣の月（summary が null）では、合計の金額と、カテゴリ別の内訳の全体を骨組みにする。
  *
  * 広い画面では 1 行目に月の見出しを見えないように置き、上に重ねた本物の見出しの右に合計の下端をそろえる
  * （見出しの高さを測って渡すと、描くまで位置が決まらずにずれる）。
@@ -205,25 +179,23 @@ const MonthSummaryFigures = ({
         />
       </div>
     </div>
-    <Section label="支出">
-      {summary === null ? (
-        <CategoryBreakdownSkeleton />
-      ) : (
-        <CategoryBreakdown summary={summary.payment} month={month} mode="payment" />
-      )}
-    </Section>
-    <Section label="収入">
-      {summary === null ? (
-        <CategoryBreakdownSkeleton />
-      ) : (
-        <CategoryBreakdown summary={summary.income} month={month} mode="income" />
-      )}
-    </Section>
+    {summary === null ? (
+      <SkeletonBlock rows={6} />
+    ) : (
+      <>
+        <Section label="支出">
+          <CategoryBreakdown summary={summary.payment} month={month} mode="payment" />
+        </Section>
+        <Section label="収入">
+          <CategoryBreakdown summary={summary.income} month={month} mode="income" />
+        </Section>
+      </>
+    )}
   </>
 );
 
 /**
- * 隣の月の仮の中身。前に見た月なら覚えている集計を、まだ見ていなければ数字の所だけ骨組みにして出す。
+ * 隣の月の仮の中身。前に見た月なら覚えている集計を、まだ見ていなければ骨組みを出す。
  */
 const NeighborSummary = ({ month }: { month: string }) => (
   <div className="flex flex-col gap-12">

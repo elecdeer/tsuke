@@ -24,7 +24,7 @@ import { TransactionEditor } from "@/web/components/TransactionEditor";
 import { CategoryOptions } from "@/web/components/CategoryOptions";
 import { MonthHeading } from "@/web/components/MonthHeading";
 import { MonthPager } from "@/web/components/MonthPager";
-import { SkeletonText } from "@/web/components/Skeleton";
+import { SkeletonBlock, SkeletonText } from "@/web/components/Skeleton";
 import { formatAmount, formatDayOfMonth, formatFullDay } from "@/web/format";
 import { groupByDate } from "@/web/groupByDate";
 import { ADVANCE_STATUS_LABELS, MODE_LABELS, TRANSACTION_MODES } from "@/web/labels";
@@ -536,11 +536,9 @@ const NeighborList = ({ href, filter }: { href: string; filter: TransactionFilte
   return <TransactionListSkeleton />;
 };
 
-/** 一覧を読む前に出す、日ごとのまとまりの数とその中の行の数 */
-const SKELETON_GROUPS = [2, 1, 2];
-
 /**
- * 一覧を読む前の骨組み。件数・合計のラベルと罫線、列は本物と同じにし、数字と日付、取引の名前だけを棒にする。
+ * 一覧を読む前の骨組み。件数・合計はラベルを本物で描いて数字だけを棒にし、
+ * 日ごとのまとまりは数が月ごとに変わるので、まるごと棒にする。
  */
 const TransactionListSkeleton = () => (
   <div className="flex flex-col gap-8">
@@ -556,44 +554,7 @@ const TransactionListSkeleton = () => (
         ))}
       </dl>
     </Section>
-    <div>
-      {SKELETON_GROUPS.map((rows, group) => (
-        // 中身のない飾りの行なので、並びの位置をそのまま key にする
-        <Section
-          key={group}
-          className="gap-y-0"
-          label={
-            <span className="block pt-2.5 text-xs">
-              <SkeletonText className="w-8" />
-            </span>
-          }
-        >
-          <ul className={cn(group === 0 && "border-t border-foreground")}>
-            {Array.from({ length: rows }, (_, row) => (
-              <li
-                key={row}
-                className="grid grid-cols-[minmax(0,1fr)_6rem] items-baseline gap-x-4 border-b py-2.5 sm:grid-cols-[minmax(0,1fr)_9rem_6rem]"
-              >
-                <span className="flex flex-col gap-0.5">
-                  <span>
-                    <SkeletonText className={row % 2 === 0 ? "w-32" : "w-24"} />
-                  </span>
-                  <span className="text-xs">
-                    <SkeletonText className="w-20" />
-                  </span>
-                </span>
-                <span className="hidden text-xs sm:block">
-                  <SkeletonText className="w-14" />
-                </span>
-                <span className="text-right">
-                  <SkeletonText />
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      ))}
-    </div>
+    <SkeletonBlock rows={8} />
   </div>
 );
 

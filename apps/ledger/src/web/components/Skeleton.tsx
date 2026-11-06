@@ -11,3 +11,21 @@ export const SkeletonText = ({ className }: { className?: string }) => (
     className={cn("inline-block h-[0.8em] w-16 rounded-sm bg-muted align-middle", className)}
   />
 );
+
+/**
+ * 並ぶ数が月ごとに変わる所（カテゴリや日ごとのまとまり）を読む前に、まとめて置く骨組み。
+ *
+ * 見出しや罫線まで本物で描くと、読んだあとに数が合わずに下の行がずれるので、ここはまるごと棒にする。
+ */
+export const SkeletonBlock = ({ rows }: { rows: number }) => (
+  <div aria-hidden className="flex flex-col gap-3">
+    {Array.from({ length: rows }, (_, index) => (
+      <div
+        // 中身のない飾りの行なので、並びの位置をそのまま key にする
+        key={index}
+        className="h-4 rounded-sm bg-muted"
+        style={{ width: `${90 - (index % 3) * 15}%` }}
+      />
+    ))}
+  </div>
+);
