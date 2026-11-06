@@ -12,6 +12,10 @@ import {
   updateTransaction,
 } from "../../src/ledger/transactionEdit.ts";
 import { listReimbursementCandidates } from "../../src/ledger/reimbursements.ts";
+import {
+  isTransactionFavorite,
+  setTransactionFavorite,
+} from "../../src/ledger/transactionTemplates.ts";
 import { listTransactions, type TransactionFilter } from "../../src/ledger/transactions.ts";
 import { OptionalIdSchema, OptionalMonthSchema } from "../../src/web/params.ts";
 
@@ -45,10 +49,15 @@ const filterOf = ({ selected: _selected, ...query }: TransactionsQuery): Transac
  */
 const loadSelected = async (id: number | undefined) => {
   if (id === undefined) return null;
-  const [transaction, placeList] = await Promise.all([getTransaction(db, id), listPlaces(db)]);
+  const [transaction, isFavorite, placeList] = await Promise.all([
+    getTransaction(db, id),
+    isTransactionFavorite(db, id),
+    listPlaces(db),
+  ]);
   if (transaction === undefined) return null;
   return {
     transaction,
+    isFavorite,
     placeNames: placeList.map((place) => place.name),
     reimbursementCandidates:
       transaction.mode === "income" ? await listReimbursementCandidates(db, transaction.id) : [],
@@ -111,6 +120,15 @@ export const actions = {
     body: TransactionUpdateSchema,
   })(async (c, { query, body }) => {
     const result = await updateTransaction(db, query.selected, body);
+    if (!result.ok) return c.json({ error: result.error }, result.status);
+    return undefined;
+  }),
+
+  favorite: defineHandler.withValidator({
+    query: SelectedQuerySchema,
+    body: v.object({ favorite: v.boolean() }),
+  })(async (c, { query, body }) => {
+    const result = await setTransactionFavorite(db, query.selected, body.favorite);
     if (!result.ok) return c.json({ error: result.error }, result.status);
     return undefined;
   }),

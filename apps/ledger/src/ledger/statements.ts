@@ -83,15 +83,21 @@ export const matchRegisteredPayments = (
   return matches;
 };
 
+/** 登録済みかを確かめる明細の行。支出の返金は金額が負になる */
+export type StatementModeEntry = StatementEntry & {
+  mode: "payment" | "income" | "transfer";
+};
+
 /**
- * 明細の各行について、登録済みの支出を探す。
+ * 1 つの種類の取引について、明細の行に登録済みの取引を割り当てる。
  *
- * 明細の 1 行はカードの 1 回の利用なので、1 件の取引の品目の合計と比べる
+ * 明細の 1 行は 1 回の利用なので、1 件の取引の品目の合計と比べる
  * （レシートを品目ごとに登録した取引でも、合計が明細の金額と一致する）。
  * CSV から取り込んだ取引も対象にする。
  */
-export const findRegisteredPayments = async (
+const findRegisteredByMode = async (
   db: LedgerDb,
+  mode: StatementModeEntry["mode"],
   entries: ReadonlyArray<StatementEntry>,
 ): Promise<Array<RegisteredPayment | null>> => {
   if (entries.length === 0) return [];
@@ -99,7 +105,7 @@ export const findRegisteredPayments = async (
   const from = shiftDate(dates[0] ?? "", -STATEMENT_TOLERANCE_DAYS);
   const to = shiftDate(dates.at(-1) ?? "", STATEMENT_TOLERANCE_DAYS);
 
-  const payments = await db
+  const registered = await db
     .select({
       transactionId: transactions.id,
       date: transactions.date,
@@ -109,9 +115,45 @@ export const findRegisteredPayments = async (
     .from(transactions)
     .innerJoin(transactionItems, eq(transactionItems.transactionId, transactions.id))
     .leftJoin(places, eq(places.id, transactions.placeId))
-    .where(and(eq(transactions.mode, "payment"), between(transactions.date, from, to)))
+    .where(and(eq(transactions.mode, mode), between(transactions.date, from, to)))
     .groupBy(transactions.id)
     .orderBy(asc(transactions.date), asc(transactions.id));
 
-  return matchRegisteredPayments(entries, payments);
+  return matchRegisteredPayments(entries, registered);
+};
+
+/**
+ * 明細の各行について、登録済みの支出を探す。
+ */
+export const findRegisteredPayments = (
+  db: LedgerDb,
+  entries: ReadonlyArray<StatementEntry>,
+): Promise<Array<RegisteredPayment | null>> => findRegisteredByMode(db, "payment", entries);
+
+/**
+ * 明細の各行について、同じ種類の登録済みの取引を探す。
+ *
+ * @returns `entries` と同じ順序で、割り当てた取引（なければ null）
+ */
+export const findRegisteredTransactions = async (
+  db: LedgerDb,
+  entries: ReadonlyArray<StatementModeEntry>,
+): Promise<Array<RegisteredPayment | null>> => {
+  const matches: Array<RegisteredPayment | null> = entries.map(() => null);
+  const modes = ["payment", "income", "transfer"] as const;
+  await Promise.all(
+    modes.map(async (mode) => {
+      const indexes = entries.flatMap((entry, index) => (entry.mode === mode ? [index] : []));
+      const found = await findRegisteredByMode(
+        db,
+        mode,
+        indexes.flatMap((index) => entries[index] ?? []),
+      );
+      found.forEach((match, position) => {
+        const index = indexes[position];
+        if (index !== undefined) matches[index] = match;
+      });
+    }),
+  );
+  return matches;
 };

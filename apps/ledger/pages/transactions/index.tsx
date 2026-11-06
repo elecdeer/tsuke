@@ -19,6 +19,7 @@ import { advanceStatusOf, unreceivedAmountOf } from "@/ledger/advance";
 import { cn } from "@/lib/utils";
 import { categoryLabels, categoryValueOf, parseCategoryValue } from "@/web/categoryValue";
 import { Section } from "@/web/components/Section";
+import { FavoriteButton } from "@/web/components/FavoriteButton";
 import { TransactionEditor } from "@/web/components/TransactionEditor";
 import { CategoryOptions } from "@/web/components/CategoryOptions";
 import { MonthHeading } from "@/web/components/MonthHeading";
@@ -27,6 +28,7 @@ import { Skeleton } from "@/web/components/Skeleton";
 import { formatAmount, formatDayOfMonth, formatFullDay } from "@/web/format";
 import { groupByDate } from "@/web/groupByDate";
 import { ADVANCE_STATUS_LABELS, MODE_LABELS, TRANSACTION_MODES } from "@/web/labels";
+import { titleOf } from "@/web/transactionTitle";
 import { isFiltered, transactionsHref } from "@/web/transactionsHref";
 import type { Props } from "./index.server";
 
@@ -232,21 +234,6 @@ const ListTotals = ({ transactions }: { transactions: TransactionListItem[] }) =
 };
 
 /**
- * 取引の見出し。店舗、品目名、メモ、内訳、カテゴリの順に最初に見つかったもの。どれもなければ種類の名前にする。
- */
-const titleOf = (transaction: TransactionListItem): string => {
-  const { items } = transaction;
-  return (
-    transaction.placeName ??
-    items.find((item) => item.name !== null)?.name ??
-    items.find((item) => item.memo !== null)?.memo ??
-    items.find((item) => item.genreName !== null)?.genreName ??
-    items.find((item) => item.categoryName !== null)?.categoryName ??
-    MODE_LABELS[transaction.mode]
-  );
-};
-
-/**
  * 品目の要約。1 件ならその名前、複数なら「最初の品目名 ほか N 件」。
  */
 const itemsSummaryOf = (transaction: TransactionListItem): string | null => {
@@ -405,7 +392,7 @@ const SidePanel = ({
   const [savedId, setSavedId] = useState<number | null>(null);
   const { transaction } = selected;
   // 名前付きのアクションは `?update` のようにクエリの先頭に名前を付けて呼ぶ。残りのクエリが描き直す一覧になる
-  const actionUrl = (name: "update" | "delete", selectedId?: number) =>
+  const actionUrl = (name: "update" | "delete" | "favorite", selectedId?: number) =>
     `/transactions?${name}&${transactionsHref(filter, selectedId).split("?")[1]}`;
 
   return (
@@ -417,7 +404,21 @@ const SidePanel = ({
         closing && "opacity-0",
       )}
     >
-      <div className="flex items-center justify-end gap-1">
+      <div className="flex items-center gap-1">
+        <div className="mr-auto">
+          <FavoriteButton
+            favorite={selected.isFavorite}
+            label="よく使う取引"
+            showLabel
+            onToggle={(favorite) =>
+              submitAction(router, actionUrl("favorite", transaction.id), {
+                method: "POST",
+                data: { favorite },
+                preserveScroll: true,
+              })
+            }
+          />
+        </div>
         <Link
           href={`/transactions/${transaction.id}`}
           aria-label="取引の画面で開く"
@@ -568,13 +569,21 @@ const TransactionsPage = ({
                 placeName={placeName}
                 chainNames={chainNames}
               />
-              <Link
-                href="/transactions/new"
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
-              >
-                <Plus aria-hidden="true" />
-                追加
-              </Link>
+              <div className="flex shrink-0 items-center gap-3">
+                <Link
+                  href="/statements/import"
+                  className="text-xs text-muted-foreground underline hover:text-foreground"
+                >
+                  CSV の取り込み
+                </Link>
+                <Link
+                  href="/transactions/new"
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                >
+                  <Plus aria-hidden="true" />
+                  追加
+                </Link>
+              </div>
             </div>
           </div>
         </div>
