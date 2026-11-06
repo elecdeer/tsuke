@@ -1,11 +1,18 @@
 import { useRouter } from "@void/react";
-import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { shiftMonth } from "@/ledger/dates";
 import { cn } from "@/lib/utils";
 import { neighborOffset, snappedPage } from "@/web/monthPager";
 
 /** scrollend の来ないブラウザで、スクロールが止まったとみなすまでの時間（ms） */
 const SCROLL_IDLE = 120;
+
+/** 変わらない値を読むので、購読するものはない */
+const subscribeNothing = (): (() => void) => () => {};
+/** ブラウザで描いているときは true。サーバーとハイドレーションの間は isServer の false を使う */
+const isClient = (): boolean => true;
+/** サーバーで描くときとハイドレーションの間の値 */
+const isServer = (): boolean => false;
 
 /**
  * 隣の月を見せはじめる位置（ビューポートの上からの px）。上に固定したヘッダーの下端にする。
@@ -43,8 +50,7 @@ export const MonthPager = ({
   const pending = useRef<string | null>(null);
   // サーバーで描いた HTML は横のスクロール位置を持てないので、隣の月は読み込みのあとに足す。
   // 先に足すと、スクリプトが動くまで前の月の仮の中身が正面に見えてしまう
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => setHydrated(true), []);
+  const hydrated = useSyncExternalStore(subscribeNothing, isClient, isServer);
 
   const previous = shiftMonth(month, -1);
   const next = shiftMonth(month, 1);
