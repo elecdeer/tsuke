@@ -2,7 +2,7 @@ import { useRouter } from "@void/react";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import { type MonthSlideDirection, setMonthSlide } from "@/web/monthSlide";
-import { neighborOffset, revealHeight, snappedPage } from "@/web/monthPager";
+import { fillHeight, neighborOffset, revealHeight, snappedPage } from "@/web/monthPager";
 
 /** scrollend の来ないブラウザで、スクロールが止まったとみなすまでの時間（ms） */
 const SCROLL_IDLE = 120;
@@ -104,6 +104,26 @@ export const PeriodPager = ({
     }
   };
 
+  // 中身が短くても画面の下端まで届く高さ（fitViewport で測る）。止まっているときの箱の最低の高さにする
+  const baseHeight = useRef(0);
+
+  /**
+   * 中身が短いときも、並びの箱を画面の下端まで伸ばす。下の空いた所でもつかんで横に送れるようにする。
+   *
+   * 箱より下の余白（main の下の余白など）は main の下端までの距離で測る。文書全体の高さはレイアウトが
+   * 画面の高さ（min-h-dvh）にそろえているので、空いた所まで余白に数えてしまう。
+   * この距離は箱の高さで変わらないので、箱の高さを戻さずに測れる（戻すとページが一瞬縮み、縦の位置がずれる）。
+   */
+  const fitViewport = () => {
+    const element = scroller.current;
+    if (element === null) return;
+    const rect = element.getBoundingClientRect();
+    const below =
+      (element.closest("main")?.getBoundingClientRect().bottom ?? rect.bottom) - rect.bottom;
+    baseHeight.current = fillHeight(rect.top + window.scrollY, window.innerHeight, below);
+    element.style.minHeight = `${baseHeight.current}px`;
+  };
+
   /**
    * 横に送っている間、今の期間より長い隣の期間が切れないよう、並びの箱を画面の下端まで伸ばす。
    */
@@ -114,14 +134,15 @@ export const PeriodPager = ({
     const bottoms = neighbors.current.map(
       (neighbor) => neighbor.getBoundingClientRect().bottom - top,
     );
-    element.style.minHeight = `${revealHeight(bottoms, top, window.innerHeight)}px`;
+    const height = Math.max(baseHeight.current, revealHeight(bottoms, top, window.innerHeight));
+    element.style.minHeight = `${height}px`;
   };
 
   /**
-   * 今の期間で止まったら、伸ばした高さを戻す。伸ばしたままだと短い期間の下に空きが残る。
+   * 今の期間で止まったら、隣の期間のために伸ばした高さを戻す。伸ばしたままだと短い期間の下に空きが残る。
    */
   const settleHeight = () => {
-    if (scroller.current !== null) scroller.current.style.minHeight = "";
+    if (scroller.current !== null) scroller.current.style.minHeight = `${baseHeight.current}px`;
   };
 
   // 期間が変わったら（隣の期間へ移り終えたら）今の期間のページを正面に戻す。描く前に戻し、隣の期間が一瞬見えないようにする
@@ -135,7 +156,7 @@ export const PeriodPager = ({
       if (top < 0) window.scrollBy({ top, behavior: "instant" });
     }
     pending.current = null;
-    settleHeight();
+    fitViewport();
     alignNeighbors();
   }, [hydrated, period]);
 
@@ -175,8 +196,14 @@ export const PeriodPager = ({
     if (supportsScrollEnd) element.addEventListener("scrollend", onSettle);
     window.addEventListener("scroll", alignNeighbors, { passive: true });
     window.addEventListener("resize", alignNeighbors, { passive: true });
+    // 画面の大きさや、並びより上の中身（絞り込みの行の折り返しなど）が変わると、下端まで届く高さも変わる
+    const observer = new ResizeObserver(fitViewport);
+    observer.observe(document.body);
+    window.addEventListener("resize", fitViewport, { passive: true });
     return () => {
       clearTimeout(idle);
+      observer.disconnect();
+      window.removeEventListener("resize", fitViewport);
       element.removeEventListener("scroll", onScroll);
       element.removeEventListener("scrollend", onSettle);
       window.removeEventListener("scroll", alignNeighbors);

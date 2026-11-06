@@ -41,3 +41,13 @@ export const revealHeight = (
   scrollerTop: number,
   viewportBottom: number,
 ): number => Math.max(0, Math.min(Math.max(0, ...neighborBottoms), viewportBottom - scrollerTop));
+
+/**
+ * 中身が短くても並びの箱が画面の下端まで届くよう、箱に持たせる最低の高さを返す（px）。
+ * 下の空いた所でもつかんで横に送れるようにするため。
+ *
+ * scrollerTop は箱の上端の文書の中での位置、below は箱より下にある余白など（ページの下の余白）の高さ。
+ * ちょうど画面に収まる高さにするので、短い月でもページが縦にスクロールできるようにはならない。
+ */
+export const fillHeight = (scrollerTop: number, viewportHeight: number, below: number): number =>
+  Math.max(0, viewportHeight - scrollerTop - below);
