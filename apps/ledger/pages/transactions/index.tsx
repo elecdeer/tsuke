@@ -501,6 +501,9 @@ const TransactionList = ({
             <Section
               key={group.date}
               className="gap-y-0"
+              // スクロールしても今見ている日付がわかるよう、日付をヘッダーの下に貼り付ける。
+              // 狭い画面では日付が行の上に積まれ、行と重なるので背景で隠す
+              labelClassName="sticky top-(--header-height) z-10 self-start bg-background"
               label={
                 <span className="block pt-2.5 text-xs font-normal text-muted-foreground tabular-nums">
                   {unreceivedOnly ? formatFullDay(group.date) : formatDayOfMonth(group.date)}
