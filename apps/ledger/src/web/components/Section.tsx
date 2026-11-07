@@ -19,7 +19,7 @@ export const Section = ({
 }) => (
   <section className="@container">
     <div className={cn("grid gap-x-4 gap-y-2 @min-[46rem]:grid-cols-12", className)}>
-      <div className="text-sm font-medium @min-[46rem]:col-span-3">{label}</div>
+      <div className="text-base font-semibold @min-[46rem]:col-span-3">{label}</div>
       <div className="min-w-0 @min-[46rem]:col-span-9">{children}</div>
     </div>
   </section>
