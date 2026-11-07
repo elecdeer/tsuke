@@ -44,3 +44,20 @@ export const formatDayOfMonth = (date: string): string => {
   const parsed = new Date(`${date}T00:00:00Z`);
   return `${parsed.getUTCDate()} ${"日月火水木金土"[parsed.getUTCDay()]}`;
 };
+
+const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/**
+ * ISO 8601 の日時を、日本時間の「2026/10/28 09:05」の形で書く。
+ *
+ * サーバーと端末で同じ文字列になるよう、端末のタイムゾーンではなく日本時間に決めて書く。
+ */
+export const formatDateTime = (iso: string): string => dateTimeFormat.format(new Date(iso));

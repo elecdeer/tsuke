@@ -1,4 +1,4 @@
-import { Link } from "@void/react";
+import { Link, useRouter } from "@void/react";
 import { ChevronRight, CircleCheck, FileUp, LoaderCircle, TriangleAlert } from "lucide-react";
 import { memo, useCallback, useId, useState, type ChangeEvent } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -26,7 +26,7 @@ import type { ReadQuality } from "@/llm/readQuality";
 import { cn } from "@/lib/utils";
 import { ErrorMessage } from "@/web/components/ErrorMessage";
 import { Section } from "@/web/components/Section";
-import { formatDay, formatYen } from "@/web/format";
+import { formatDateTime, formatDay, formatYen } from "@/web/format";
 import { MODE_LABELS } from "@/web/labels";
 import { formatReadTime } from "@/web/receiptQueue";
 import {
@@ -154,6 +154,44 @@ const ReadDetails = ({ summary }: { summary: ReadSummary }) => (
 );
 
 const SELECT_CLASS = "col-start-2 w-full @2xl:col-start-auto";
+
+/**
+ * 前回の取り込みを 1 行の文にする。次にどの日付からの CSV を出せばよいか分かるよう、明細の最後の日付を添える。
+ */
+const describeLastImport = (lastImport: Props["lastImports"][number]): string =>
+  [
+    `${formatDateTime(lastImport.importedAt)} に取り込み`,
+    lastImport.lastDate === null ? null : `${formatDay(lastImport.lastDate)} までの明細`,
+    `${lastImport.fileName}・${lastImport.rowCount} 件`,
+  ]
+    .filter((part) => part !== null)
+    .join("・");
+
+/**
+ * 口座ごとの前回の取り込み。次に出す CSV の期間を決めるのに使う。
+ */
+const LastImports = ({ lastImports }: { lastImports: Props["lastImports"] }) => (
+  <div className="flex flex-col gap-1">
+    <h2 className="text-xs text-muted-foreground">前回の取り込み</h2>
+    {lastImports.length === 0 ? (
+      <p className="text-sm text-muted-foreground">まだ取り込んでいません</p>
+    ) : (
+      <dl className="border-t">
+        {lastImports.map((lastImport) => (
+          <div
+            key={lastImport.accountId}
+            className="flex flex-col gap-0.5 border-b py-2 @md:flex-row @md:items-baseline @md:gap-4"
+          >
+            <dt className="shrink-0 text-sm @md:w-32 @md:truncate">{lastImport.accountName}</dt>
+            <dd className="min-w-0 text-xs text-muted-foreground tabular-nums break-all">
+              {describeLastImport(lastImport)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    )}
+  </div>
+);
 
 /**
  * 明細の 1 行。種類に応じて、内訳・カテゴリ・相手の口座のどれかを選ばせる。
@@ -348,7 +386,9 @@ const StatementImportPage = ({
   paymentCategories,
   incomeCategories,
   placeNames,
+  lastImports,
 }: Props) => {
+  const router = useRouter();
   const fileInputId = useId();
   const placeListId = useId();
   const [reading, setReading] = useState(false);
@@ -362,6 +402,7 @@ const StatementImportPage = ({
   const [registeredCount, setRegisteredCount] = useState<number | null>(null);
 
   const busy = reading || registering;
+  const lastImportOfAccount = lastImports.find((lastImport) => lastImport.accountId === accountId);
   const pendingCount = drafts.filter((draft) => draft.pending).length;
   const selected = drafts.filter((draft) => draft.selected);
   const problemCount = selected.filter((draft) => draftProblem(draft, accountId) !== null).length;
@@ -479,6 +520,8 @@ const StatementImportPage = ({
       setRegisteredCount(count);
       setSummary(null);
       setDrafts([]);
+      // 前回の取り込みの表示を今の登録に更新する。登録の結果の表示は残す
+      void router.refresh({ preserveState: true, preserveScroll: true });
     } catch (registerError) {
       setError(apiErrorMessage(registerError, "登録できませんでした"));
     } finally {
@@ -550,6 +593,9 @@ const StatementImportPage = ({
               </Link>
             </output>
           )}
+          <div className="@container">
+            <LastImports lastImports={lastImports} />
+          </div>
         </div>
       </Section>
 
@@ -572,6 +618,11 @@ const StatementImportPage = ({
                   </NativeSelectOption>
                 ))}
               </NativeSelect>
+              {lastImportOfAccount !== undefined && (
+                <p className="text-xs text-muted-foreground">
+                  この口座の前回の取り込み：{describeLastImport(lastImportOfAccount)}
+                </p>
+              )}
               <output className="text-xs text-muted-foreground">
                 {summary.file.name}：{drafts.length} 行を読み取りました
                 {pendingCount > 0 && `。${pendingCount} 行を分類しています`}

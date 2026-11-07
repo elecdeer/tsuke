@@ -103,12 +103,18 @@ export const places = sqliteTable("places", {
   ...timestamps(),
 });
 
-/** 取り込みの記録。総入れ替えや取り消しのときに取り込み単位で取引を探す */
+/**
+ * 取り込みの記録。総入れ替えや取り消しのときに取り込み単位で取引を探す
+ *
+ * account_id は履歴 CSV の口座。口座ごとの前回の取り込みを出すのに使うだけなので、口座の整理を妨げないよう
+ * 外部キーにせず読むときに確かめる。Zaim の CSV は複数の口座をまとめて含むので null にする。
+ */
 export const importBatches = sqliteTable("import_batches", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   source: text("source", { enum: ["zaim_csv", "statement_csv"] }).notNull(),
   fileName: text("file_name").notNull(),
   rowCount: integer("row_count").notNull(),
+  accountId: integer("account_id"),
   importedAt: text("imported_at")
     .notNull()
     .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
