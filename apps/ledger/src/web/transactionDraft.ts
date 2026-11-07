@@ -146,6 +146,15 @@ export const itemsTotalOf = (items: readonly ItemDraft[]): number =>
   items.reduce((sum, item) => sum + draftAmountOf(item.amount), 0);
 
 /**
+ * 立替の入力に値があるか。立替額か、紐付けた支出があれば true を返す。
+ *
+ * 編集画面で立替の入力欄を最初から開いておくかを決めるのに使う。
+ */
+export const hasAdvanceInput = (
+  draft: Pick<TransactionDraft, "advanceAmount" | "reimbursements">,
+): boolean => (draft.advanceAmount ?? "").trim() !== "" || (draft.reimbursements ?? []).length > 0;
+
+/**
  * 品目の立替の対象の印を変え、対象の品目の合計を立替額に入れる。印がなくなったら立替額を空にする。
  */
 export const toggleAdvanceTarget = (
