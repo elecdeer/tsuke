@@ -1,7 +1,7 @@
 /**
  * 取引の入力欄の部品。取引の編集・手入力の登録・レシートの登録の画面で共有する。
  */
-import { ArrowDown, ArrowUp, MessageSquarePlus, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Ellipsis, MessageSquarePlus, Plus, Trash2 } from "lucide-react";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react";
 import {
   useId,
@@ -30,6 +30,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -66,15 +73,19 @@ import { cn } from "@/lib/utils";
 export type AccountOption = { id: number; name: string };
 
 /**
- * 品目の列。広いところでは品目を 1 行に並べ、列の名前は表の見出しに 1 度だけ出す。
+ * 品目の列。列の名前は表の見出しに 1 度だけ出す。
+ *
+ * 狭いところでは 1 行目に品目名と金額、2 行目に内訳とメモを置く。広いところでは品目を 1 行に並べる。
  * 取引の一覧のサイドパネルのような狭い場所にも置くので、画面の幅ではなく Section の幅（コンテナクエリ）で切り替える。
- * 支出は並べ替え・削除のボタンの列を持ち、振替・残高調整はカテゴリの列を持たない。
+ * 支出は並べ替え・削除のメニューの列を持ち、振替・残高調整はカテゴリの列を持たない。
  */
 const ITEM_COLUMNS: Record<TransactionMode, string> = {
-  payment: "@xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem]",
-  income: "@xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_7rem]",
-  transfer: "@xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]",
-  adjustment: "@xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]",
+  payment:
+    "grid-cols-[minmax(0,1fr)_7rem_1.75rem] @xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_7rem_1.75rem]",
+  income:
+    "grid-cols-[minmax(0,1fr)_7rem] @xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_7rem]",
+  transfer: "grid-cols-[minmax(0,1fr)_7rem] @xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]",
+  adjustment: "grid-cols-[minmax(0,1fr)_7rem] @xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]",
 };
 
 /**
@@ -251,10 +262,13 @@ type ItemTextField = "name" | "memo";
 const ItemTextButton = ({
   id,
   value,
+  placeholder,
   onClick,
 }: {
   id: string;
   value: string;
+  /** 空のときに薄く出す文字。列の見出しを出さない狭い場所で、何の欄かを示す */
+  placeholder?: string;
   onClick: () => void;
 }) => (
   <button
@@ -265,7 +279,11 @@ const ItemTextButton = ({
     className={cn(selectTriggerClassName, "w-full")}
     onClick={onClick}
   >
-    <span className="min-w-0 flex-1 truncate text-left">{value}</span>
+    {value === "" && placeholder !== undefined ? (
+      <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{placeholder}</span>
+    ) : (
+      <span className="min-w-0 flex-1 truncate text-left">{value}</span>
+    )}
   </button>
 );
 
@@ -344,11 +362,12 @@ const ItemTextDialog = ({
 /**
  * 品目 1 件の入力欄。支出と収入ではカテゴリも選ぶ。
  *
- * 狭いところでは内訳と金額を横に並べ、品目名とメモに両列を使う。
- * 内訳のない種類では金額の隣が空くので、メモと金額を横に並べる。
+ * 狭いところでは、品目を見分ける品目名と金額を 1 行目に、内訳を 2 行目に小さく置く。
+ * 列の名前は表の見出しに出すので、欄ごとのラベルは読み上げ用にだけ残す。
  *
- * 支出のメモは空のことが多いので、狭いところでは空の欄を隠し、行のボタンの列に追加のボタンを出す。
+ * 支出のメモは空のことが多いので、狭いところでは空の欄を隠し、行のメニューに追加の項目を出す。
  * 広いところではメモは表の列なので、列がずれないよう空でも欄を残す。
+ * 並べ替え・削除は毎回使うものではないので、行ごとのボタンを並べずメニューにまとめる。
  */
 const ItemFields = ({
   mode,
@@ -385,7 +404,7 @@ const ItemFields = ({
     <div
       className={cn(
         // 広い画面では入力欄の下線が行の区切りを兼ねるので、行の罫線は狭い画面（欄を積むとき）だけに引く
-        "grid grid-cols-2 gap-x-4 gap-y-2 border-b py-3 @xl:items-end @xl:border-b-0 @xl:py-2",
+        "grid items-end gap-x-4 gap-y-0.5 border-b py-2 @xl:gap-y-2 @xl:border-b-0",
         ITEM_COLUMNS[mode],
       )}
     >
@@ -393,8 +412,8 @@ const ItemFields = ({
         <FormField
           label={mode === "payment" ? "内訳" : "カテゴリ"}
           htmlFor={ids.category}
-          labelClassName="@xl:sr-only"
-          className="order-first @xl:order-none"
+          labelClassName="sr-only"
+          className="order-4 @xl:order-none"
         >
           <Select
             items={{
@@ -405,7 +424,11 @@ const ItemFields = ({
             value={item.category}
             onValueChange={(value) => onChange({ category: value ?? "" })}
           >
-            <SelectTrigger id={ids.category} className="w-full">
+            <SelectTrigger
+              id={ids.category}
+              // 狭いところでは品目名に従う 2 行目なので、下線を消して小さく薄く出す
+              className="w-fit max-w-full border-transparent text-xs text-muted-foreground @xl:w-full @xl:border-foreground/40 @xl:text-sm @xl:text-foreground"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -428,27 +451,37 @@ const ItemFields = ({
       <FormField
         label="品目名"
         htmlFor={ids.name}
-        labelClassName="@xl:sr-only"
-        className="col-span-2 @xl:col-span-1"
+        labelClassName="sr-only"
+        className="order-1 @xl:order-none"
       >
-        <ItemTextButton id={ids.name} value={item.name} onClick={() => setEditing("name")} />
+        <ItemTextButton
+          id={ids.name}
+          value={item.name}
+          placeholder="品目名"
+          onClick={() => setEditing("name")}
+        />
       </FormField>
       <FormField
         label="メモ"
         htmlFor={ids.memo}
-        labelClassName="@xl:sr-only"
+        labelClassName="sr-only"
         className={cn(
-          hasCategory && "col-span-2 @xl:col-span-1",
+          "order-5 col-span-full @xl:order-none @xl:col-span-1",
           memoCollapsed && "hidden @xl:flex",
         )}
       >
-        <ItemTextButton id={ids.memo} value={item.memo} onClick={() => setEditing("memo")} />
+        <ItemTextButton
+          id={ids.memo}
+          value={item.memo}
+          placeholder="メモ"
+          onClick={() => setEditing("memo")}
+        />
       </FormField>
       <FormField
         label="金額"
         htmlFor={ids.amount}
-        labelClassName="@xl:sr-only"
-        className={cn(hasCategory && "order-first @xl:order-none")}
+        labelClassName="sr-only"
+        className="order-2 @xl:order-none"
       >
         <div className="relative">
           <Input
@@ -468,45 +501,36 @@ const ItemFields = ({
         </div>
       </FormField>
       {mode === "payment" && (
-        <div className="col-span-2 flex justify-end gap-0.5 @xl:col-span-1">
-          {memoCollapsed && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="メモを追加"
-              className="@xl:hidden"
-              onClick={() => setEditing("memo")}
+        <div className="order-3 flex justify-end @xl:order-none">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="icon-sm" aria-label="品目の操作" />}
             >
-              <MessageSquarePlus />
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="上へ"
-            disabled={index === 0}
-            onClick={() => onMove(-1)}
-          >
-            <ArrowUp />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="下へ"
-            disabled={index === count - 1}
-            onClick={() => onMove(1)}
-          >
-            <ArrowDown />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="品目を消す"
-            disabled={count === 1}
-            onClick={onRemove}
-          >
-            <Trash2 />
-          </Button>
+              <Ellipsis />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-auto">
+              {memoCollapsed && (
+                // 広いところではメモの欄がいつも見えているので、追加の項目は要らない
+                <DropdownMenuItem className="@xl:hidden" onClick={() => setEditing("memo")}>
+                  <MessageSquarePlus />
+                  メモを追加
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem disabled={index === 0} onClick={() => onMove(-1)}>
+                <ArrowUp />
+                上へ
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={index === count - 1} onClick={() => onMove(1)}>
+                <ArrowDown />
+                下へ
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" disabled={count === 1} onClick={onRemove}>
+                <Trash2 />
+                品目を消す
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
       <ItemTextDialog
@@ -559,19 +583,19 @@ export const ItemsFields = ({
       <div
         aria-hidden="true"
         className={cn(
-          "hidden gap-x-4 border-b border-foreground pb-1.5 text-xs text-muted-foreground @xl:grid",
+          "grid gap-x-4 border-b border-foreground pb-1.5 text-xs text-muted-foreground",
           ITEM_COLUMNS[mode],
         )}
       >
+        {/* 狭いところでは 1 行目の品目名と金額の見出しだけを出す */}
         {(mode === "payment" || mode === "income") && (
-          <span>{mode === "payment" ? "内訳" : "カテゴリ"}</span>
+          <span className="hidden @xl:block">{mode === "payment" ? "内訳" : "カテゴリ"}</span>
         )}
         <span>品目名</span>
-        <span>メモ</span>
+        <span className="hidden @xl:block">メモ</span>
         <span className="text-right">金額</span>
       </div>
-      {/* 狭い画面では見出しを出さないので、表の始まりの線をここで引く */}
-      <div className="border-t border-foreground @xl:border-t-0">
+      <div>
         {items.map((item, index) => (
           <ItemFields
             key={item.key}
