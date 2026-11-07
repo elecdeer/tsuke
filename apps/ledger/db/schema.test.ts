@@ -138,6 +138,47 @@ describe("台帳のスキーマ", () => {
 });
 
 describe("マイグレーション", () => {
+  test("既存の履歴 CSV の取り込みの口座を、支出・収入の取引から埋める", () => {
+    const db = createDb();
+    const files = migrationFiles();
+    const target = files.findIndex((name) => name.endsWith("_flippant_menace.sql"));
+    applyMigrations(db, files.slice(0, target));
+    const bank = insert(db, "INSERT INTO accounts (name) VALUES ('A銀行')");
+    const card = insert(db, "INSERT INTO accounts (name) VALUES ('Bカード')");
+    const addBatch = (source: string) =>
+      insert(
+        db,
+        "INSERT INTO import_batches (source, file_name, row_count) VALUES (?, 'a.csv', 1)",
+        source,
+      );
+    const addTransaction = (batch: number, mode: string, from: number | null, to: number | null) =>
+      insert(
+        db,
+        "INSERT INTO transactions (date, mode, from_account_id, to_account_id, source, import_batch_id) VALUES ('2026-05-01', ?, ?, ?, 'statement_csv', ?)",
+        mode,
+        from,
+        to,
+        batch,
+      );
+    const paymentBatch = addBatch("statement_csv");
+    addTransaction(paymentBatch, "transfer", card, bank);
+    addTransaction(paymentBatch, "payment", card, null);
+    const incomeBatch = addBatch("statement_csv");
+    addTransaction(incomeBatch, "income", null, bank);
+    const transferOnlyBatch = addBatch("statement_csv");
+    addTransaction(transferOnlyBatch, "transfer", bank, card);
+    addBatch("zaim_csv");
+
+    applyMigrations(db, files.slice(target));
+
+    expect(db.prepare("SELECT account_id FROM import_batches ORDER BY id").all()).toEqual([
+      { account_id: card },
+      { account_id: bank },
+      { account_id: null },
+      { account_id: null },
+    ]);
+  });
+
   test("口座に日時の列を足しても既存の口座が残る", () => {
     const db = createDb();
     const [first, ...rest] = migrationFiles();

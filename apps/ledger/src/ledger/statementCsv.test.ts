@@ -4,6 +4,7 @@ import { createTestLedgerDb, insert } from "../../db/testing.ts";
 import type { LedgerDb } from "../db.ts";
 import { descriptionKey } from "../import/statementCsv.ts";
 import {
+  listLastStatementImports,
   loadStatementCsvMemory,
   registerStatementCsv,
   type StatementCsvRegisterInput,
@@ -311,6 +312,73 @@ describe("履歴 CSV の登録", () => {
       ]);
 
       expect((await loadStatementCsvMemory(db)).classifications.size).toBe(0);
+    });
+  });
+
+  describe("口座ごとの前回の取り込み", () => {
+    const payment = (date: string) => ({
+      mode: "payment" as const,
+      date,
+      amount: 1000,
+      placeName: null,
+      name: null,
+      genreId: genre,
+    });
+
+    test("取り込みがなければ空", async () => {
+      expect(await listLastStatementImports(db)).toEqual([]);
+    });
+
+    test("口座ごとに最後の取り込みと、その取引の最も新しい日付を返す", async () => {
+      await registerStatementCsv(db, {
+        fileName: "bank-old.csv",
+        accountId: bank,
+        rows: [payment("2026-04-30")],
+      });
+      await registerStatementCsv(db, {
+        fileName: "card.csv",
+        accountId: card,
+        rows: [payment("2026-05-20")],
+      });
+      await registerStatementCsv(db, {
+        fileName: "bank-new.csv",
+        accountId: bank,
+        rows: [payment("2026-05-31"), payment("2026-05-01")],
+      });
+
+      const imports = await listLastStatementImports(db);
+
+      expect(imports).toEqual([
+        {
+          accountId: bank,
+          accountName: "A銀行",
+          importedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+          fileName: "bank-new.csv",
+          rowCount: 2,
+          lastDate: "2026-05-31",
+        },
+        {
+          accountId: card,
+          accountName: "Bカード",
+          importedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+          fileName: "card.csv",
+          rowCount: 1,
+          lastDate: "2026-05-20",
+        },
+      ]);
+    });
+
+    test("Zaim の CSV の取り込みと、台帳にない口座の取り込みは含めない", async () => {
+      insert(
+        sqlite,
+        "INSERT INTO import_batches (source, file_name, row_count) VALUES ('zaim_csv', 'zaim.csv', 1)",
+      );
+      insert(
+        sqlite,
+        "INSERT INTO import_batches (source, file_name, row_count, account_id) VALUES ('statement_csv', 'gone.csv', 1, 999)",
+      );
+
+      expect(await listLastStatementImports(db)).toEqual([]);
     });
   });
 });

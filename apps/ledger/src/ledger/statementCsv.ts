@@ -1,7 +1,7 @@
 /**
  * 履歴 CSV から読み取った行の一括登録。
  */
-import { eq, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, isNotNull, max, sql, type SQL } from "drizzle-orm";
 import * as v from "valibot";
 import {
   accounts,
@@ -272,6 +272,7 @@ export const registerStatementCsv = async (
       source: "statement_csv",
       fileName: input.fileName,
       rowCount: input.rows.length,
+      accountId: input.accountId,
     }),
     ...placeNames.map((name) => upsertPlaceByName(db, name, null)),
     ...rowStatements,
@@ -301,4 +302,46 @@ export const registerStatementCsv = async (
     ),
   ]);
   return { ok: true, count: input.rows.length };
+};
+
+/** 口座ごとの前回の履歴 CSV の取り込み */
+export type LastStatementImport = {
+  accountId: number;
+  accountName: string;
+  /** 取り込んだ日時（ISO 8601、UTC） */
+  importedAt: string;
+  fileName: string;
+  rowCount: number;
+  /** 取り込んだ取引のうち最も新しい日付。取引がすべて消されていれば null */
+  lastDate: string | null;
+};
+
+/**
+ * 口座ごとに、最後の履歴 CSV の取り込みを返す。次にどこからの CSV を出せばよいか分かるよう、取り込んだ取引の最も新しい日付も返す。
+ *
+ * 取り込みの口座は外部キーではないので、今の台帳にない口座の取り込みは除く。並びは口座の並び順。
+ */
+export const listLastStatementImports = async (db: LedgerDb): Promise<LastStatementImport[]> => {
+  const latestBatches = db
+    .select({ id: max(importBatches.id).as("latest_id") })
+    .from(importBatches)
+    .where(and(eq(importBatches.source, "statement_csv"), isNotNull(importBatches.accountId)))
+    .groupBy(importBatches.accountId)
+    .as("latest_batches");
+  const rows = await db
+    .select({
+      accountId: accounts.id,
+      accountName: accounts.name,
+      importedAt: importBatches.importedAt,
+      fileName: importBatches.fileName,
+      rowCount: importBatches.rowCount,
+      lastDate: sql<
+        string | null
+      >`(SELECT MAX(${transactions.date}) FROM ${transactions} WHERE ${transactions.importBatchId} = ${importBatches.id})`,
+    })
+    .from(latestBatches)
+    .innerJoin(importBatches, eq(importBatches.id, latestBatches.id))
+    .innerJoin(accounts, eq(accounts.id, importBatches.accountId))
+    .orderBy(asc(accounts.sort), asc(accounts.id));
+  return rows;
 };
