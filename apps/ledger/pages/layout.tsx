@@ -3,7 +3,7 @@ import { Link, useNavigation, useRouter } from "@void/react";
 import { Camera, ChartPie, List, type LucideIcon, Settings, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { isActive, isNavigating, navPath } from "../src/web/nav.ts";
+import { isActive, isNavigating, navHref, navPath } from "../src/web/nav.ts";
 
 const NAV_ITEMS: ReadonlyArray<{ href: string; label: string; icon: LucideIcon }> = [
   { href: "/", label: "集計", icon: ChartPie },
@@ -17,7 +17,13 @@ const NAV_ITEMS: ReadonlyArray<{ href: string; label: string; icon: LucideIcon }
  *
  * 今いる画面は、広い画面のナビの下線と同じ赤の線を項目の上端に引いて示す。
  */
-const BottomNav = ({ activePath }: { activePath: string }) => (
+const BottomNav = ({
+  activePath,
+  hrefOf,
+}: {
+  activePath: string;
+  hrefOf: (href: string) => string;
+}) => (
   <nav
     aria-label="メイン"
     className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
@@ -28,7 +34,7 @@ const BottomNav = ({ activePath }: { activePath: string }) => (
       return (
         <Link
           key={item.href}
-          href={item.href}
+          href={hrefOf(item.href)}
           aria-current={active ? "page" : undefined}
           className={cn(
             "-mt-px flex h-(--bottom-nav-height) flex-col items-center justify-center gap-0.5 border-t-2 border-transparent text-[0.6875rem] text-muted-foreground",
@@ -49,12 +55,15 @@ const BottomNav = ({ activePath }: { activePath: string }) => (
  * ヘッダーは画面の上に固定し、スクロールしてもナビと進行バーが見えるようにする。
  * ヘッダーも本文と同じ 12 列のグリッドに載せ、ナビを本文の中身の列（右の 9 列）にそろえる。
  * 狭い画面ではナビをヘッダーから外し、画面の下に固定する（BottomNav）。
+ * 集計（月の表示）と取引の一覧の間は、見ている月を引き継いで移る（navHref）。
  * 画面の移動中は前の画面が残るので、ヘッダーの上端に進行バーを出し、押したタブにすぐ下線を移す。
  */
 const Layout = ({ children }: { children: ReactNode }) => {
   const { path, query } = useRouter();
   const navigation = useNavigation();
   const activePath = navPath(path, navigation);
+  // 集計と取引の一覧の間では、見ている月を引き継いで移る
+  const hrefOf = (href: string) => navHref(href, path, query);
   // 取引の一覧でサイドパネルを開いている間は、一覧とパネルを並べられるようヘッダーと本文を広げる
   const wide = path === "/transactions" && query.has("selected");
 
@@ -82,7 +91,7 @@ const Layout = ({ children }: { children: ReactNode }) => {
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    href={hrefOf(item.href)}
                     aria-current={active ? "page" : undefined}
                     className={cn(
                       "-mb-px border-b-2 border-transparent pb-2 text-sm text-muted-foreground hover:text-foreground",
@@ -118,7 +127,7 @@ const Layout = ({ children }: { children: ReactNode }) => {
       >
         {children}
       </main>
-      <BottomNav activePath={activePath} />
+      <BottomNav activePath={activePath} hrefOf={hrefOf} />
     </div>
   );
 };

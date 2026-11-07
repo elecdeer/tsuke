@@ -16,37 +16,3 @@ export const setMonthSlide = (
 ): void => {
   root.dataset.monthSlide = direction;
 };
-
-/**
- * 指が触れた位置と時刻。
- */
-export type TouchPoint = { x: number; y: number; time: number };
-
-/** 月を移すと見なす横の移動量の下限（px） */
-const MIN_SWIPE_DISTANCE = 60;
-/** 横の移動量が縦の何倍あれば横のスワイプと見なすか */
-const MIN_HORIZONTAL_RATIO = 2;
-/** ゆっくり指を動かしたときは、文字を選ぶなど別の操作として月を移さない（ms） */
-const MAX_SWIPE_DURATION = 800;
-/** 画面の端からのスワイプは、iOS の「戻る」などブラウザの操作に任せる（px） */
-const EDGE_GUARD = 24;
-
-/**
- * 横のスワイプから月を移す向きを返す。月を移さないスワイプなら null を返す。
- *
- * 左へ払えば次の月、右へ払えば前の月へ移る（ページをめくる向き）。
- * 縦のスクロールの途中で少し横にぶれただけでは移らないよう、横の移動が縦より十分大きいときだけ認める。
- */
-export const swipeDirection = (
-  start: TouchPoint,
-  end: TouchPoint,
-  viewportWidth: number,
-): MonthSlideDirection | null => {
-  if (start.x < EDGE_GUARD || start.x > viewportWidth - EDGE_GUARD) return null;
-  if (end.time - start.time > MAX_SWIPE_DURATION) return null;
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  if (Math.abs(dx) < MIN_SWIPE_DISTANCE) return null;
-  if (Math.abs(dx) < Math.abs(dy) * MIN_HORIZONTAL_RATIO) return null;
-  return dx < 0 ? "next" : "prev";
-};

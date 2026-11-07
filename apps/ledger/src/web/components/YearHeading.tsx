@@ -1,11 +1,11 @@
 import { Link } from "@void/react";
-import { setMonthSlide } from "@/web/monthSlide";
+import { navigatePeriod } from "@/web/components/PeriodPager";
 import { yearSummaryHref } from "@/web/summaryView";
 
 /**
  * 集計の画面が扱う年。年を大きく出し、前後の年へのリンクを添える。
  *
- * 前後の年へ移るときは、月の見出しと同じく本文を横にずらして入れ替える。
+ * 前後の年へのリンクを押すと、払ったときと同じく年の並び（PeriodPager）を横に送って移る。
  */
 export const YearHeading = ({ year }: { year: number }) => (
   <div className="flex flex-col gap-1">
@@ -13,7 +13,7 @@ export const YearHeading = ({ year }: { year: number }) => (
       <Link
         href={yearSummaryHref(year - 1)}
         viewTransition
-        onNavigate={() => setMonthSlide(document.documentElement, "prev")}
+        onNavigate={navigatePeriod("prev")}
         className="hover:text-foreground"
       >
         ← {year - 1}
@@ -21,7 +21,7 @@ export const YearHeading = ({ year }: { year: number }) => (
       <Link
         href={yearSummaryHref(year + 1)}
         viewTransition
-        onNavigate={() => setMonthSlide(document.documentElement, "next")}
+        onNavigate={navigatePeriod("next")}
         className="hover:text-foreground"
       >
         {year + 1} →

@@ -1,5 +1,5 @@
 import { Link, useRouter } from "@void/react";
-import { type TransitionEvent, useState } from "react";
+import { type TransitionEvent, useEffect, useState } from "react";
 import { submitAction } from "void/pages-client";
 import { Maximize2, Plus, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import type {
   TransactionMode,
 } from "@/ledger/transactions";
 import { advanceStatusOf, unreceivedAmountOf } from "@/ledger/advance";
+import { shiftMonth } from "@/ledger/dates";
 import { cn } from "@/lib/utils";
 import { categoryLabels, categoryValueOf, parseCategoryValue } from "@/web/categoryValue";
 import { Section } from "@/web/components/Section";
@@ -23,11 +24,13 @@ import { FavoriteButton } from "@/web/components/FavoriteButton";
 import { TransactionEditor } from "@/web/components/TransactionEditor";
 import { CategoryOptions } from "@/web/components/CategoryOptions";
 import { MonthHeading } from "@/web/components/MonthHeading";
-import { MonthSwipe } from "@/web/components/MonthSwipe";
+import { PeriodPager } from "@/web/components/PeriodPager";
+import { SkeletonBlock, SkeletonText } from "@/web/components/Skeleton";
 import { formatAmount, formatDayOfMonth, formatFullDay } from "@/web/format";
 import { groupByDate } from "@/web/groupByDate";
 import { ADVANCE_STATUS_LABELS, MODE_LABELS, TRANSACTION_MODES } from "@/web/labels";
 import { titleOf } from "@/web/transactionTitle";
+import { createMonthPageCache } from "@/web/monthPageCache";
 import { isFiltered, transactionsHref } from "@/web/transactionsHref";
 import type { Props } from "./index.server";
 
@@ -465,6 +468,97 @@ const SidePanel = ({
   );
 };
 
+/** 最近見た月の一覧。キーは月と絞り込みの条件を含む一覧の URL */
+const listCache = createMonthPageCache<TransactionListItem[]>();
+
+/**
+ * 件数と合計、日ごとの取引の一覧。月を移るときに横に送る部分。
+ */
+const TransactionList = ({
+  transactions,
+  filter,
+  selectedId,
+}: {
+  transactions: TransactionListItem[];
+  filter: TransactionFilter;
+  selectedId: number | undefined;
+}) => {
+  const unreceivedOnly = filter.advance === "unreceived";
+  return (
+    <div className="flex flex-col gap-8">
+      <Section label="" className="gap-y-0">
+        <ListTotals transactions={transactions} />
+      </Section>
+      {transactions.length === 0 ? (
+        <Section label="">
+          <p className="border-t border-foreground py-2.5 text-sm text-muted-foreground">
+            条件に合う取引はありません
+          </p>
+        </Section>
+      ) : (
+        <div>
+          {groupByDate(transactions).map((group, index) => (
+            <Section
+              key={group.date}
+              className="gap-y-0"
+              label={
+                <span className="block pt-2.5 text-xs font-normal text-muted-foreground tabular-nums">
+                  {unreceivedOnly ? formatFullDay(group.date) : formatDayOfMonth(group.date)}
+                </span>
+              }
+            >
+              {/* 一覧の始まりにだけ黒の線を引く */}
+              <ul className={cn(index === 0 && "border-t border-foreground")}>
+                {group.items.map((transaction) => (
+                  <TransactionRow
+                    key={transaction.id}
+                    transaction={transaction}
+                    filter={filter}
+                    selected={selectedId === transaction.id}
+                  />
+                ))}
+              </ul>
+            </Section>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * 隣の月の仮の中身。前に見た月なら覚えている一覧を、まだ見ていなければ骨組みを出す。
+ */
+const NeighborList = ({ href, filter }: { href: string; filter: TransactionFilter }) => {
+  const cached = listCache.recall(href);
+  if (cached !== undefined) {
+    return <TransactionList transactions={cached} filter={filter} selectedId={undefined} />;
+  }
+  return <TransactionListSkeleton />;
+};
+
+/**
+ * 一覧を読む前の骨組み。件数・合計はラベルを本物で描いて数字だけを棒にし、
+ * 日ごとのまとまりは数が月ごとに変わるので、まるごと棒にする。
+ */
+const TransactionListSkeleton = () => (
+  <div className="flex flex-col gap-8">
+    <Section label="" className="gap-y-0">
+      <dl className="flex flex-wrap gap-x-5 text-xs text-muted-foreground">
+        {["件数", "支出", "収入"].map((label) => (
+          <div key={label} className="flex gap-1.5">
+            <dt>{label}</dt>
+            <dd>
+              <SkeletonText className={label === "件数" ? "w-4" : "w-12"} />
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </Section>
+    <SkeletonBlock rows={8} />
+  </div>
+);
+
 /**
  * 取引の一覧の画面。日付ごとにまとめ、日付を左の列に出す。
  * 広い画面で取引を選ぶと、一覧の右にサイドパネルを開いてその場で編集できる。
@@ -498,10 +592,19 @@ const TransactionsPage = ({
     if (event.propertyName === "grid-template-columns" && selected === null) setShown(null);
   };
 
+  // 月を移るときに横に送るのは件数と合計、取引の一覧だけにし、月の見出しと絞り込みは動かさない
+  const list = (
+    <TransactionList
+      transactions={transactions}
+      filter={filter}
+      selectedId={selected?.transaction.id}
+    />
+  );
+  const currentHref = monthHref(filter.month);
+  useEffect(() => listCache.remember(currentHref, transactions), [currentHref, transactions]);
+
   return (
-    <MonthSwipe
-      month={filter.month}
-      hrefOf={monthHref}
+    <div
       // パネルの列は閉じていても 0 幅で置いておき、開け閉めで列の幅を動かす。
       // 一覧の幅も同時にレイアウトの最大幅のトランジションで広がるので、同じ長さにそろえる
       className={cn(
@@ -520,16 +623,15 @@ const TransactionsPage = ({
             )}
           </div>
           <div className="flex flex-col gap-3 md:col-span-9">
-            <Filters
-              filter={filter}
-              accounts={accounts}
-              categories={categories}
-              placeName={placeName}
-              chainNames={chainNames}
-            />
-            <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
-              <ListTotals transactions={transactions} />
-              <div className="flex items-center gap-3">
+            <div className="flex items-start justify-between gap-x-5">
+              <Filters
+                filter={filter}
+                accounts={accounts}
+                categories={categories}
+                placeName={placeName}
+                chainNames={chainNames}
+              />
+              <div className="flex shrink-0 items-center gap-3">
                 <Link
                   href="/statements/import"
                   className="text-xs text-muted-foreground underline hover:text-foreground"
@@ -547,38 +649,20 @@ const TransactionsPage = ({
             </div>
           </div>
         </div>
-        {transactions.length === 0 ? (
-          <Section label="">
-            <p className="border-t border-foreground py-2.5 text-sm text-muted-foreground">
-              条件に合う取引はありません
-            </p>
-          </Section>
+        {unreceivedOnly ? (
+          list
         ) : (
-          <div>
-            {groupByDate(transactions).map((group, index) => (
-              <Section
-                key={group.date}
-                className="gap-y-0"
-                label={
-                  <span className="block pt-2.5 text-xs font-normal text-muted-foreground tabular-nums">
-                    {unreceivedOnly ? formatFullDay(group.date) : formatDayOfMonth(group.date)}
-                  </span>
-                }
-              >
-                {/* 一覧の始まりにだけ黒の線を引く */}
-                <ul className={cn(index === 0 && "border-t border-foreground")}>
-                  {group.items.map((transaction) => (
-                    <TransactionRow
-                      key={transaction.id}
-                      transaction={transaction}
-                      filter={filter}
-                      selected={selected?.transaction.id === transaction.id}
-                    />
-                  ))}
-                </ul>
-              </Section>
-            ))}
-          </div>
+          <PeriodPager
+            period={filter.month}
+            previous={shiftMonth(filter.month, -1)}
+            next={shiftMonth(filter.month, 1)}
+            hrefOf={monthHref}
+            placeholder={(neighbor) => (
+              <NeighborList href={monthHref(neighbor)} filter={{ ...filter, month: neighbor }} />
+            )}
+          >
+            {list}
+          </PeriodPager>
         )}
       </div>
       {/*
@@ -597,7 +681,7 @@ const TransactionsPage = ({
           />
         )}
       </div>
-    </MonthSwipe>
+    </div>
   );
 };
 
