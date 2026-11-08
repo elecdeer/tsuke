@@ -1,7 +1,8 @@
 import type { DatabaseSync } from "node:sqlite";
 import { describe, expect, test } from "vite-plus/test";
 import { createTestLedgerDb, insert } from "../../db/testing.ts";
-import { summarizeMonth } from "./summary.ts";
+import { monthsOfYear } from "./dates.ts";
+import { summarizeMonth, summarizeYear } from "./summary.ts";
 
 type Item = { categoryId: number | null; genreId: number | null; amount: number };
 
@@ -276,5 +277,115 @@ describe("summarizeMonth の立替", () => {
     });
 
     expect((await summarizeMonth(db, "2026-10")).payment.total).toBe(200);
+  });
+});
+
+describe("summarizeYear", () => {
+  test("1 月から 12 月を月ごとに合計し、カテゴリごとに月ごとの金額を添える", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+    insertTransaction(sqlite, {
+      date: "2026-01-15",
+      mode: "payment",
+      items: [
+        { categoryId: m.food, genreId: m.groceries, amount: 1000 },
+        { categoryId: m.daily, genreId: m.supplies, amount: 300 },
+      ],
+    });
+    insertTransaction(sqlite, {
+      date: "2026-03-31",
+      mode: "payment",
+      items: [{ categoryId: m.food, genreId: m.eatingOut, amount: 2000 }],
+    });
+    insertTransaction(sqlite, {
+      date: "2026-03-25",
+      mode: "income",
+      items: [{ categoryId: m.salary, genreId: null, amount: 250000 }],
+    });
+
+    const summary = await summarizeYear(db, 2026);
+
+    expect(summary.payment.total).toBe(3300);
+    expect(summary.income.total).toBe(250000);
+    const food = summary.payment.categories[0];
+    expect(food).toMatchObject({ categoryId: m.food, name: "食費", amount: 3000 });
+    expect(food?.genres).toEqual([
+      { genreId: m.eatingOut, name: "外食", amount: 2000 },
+      { genreId: m.groceries, name: "食料品", amount: 1000 },
+    ]);
+    expect(food?.monthly).toEqual([1000, 0, 2000, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(summary.months.slice(0, 4)).toEqual([
+      { month: "2026-01", payment: 1300, income: 0 },
+      { month: "2026-02", payment: 0, income: 0 },
+      { month: "2026-03", payment: 2000, income: 250000 },
+      { month: "2026-04", payment: 0, income: 0 },
+    ]);
+    expect(summary.months).toHaveLength(12);
+  });
+
+  test("年の集計にのみ含める取引は入れ、集計に含めない取引・ほかの年・振替は入れない", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+    const item = { categoryId: m.food, genreId: m.groceries, amount: 100 };
+    insertTransaction(sqlite, {
+      date: "2026-06-01",
+      mode: "payment",
+      aggregation: "yearly_only",
+      items: [item],
+    });
+    insertTransaction(sqlite, {
+      date: "2026-06-02",
+      mode: "payment",
+      aggregation: "never",
+      items: [{ ...item, amount: 10 }],
+    });
+    insertTransaction(sqlite, { date: "2025-12-31", mode: "payment", items: [item] });
+    insertTransaction(sqlite, { date: "2027-01-01", mode: "payment", items: [item] });
+    insertTransaction(sqlite, { date: "2026-06-03", mode: "transfer", items: [item] });
+
+    const summary = await summarizeYear(db, 2026);
+
+    expect(summary.payment.total).toBe(100);
+    expect(summary.months[5]).toEqual({ month: "2026-06", payment: 100, income: 0 });
+    // 月の集計には年の集計にのみ含める取引を入れない
+    expect((await summarizeMonth(db, "2026-06")).payment.total).toBe(0);
+  });
+
+  test("立替は取引の月で按分額を引き、年で打ち消し合って 0 になった内訳は出さない", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+    const id = insertTransaction(sqlite, {
+      date: "2026-02-10",
+      mode: "payment",
+      items: [{ categoryId: m.food, genreId: m.groceries, amount: 1000 }],
+    });
+    sqlite.prepare("UPDATE transactions SET advance_amount = 400 WHERE id = ?").run(id);
+    insertTransaction(sqlite, {
+      date: "2026-04-01",
+      mode: "payment",
+      items: [{ categoryId: m.daily, genreId: m.supplies, amount: 500 }],
+    });
+    insertTransaction(sqlite, {
+      date: "2026-05-01",
+      mode: "payment",
+      items: [{ categoryId: m.daily, genreId: m.supplies, amount: -500 }],
+    });
+
+    const summary = await summarizeYear(db, 2026);
+
+    expect(summary.payment.total).toBe(600);
+    expect(summary.payment.categories.map((category) => category.categoryId)).toEqual([m.food]);
+    expect(summary.payment.categories[0]?.monthly[1]).toBe(600);
+    expect(summary.months[3]?.payment).toBe(500);
+    expect(summary.months[4]?.payment).toBe(-500);
+  });
+
+  test("記録のない年は合計が 0 で、12 か月分の月を返す", async () => {
+    const { db } = createTestLedgerDb();
+
+    const summary = await summarizeYear(db, 2026);
+
+    expect(summary.payment).toEqual({ total: 0, categories: [] });
+    expect(summary.months.map((month) => month.month)).toEqual(monthsOfYear(2026));
   });
 });

@@ -51,6 +51,12 @@ export const monthRange = (month: string): { start: string; end: string } => ({
 });
 
 /**
+ * 年の 12 か月（YYYY-MM）を 1 月から順に返す。
+ */
+export const monthsOfYear = (year: number): string[] =>
+  Array.from({ length: 12 }, (_, index) => `${year}-${String(index + 1).padStart(2, "0")}`);
+
+/**
  * 「2026年10月」の形で月を書く。
  */
 export const formatMonth = (month: string): string => {

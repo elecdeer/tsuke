@@ -15,3 +15,8 @@ export const OptionalDateSchema = v.optional(
 export const OptionalIdSchema = v.optional(
   v.pipe(v.string(), v.regex(/^\d+$/), v.transform(Number), v.safeInteger()),
 );
+
+/** クエリの年（YYYY）。省略できる */
+export const OptionalYearSchema = v.optional(
+  v.pipe(v.string(), v.regex(/^\d{4}$/, "年は YYYY で指定してください"), v.transform(Number)),
+);

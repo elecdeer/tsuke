@@ -37,6 +37,15 @@ const SettingsPage = () => {
           </li>
           <li className="border-b">
             <Link
+              href="/settings/categories"
+              className="grid grid-cols-[minmax(0,1fr)_1rem] items-baseline gap-x-4 py-2.5 hover:bg-muted/60"
+            >
+              <span>カテゴリ</span>
+              <span className="text-xs text-muted-foreground">→</span>
+            </Link>
+          </li>
+          <li className="border-b">
+            <Link
               href="/settings/places"
               className="grid grid-cols-[minmax(0,1fr)_1rem] items-baseline gap-x-4 py-2.5 hover:bg-muted/60"
             >

@@ -288,7 +288,7 @@ describe("runExtractReceipt", () => {
     );
   });
 
-  test("fast は速いモデルを使い、推論量を送らない", async () => {
+  test("fast は速いモデルを使い、推論量を low にして送る", async () => {
     const ai = {
       run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
     };
@@ -297,7 +297,7 @@ describe("runExtractReceipt", () => {
 
     expect(ai.run).toHaveBeenCalledWith(
       "google/gemini-3.1-flash-lite",
-      expect.not.objectContaining({ reasoning_effort: expect.anything() }),
+      expect.objectContaining({ reasoning_effort: "low" }),
       { signal: undefined },
     );
   });

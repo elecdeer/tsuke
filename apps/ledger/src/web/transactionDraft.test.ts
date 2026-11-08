@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vite-plus/test";
+import type { TransactionTemplate } from "../ledger/transactionTemplates.ts";
 import {
   draftForMode,
   allocateReimbursements,
+  draftFromTemplate,
   draftFromTransaction,
   emptyItem,
   hasAdvanceInput,
@@ -45,6 +47,91 @@ describe("itemsTotal", () => {
       { ...emptyItem(2), amount: "500" },
     ];
     expect(itemsTotal(items)).toBe(500);
+  });
+});
+
+describe("draftFromTemplate", () => {
+  const template: TransactionTemplate = {
+    id: 1,
+    mode: "payment",
+    aggregation: "never",
+    fromAccountId: 3,
+    toAccountId: null,
+    placeName: "スーパー",
+    items: [
+      {
+        categoryId: 1,
+        genreId: 2,
+        categoryName: "食費",
+        genreName: "食料品",
+        name: "牛乳",
+        memo: "メモ",
+        amount: 200,
+      },
+    ],
+  };
+  const context = {
+    today: "2026-11-04",
+    accounts: [{ id: 3 }],
+    categories: {
+      payment: [{ id: 1, name: "食費", genres: [{ id: 2, name: "食料品" }] }],
+      income: [{ id: 5, name: "給与", genres: [] }],
+    },
+    placeNames: ["スーパー"],
+  };
+
+  test("日付を今日にして、ほかの内容を写す", () => {
+    expect(draftFromTemplate(template, context)).toEqual({
+      date: "2026-11-04",
+      aggregation: "never",
+      fromAccountId: "3",
+      toAccountId: "",
+      placeName: "スーパー",
+      placeDetail: null,
+      items: [{ key: 0, category: "g:1:2", name: "牛乳", memo: "メモ", amount: "200" }],
+    });
+  });
+
+  test("立替の項目を持たないので、登録の入力に立替が入らない", () => {
+    const parsed = updateFromDraft(draftFromTemplate(template, context));
+    expect(parsed.ok && "advanceAmount" in parsed.input).toBe(false);
+    expect(parsed.ok && "reimbursements" in parsed.input).toBe(false);
+  });
+
+  test("アーカイブされて選択肢にない口座・カテゴリ・店舗は空にする", () => {
+    const draft = draftFromTemplate(template, {
+      ...context,
+      accounts: [],
+      categories: { payment: [], income: [] },
+      placeNames: [],
+    });
+    expect(draft).toMatchObject({ fromAccountId: "", placeName: "" });
+    expect(draft.items[0]?.category).toBe("");
+  });
+
+  test("収入は収入のカテゴリから探す", () => {
+    const draft = draftFromTemplate(
+      {
+        ...template,
+        mode: "income",
+        fromAccountId: null,
+        toAccountId: 3,
+        items: [
+          {
+            categoryId: 5,
+            genreId: null,
+            categoryName: "給与",
+            genreName: null,
+            name: null,
+            memo: null,
+            amount: 1000,
+          },
+        ],
+      },
+      context,
+    );
+    expect(draft.toAccountId).toBe("3");
+    expect(draft.items[0]?.category).toBe("c:5");
   });
 });
 

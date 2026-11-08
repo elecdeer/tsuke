@@ -2,8 +2,9 @@ import { suggestAllocation } from "../ledger/advance.ts";
 import type { PlaceDetail } from "../ledger/placeDetail.ts";
 import type { ReimbursablePayment } from "../ledger/reimbursements.ts";
 import type { TransactionDetail, TransactionUpdate } from "../ledger/transactionEdit.ts";
+import type { TransactionTemplate } from "../ledger/transactionTemplates.ts";
 import type { TransactionMode } from "../ledger/transactions.ts";
-import { categoryValueOf, parseCategoryValue } from "./categoryValue.ts";
+import { categoryLabels, categoryValueOf, parseCategoryValue } from "./categoryValue.ts";
 
 /**
  * 編集画面の入力中の値。入力欄に合わせてすべて文字列で持つ。
@@ -92,6 +93,57 @@ export const draftFromTransaction = (transaction: TransactionDetail): Transactio
     expectMore: payment.otherLinked + amount < payment.advanceAmount,
   })),
 });
+
+/**
+ * よく使う取引から、手入力の登録の値を作る。日付は今日にする。
+ *
+ * 立替と紐付けはその取引だけの事情なので写さない。アーカイブした口座・カテゴリ・店舗は今の選択肢にないので、空にする
+ * （店舗の名前をそのまま送ると、アーカイブした店舗が元に戻ってしまう）。
+ */
+export const draftFromTemplate = (
+  template: TransactionTemplate,
+  context: {
+    today: string;
+    accounts: readonly { id: number }[];
+    categories: {
+      payment: Parameters<typeof categoryLabels>[0];
+      income: Parameters<typeof categoryLabels>[0];
+    };
+    placeNames: readonly string[];
+  },
+): TransactionDraft => {
+  const accountValue = (id: number | null): string =>
+    context.accounts.some((account) => account.id === id) ? String(id) : "";
+  const knownCategories = categoryLabels(
+    template.mode === "payment"
+      ? context.categories.payment
+      : template.mode === "income"
+        ? context.categories.income
+        : [],
+  );
+  const placeName = template.placeName ?? "";
+  return {
+    date: context.today,
+    aggregation: template.aggregation,
+    fromAccountId: accountValue(template.fromAccountId),
+    toAccountId: accountValue(template.toAccountId),
+    placeName: context.placeNames.includes(placeName) ? placeName : "",
+    placeDetail: null,
+    items:
+      template.items.length === 0
+        ? [emptyItem(0)]
+        : template.items.map((item, index) => {
+            const category = categoryValueOf(item.categoryId, item.genreId);
+            return {
+              key: index,
+              category: category in knownCategories ? category : "",
+              name: item.name ?? "",
+              memo: item.memo ?? "",
+              amount: String(item.amount),
+            };
+          }),
+  };
+};
 
 /**
  * 入力の途中で取引の種類を変えたときの値を返す。その種類で持てない値は残さない。
