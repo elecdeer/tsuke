@@ -6,6 +6,7 @@ import {
   draftFromTemplate,
   draftFromTransaction,
   emptyItem,
+  hasAdvanceInput,
   isDraftEdited,
   itemsTotal,
   itemsTotalOf,
@@ -414,6 +415,26 @@ describe("立替の入力", () => {
       expect(itemsTotalOf([item(0, "1,000"), item(1, "-200"), item(2, "-"), item(3, "")])).toBe(
         800,
       );
+    });
+  });
+
+  describe("hasAdvanceInput", () => {
+    test("立替額も紐付けた支出もなければ false を返す", () => {
+      expect(hasAdvanceInput(base)).toBe(false);
+      expect(hasAdvanceInput({ ...base, advanceAmount: " ", reimbursements: [] })).toBe(false);
+    });
+
+    test("立替額があれば true を返す", () => {
+      expect(hasAdvanceInput({ ...base, advanceAmount: "500" })).toBe(true);
+    });
+
+    test("紐付けた支出があれば true を返す", () => {
+      expect(
+        hasAdvanceInput({
+          ...base,
+          reimbursements: [{ payment: payment(1, 2000), amount: "", expectMore: false }],
+        }),
+      ).toBe(true);
     });
   });
 

@@ -1,4 +1,4 @@
-import { Check, Info, Trash2 } from "lucide-react";
+import { Check, Info, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +23,7 @@ import { MODE_LABELS } from "@/web/labels";
 import {
   allocateReimbursements,
   draftFromTransaction,
+  hasAdvanceInput,
   itemsTotalOf,
   updateFromDraft,
   type TransactionDraft,
@@ -111,6 +112,10 @@ export const TransactionEditor = ({
   const [draft, setDraft] = useState(() => draftFromTransaction(transaction));
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // 立替を使う取引は少ないので、入力がなければ欄を畳んでおく。開いたあと空にしても畳み直さない（入力中に消えると戸惑うため）
+  const [advanceOpen, setAdvanceOpen] = useState(
+    () => hasAdvanceInput(draft) || transaction.linkedIncomes.length > 0,
+  );
 
   const update = (patch: Partial<TransactionDraft>) => {
     setDraft((current) => ({ ...current, ...patch }));
@@ -159,7 +164,20 @@ export const TransactionEditor = ({
         onItemsChange={updateItems}
       />
 
-      {mode === "payment" && (
+      {(mode === "payment" || mode === "income") && !advanceOpen && (
+        <Section label="">
+          <Button
+            variant="ghost"
+            className="-ml-2.5 text-muted-foreground"
+            onClick={() => setAdvanceOpen(true)}
+          >
+            <Plus />
+            {mode === "payment" ? "立替を入力" : "立替の入金を紐付ける"}
+          </Button>
+        </Section>
+      )}
+
+      {mode === "payment" && advanceOpen && (
         <Section label="立替">
           <PaymentAdvanceFields
             draft={draft}
@@ -169,7 +187,7 @@ export const TransactionEditor = ({
         </Section>
       )}
 
-      {mode === "income" && (
+      {mode === "income" && advanceOpen && (
         <Section label="立替の入金">
           <IncomeReimbursementFields
             candidates={reimbursementCandidates}
