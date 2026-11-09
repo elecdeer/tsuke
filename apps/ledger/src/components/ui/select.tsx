@@ -27,8 +27,9 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
 
 // 入力欄（input.tsx）と同じく、枠の代わりに下線だけを引き、選んでいる間は下線を太くする
 // 店舗の combobox のように、Select ではないが同じ見た目にしたいボタンでも使う
+// 文字の大きさも入力欄にそろえる。狭い画面で入力欄だけ大きいと、隣に並べたときに文字の高さがずれて見える
 const selectTriggerClassName =
-  "flex w-fit min-w-0 items-center justify-between gap-1.5 rounded-none border-0 border-b border-foreground/40 bg-transparent py-1 pr-0.5 pl-0 text-sm whitespace-nowrap transition-colors outline-none select-none hover:border-foreground focus-visible:border-foreground focus-visible:shadow-[inset_0_-1px_0_var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:shadow-[inset_0_-1px_0_var(--destructive)] data-placeholder:text-muted-foreground data-popup-open:border-foreground data-popup-open:shadow-[inset_0_-1px_0_var(--foreground)] data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:py-0.5 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
+  "flex w-fit min-w-0 items-center justify-between gap-1.5 rounded-none border-0 border-b border-foreground/40 bg-transparent py-1 pr-0.5 pl-0 text-base md:text-sm whitespace-nowrap transition-colors outline-none select-none hover:border-foreground focus-visible:border-foreground focus-visible:shadow-[inset_0_-1px_0_var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:shadow-[inset_0_-1px_0_var(--destructive)] data-placeholder:text-muted-foreground data-popup-open:border-foreground data-popup-open:shadow-[inset_0_-1px_0_var(--foreground)] data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:py-0.5 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
 
 function SelectTrigger({
   className,

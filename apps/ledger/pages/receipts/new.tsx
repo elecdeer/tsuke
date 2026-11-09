@@ -24,8 +24,8 @@ import { createLedgerClient, LedgerFetchError } from "@/client";
 import type { DuplicateCandidate } from "@/ledger/payments";
 import type { ExtractedPayment } from "@/llm/extractPayment";
 import { ErrorMessage } from "@/web/components/ErrorMessage";
-import { ReceiptPhoto } from "@/web/components/ReceiptPhoto";
-import { ReviewSheet } from "@/web/components/ReviewSheet";
+import { AccountIcon, DateIcon, PlaceIcon } from "@/web/components/FieldIcons";
+import { ReceiptPhoto, ReceiptPhotoThumbnail } from "@/web/components/ReceiptPhoto";
 import { Section } from "@/web/components/Section";
 import {
   AccountSelect,
@@ -113,7 +113,7 @@ const DuplicateWarning = ({ byItem }: { byItem: DuplicateCandidate[][] }) => {
   ];
   if (candidates.length === 0) return null;
   return (
-    // 常に見せる所に置くので、候補が多くてもシートの高さを取りすぎないようにする
+    // 常に見せる下の帯に置くので、候補が多くてもフォームを隠しすぎないようにする
     <div className="flex max-h-[30dvh] gap-1.5 overflow-y-auto text-sm text-destructive">
       <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <div className="flex flex-col gap-1">
@@ -416,32 +416,38 @@ const ReceiptReview = ({
     if (window.confirm("このレシートを登録せずに捨てますか？")) onDiscard();
   };
 
+  const footer = (
+    // 登録のボタンは常に見せる下の帯にあり、フォームの外になるので form 属性で結び付ける
+    <div className="sticky bottom-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom))] z-10 flex flex-col gap-3 border-t border-foreground bg-background py-2 md:bottom-0">
+      {ready && <DuplicateWarning byItem={duplicates} />}
+      {error !== null && <ErrorMessage message={error} />}
+      <div className="flex items-center justify-between gap-4">
+        {/* 広い画面では写真を隣に並べているので、見本は狭い画面だけに出す */}
+        {image !== undefined && (
+          <ReceiptPhotoThumbnail
+            src={image}
+            crop={receiptCrop(entry.extracted?.receiptBox)}
+            className="md:hidden"
+          />
+        )}
+        {/* 写真と最初に見比べる数字なので、フォームをスクロールしていても見えるようにする */}
+        {ready && <ItemsTotal items={draft.items} className="min-w-0 flex-1" />}
+        <Button
+          type="submit"
+          form={ids.form}
+          size="lg"
+          // この画面で押すのはほぼこのボタンだけなので、スマホでは親指で押しやすい大きさにする
+          className="ml-auto h-12 shrink-0 px-10 text-base sm:h-11"
+          disabled={pending || !ready}
+        >
+          登録
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
-    // 登録のボタンはシートの常に見せる所にあり、フォームの外になるので form 属性で結び付ける
-    <ReviewSheet
-      label="読み取りの結果の高さ"
-      className="md:col-span-8"
-      footer={
-        <>
-          {ready && <DuplicateWarning byItem={duplicates} />}
-          {error !== null && <ErrorMessage message={error} />}
-          <div className="flex items-center justify-between gap-4">
-            {/* 写真と最初に見比べる数字なので、結果を畳んでいても見えるようにする */}
-            {ready && <ItemsTotal items={draft.items} className="min-w-0 flex-1" />}
-            <Button
-              type="submit"
-              form={ids.form}
-              size="lg"
-              // この画面で押すのはほぼこのボタンだけなので、スマホでは親指で押しやすい大きさにする
-              className="ml-auto h-12 shrink-0 px-10 text-base sm:h-11"
-              disabled={pending || !ready}
-            >
-              登録
-            </Button>
-          </div>
-        </>
-      }
-    >
+    <div className="flex flex-col md:col-span-8">
       <form
         id={ids.form}
         className="flex flex-col gap-6 pb-4 md:gap-10"
@@ -475,7 +481,7 @@ const ReceiptReview = ({
             )}
             {ready && (
               <div className="grid grid-cols-2 gap-x-4 gap-y-4">
-                <FormField label="日付" htmlFor={ids.date}>
+                <FormField label="日付" icon={<DateIcon />} htmlFor={ids.date}>
                   <Input
                     id={ids.date}
                     type="date"
@@ -484,7 +490,7 @@ const ReceiptReview = ({
                     onChange={(event) => update({ date: event.target.value })}
                   />
                 </FormField>
-                <FormField label="支払元" htmlFor={ids.account}>
+                <FormField label="支払元" icon={<AccountIcon />} htmlFor={ids.account}>
                   <AccountSelect
                     id={ids.account}
                     value={draft.fromAccountId}
@@ -493,7 +499,12 @@ const ReceiptReview = ({
                     onChange={(fromAccountId) => update({ fromAccountId })}
                   />
                 </FormField>
-                <FormField label="店舗" htmlFor={ids.place} className="col-span-2">
+                <FormField
+                  label="店舗"
+                  icon={<PlaceIcon />}
+                  htmlFor={ids.place}
+                  className="col-span-2"
+                >
                   <PlaceInput
                     id={ids.place}
                     value={draft.placeName}
@@ -551,7 +562,8 @@ const ReceiptReview = ({
           </Button>
         </div>
       </form>
-    </ReviewSheet>
+      {footer}
+    </div>
   );
 };
 
@@ -689,7 +701,8 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }:
 
       {selected !== null && (
         <div className="md:grid md:grid-cols-12 md:items-start md:gap-x-4">
-          <div className="md:sticky md:top-[calc(var(--header-height)+1rem)] md:col-span-4 md:max-h-[calc(100dvh-var(--header-height)-2rem)] md:overflow-y-auto">
+          {/* 狭い画面では写真を隣に並べる幅がないので、下の帯の見本から開く */}
+          <div className="hidden md:sticky md:top-[calc(var(--header-height)+1rem)] md:col-span-4 md:block md:max-h-[calc(100dvh-var(--header-height)-2rem)] md:overflow-y-auto">
             {image !== undefined && (
               <ReceiptPhoto
                 // レシートごとに全体の表示を選び直す。範囲が外れたレシートのための切り替えなので、次へ持ち越さない
@@ -699,11 +712,9 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }:
                 alt="確かめているレシート"
               />
             )}
-            {/* シートに隠れる分だけ余白を足して、写真の下の方もシートの上までスクロールできるようにする */}
-            <div aria-hidden="true" className="h-[60dvh] md:hidden" />
           </div>
           <ReceiptReview
-            // レシートを切り替えたら、エラーや重複の確かめ、シートの高さとスクロールを前のレシートから持ち越さない
+            // レシートを切り替えたら、エラーや重複の確かめを前のレシートから持ち越さない
             key={selected.id}
             entry={selected}
             image={image}

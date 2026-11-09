@@ -88,15 +88,18 @@ const YenUnit = ({ className }: { className?: string }) => (
 
 /**
  * ラベル付きの入力欄。labelClassName でラベルを隠す（見出しのある表の中など）こともできる。
+ * icon を渡すと、ラベルの文字の前に添える。
  */
 export const FormField = ({
   label,
+  icon,
   children,
   htmlFor,
   labelClassName,
   className,
 }: {
   label: string;
+  icon?: ReactNode;
   htmlFor: string;
   children: ReactNode;
   labelClassName?: string;
@@ -105,8 +108,9 @@ export const FormField = ({
   <div className={cn("flex min-w-0 flex-col gap-0.5", className)}>
     <Label
       htmlFor={htmlFor}
-      className={cn("text-xs font-normal text-muted-foreground", labelClassName)}
+      className={cn("gap-1 text-xs font-normal text-muted-foreground", labelClassName)}
     >
+      {icon}
       {label}
     </Label>
     {children}
@@ -384,8 +388,9 @@ const ItemFields = ({
   return (
     <div
       className={cn(
-        // 広い画面では入力欄の下線が行の区切りを兼ねるので、行の罫線は狭い画面（欄を積むとき）だけに引く
-        "grid grid-cols-2 gap-x-4 gap-y-2 border-b py-3 @xl:items-end @xl:border-b-0 @xl:py-2",
+        // 広い画面では入力欄の下線が行の区切りを兼ねるので、行の罫線は狭い画面（欄を積むとき）だけに引く。
+        // 積んだ欄の下線（foreground/40）より薄いと品目の区切りと欄の下線を取り違えるので、下線より濃くする
+        "grid grid-cols-2 gap-x-4 gap-y-2 border-b border-foreground/80 py-3 @xl:items-end @xl:border-b-0 @xl:py-2",
         ITEM_COLUMNS[mode],
       )}
     >

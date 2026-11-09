@@ -1,6 +1,14 @@
 import { Crop, Maximize } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import { cropLayout, type ReceiptCrop } from "@/web/receiptCrop";
 
 /**
@@ -65,3 +73,41 @@ export const ReceiptPhoto = ({
     </div>
   );
 };
+
+/**
+ * 確かめているレシートの写真の小さな見本。押すと写真を大きく開く（狭い画面）。
+ *
+ * 写真の上にシートを重ねて見比べる形は、シートの高さを操る手間が多かったのでやめた。
+ * 写真は見たいときだけ開けば足りるので、常に見える下の帯に入口だけを置く。
+ */
+export const ReceiptPhotoThumbnail = ({
+  src,
+  crop,
+  className,
+}: {
+  src: string;
+  crop: ReceiptCrop | null;
+  className?: string;
+}) => (
+  <Dialog>
+    <DialogTrigger
+      aria-label="レシートの写真を開く"
+      className={cn(
+        "relative block h-12 w-9 shrink-0 overflow-hidden border bg-muted outline-offset-2",
+        className,
+      )}
+    >
+      {/* 小さな見本では切り取らない。どのレシートか分かれば足りる */}
+      <img src={src} alt="" className="size-full object-cover" />
+    </DialogTrigger>
+    <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-3 sm:max-w-lg">
+      <DialogHeader>
+        <DialogTitle>レシートの写真</DialogTitle>
+      </DialogHeader>
+      {/* 閉じるボタンと写真の切り替えが重ならないよう、写真は見出しの下でスクロールさせる */}
+      <div className="-mx-4 -mb-4 min-h-0 overflow-y-auto overscroll-contain px-4 pb-4">
+        <ReceiptPhoto src={src} crop={crop} alt="確かめているレシート" />
+      </div>
+    </DialogContent>
+  </Dialog>
+);
