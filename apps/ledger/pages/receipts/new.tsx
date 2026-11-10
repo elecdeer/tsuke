@@ -24,7 +24,6 @@ import { createLedgerClient, LedgerFetchError } from "@/client";
 import type { DuplicateCandidate } from "@/ledger/payments";
 import type { ExtractedPayment } from "@/llm/extractPayment";
 import { ErrorMessage } from "@/web/components/ErrorMessage";
-import { AccountIcon, DateIcon, PlaceIcon } from "@/web/components/FieldIcons";
 import { ReceiptPhoto, ReceiptPhotoThumbnail } from "@/web/components/ReceiptPhoto";
 import { Section } from "@/web/components/Section";
 import {
@@ -481,7 +480,7 @@ const ReceiptReview = ({
             )}
             {ready && (
               <div className="grid grid-cols-2 gap-x-4 gap-y-4">
-                <FormField label="日付" icon={<DateIcon />} htmlFor={ids.date}>
+                <FormField label="日付" htmlFor={ids.date}>
                   <Input
                     id={ids.date}
                     type="date"
@@ -490,7 +489,7 @@ const ReceiptReview = ({
                     onChange={(event) => update({ date: event.target.value })}
                   />
                 </FormField>
-                <FormField label="支払元" icon={<AccountIcon />} htmlFor={ids.account}>
+                <FormField label="支払元" htmlFor={ids.account}>
                   <AccountSelect
                     id={ids.account}
                     value={draft.fromAccountId}
@@ -499,12 +498,7 @@ const ReceiptReview = ({
                     onChange={(fromAccountId) => update({ fromAccountId })}
                   />
                 </FormField>
-                <FormField
-                  label="店舗"
-                  icon={<PlaceIcon />}
-                  htmlFor={ids.place}
-                  className="col-span-2"
-                >
+                <FormField label="店舗" htmlFor={ids.place} className="col-span-2">
                   <PlaceInput
                     id={ids.place}
                     value={draft.placeName}

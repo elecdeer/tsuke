@@ -99,18 +99,15 @@ const YenUnit = ({ className }: { className?: string }) => (
 
 /**
  * ラベル付きの入力欄。labelClassName でラベルを隠す（見出しのある表の中など）こともできる。
- * icon を渡すと、ラベルの文字の前に添える。
  */
 export const FormField = ({
   label,
-  icon,
   children,
   htmlFor,
   labelClassName,
   className,
 }: {
   label: string;
-  icon?: ReactNode;
   htmlFor: string;
   children: ReactNode;
   labelClassName?: string;
@@ -119,9 +116,8 @@ export const FormField = ({
   <div className={cn("flex min-w-0 flex-col gap-0.5", className)}>
     <Label
       htmlFor={htmlFor}
-      className={cn("gap-1 text-xs font-normal text-muted-foreground", labelClassName)}
+      className={cn("text-xs font-normal text-muted-foreground", labelClassName)}
     >
-      {icon}
       {label}
     </Label>
     {children}
