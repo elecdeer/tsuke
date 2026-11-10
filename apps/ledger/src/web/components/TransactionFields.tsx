@@ -406,7 +406,7 @@ const ItemFields = ({
       className={cn(
         // 広い画面では入力欄の下線が行の区切りを兼ねるので、行の罫線は狭い画面（欄を積むとき）だけに引く。
         // 欄の下線（foreground/40）より薄いと品目の区切りと欄の下線を取り違えるので、下線より濃くする
-        "grid items-end gap-x-4 gap-y-0 border-b border-foreground/80 py-2 @xl:gap-y-2 @xl:border-b-0",
+        "grid items-end gap-x-4 gap-y-0 border-b border-foreground/60 py-2 @xl:gap-y-2 @xl:border-b-0",
         ITEM_COLUMNS[mode],
       )}
     >
