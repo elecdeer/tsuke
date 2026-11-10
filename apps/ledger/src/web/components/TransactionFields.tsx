@@ -604,19 +604,20 @@ export const ItemsFields = ({
       <div
         aria-hidden="true"
         className={cn(
-          "grid gap-x-4 border-b border-foreground pb-1.5 text-xs text-muted-foreground",
+          // 狭いところでは欄に「品目名」「円」が出ていて何の欄か分かるので、見出しの行は広いところだけに出す
+          "hidden gap-x-4 border-b border-foreground pb-1.5 text-xs text-muted-foreground @xl:grid",
           ITEM_COLUMNS[mode],
         )}
       >
-        {/* 狭いところでは品目名と金額の見出しだけを出す */}
         {(mode === "payment" || mode === "income") && (
-          <span className="hidden @xl:block">{mode === "payment" ? "内訳" : "カテゴリ"}</span>
+          <span>{mode === "payment" ? "内訳" : "カテゴリ"}</span>
         )}
         <span>品目名</span>
-        <span className="hidden @xl:block">メモ</span>
+        <span>メモ</span>
         <span className="text-right">金額</span>
       </div>
-      <div>
+      {/* 狭いところでは見出しの行を出さないので、表の始まりの線をここで引く */}
+      <div className="border-t border-foreground @xl:border-t-0">
         {items.map((item, index) => (
           <ItemFields
             key={item.key}
