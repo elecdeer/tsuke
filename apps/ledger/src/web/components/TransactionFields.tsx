@@ -502,7 +502,7 @@ const ItemFields = ({
           {/* 入力欄の文字と同じ大きさの行に置き、小さくした「円」の下端を数字にそろえる */}
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 right-0 py-1 text-base md:text-sm"
+            className="pointer-events-none absolute inset-y-0 right-0 py-1 text-sm"
           >
             <YenUnit />
           </span>

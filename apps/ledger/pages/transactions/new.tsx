@@ -222,7 +222,7 @@ const TransactionNewPage = ({
               type="submit"
               size="lg"
               // スマホでは幅いっぱいにして親指で押しやすくする（レシートの登録と同じ）
-              className="h-12 w-full text-base sm:h-11 sm:w-auto sm:self-start sm:px-10"
+              className="h-12 w-full sm:h-11 sm:w-auto sm:self-start sm:px-10"
               disabled={pending}
             >
               登録

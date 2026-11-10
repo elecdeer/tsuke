@@ -436,7 +436,7 @@ const ReceiptReview = ({
           form={ids.form}
           size="lg"
           // この画面で押すのはほぼこのボタンだけなので、スマホでは親指で押しやすい大きさにする
-          className="ml-auto h-12 shrink-0 px-10 text-base sm:h-11"
+          className="ml-auto h-12 shrink-0 px-10 sm:h-11"
           disabled={pending || !ready}
         >
           登録
