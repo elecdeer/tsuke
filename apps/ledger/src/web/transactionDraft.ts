@@ -2,8 +2,9 @@ import { suggestAllocation } from "../ledger/advance.ts";
 import type { PlaceDetail } from "../ledger/placeDetail.ts";
 import type { ReimbursablePayment } from "../ledger/reimbursements.ts";
 import type { TransactionDetail, TransactionUpdate } from "../ledger/transactionEdit.ts";
+import type { TransactionTemplate } from "../ledger/transactionTemplates.ts";
 import type { TransactionMode } from "../ledger/transactions.ts";
-import { categoryValueOf, parseCategoryValue } from "./categoryValue.ts";
+import { categoryLabels, categoryValueOf, parseCategoryValue } from "./categoryValue.ts";
 
 /**
  * 編集画面の入力中の値。入力欄に合わせてすべて文字列で持つ。
@@ -96,6 +97,57 @@ export const draftFromTransaction = (transaction: TransactionDetail): Transactio
 });
 
 /**
+ * よく使う取引から、手入力の登録の値を作る。日付は今日にする。
+ *
+ * 立替と紐付けはその取引だけの事情なので写さない。アーカイブした口座・カテゴリ・店舗は今の選択肢にないので、空にする
+ * （店舗の名前をそのまま送ると、アーカイブした店舗が元に戻ってしまう）。
+ */
+export const draftFromTemplate = (
+  template: TransactionTemplate,
+  context: {
+    today: string;
+    accounts: readonly { id: number }[];
+    categories: {
+      payment: Parameters<typeof categoryLabels>[0];
+      income: Parameters<typeof categoryLabels>[0];
+    };
+    placeNames: readonly string[];
+  },
+): TransactionDraft => {
+  const accountValue = (id: number | null): string =>
+    context.accounts.some((account) => account.id === id) ? String(id) : "";
+  const knownCategories = categoryLabels(
+    template.mode === "payment"
+      ? context.categories.payment
+      : template.mode === "income"
+        ? context.categories.income
+        : [],
+  );
+  const placeName = template.placeName ?? "";
+  return {
+    date: context.today,
+    aggregation: template.aggregation,
+    fromAccountId: accountValue(template.fromAccountId),
+    toAccountId: accountValue(template.toAccountId),
+    placeName: context.placeNames.includes(placeName) ? placeName : "",
+    placeDetail: null,
+    items:
+      template.items.length === 0
+        ? [emptyItem(0)]
+        : template.items.map((item, index) => {
+            const category = categoryValueOf(item.categoryId, item.genreId);
+            return {
+              key: index,
+              category: category in knownCategories ? category : "",
+              name: item.name ?? "",
+              memo: item.memo ?? "",
+              amount: String(item.amount),
+            };
+          }),
+  };
+};
+
+/**
  * 入力の途中で取引の種類を変えたときの値を返す。その種類で持てない値は残さない。
  *
  * - カテゴリは種類ごとに別のものなので消す
@@ -146,6 +198,15 @@ export const draftAmountOf = (text: string): number => parseAmount(text, AMOUNT_
  */
 export const itemsTotalOf = (items: readonly ItemDraft[]): number =>
   items.reduce((sum, item) => sum + draftAmountOf(item.amount), 0);
+
+/**
+ * 立替の入力に値があるか。立替額か、紐付けた支出があれば true を返す。
+ *
+ * 編集画面で立替の入力欄を最初から開いておくかを決めるのに使う。
+ */
+export const hasAdvanceInput = (
+  draft: Pick<TransactionDraft, "advanceAmount" | "reimbursements">,
+): boolean => (draft.advanceAmount ?? "").trim() !== "" || (draft.reimbursements ?? []).length > 0;
 
 /**
  * 品目の立替の対象の印を変え、対象の品目の合計を立替額に入れる。印がなくなったら立替額を空にする。

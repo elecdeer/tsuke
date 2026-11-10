@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 import {
   formatAmount,
+  formatDateTime,
   formatDay,
   formatDayOfMonth,
   formatFullDay,
@@ -68,5 +69,11 @@ describe("formatDayOfMonth", () => {
 describe("formatFullDay", () => {
   test("年から書く", () => {
     expect(formatFullDay("2026-10-28")).toBe("2026/10/28");
+  });
+});
+
+describe("formatDateTime", () => {
+  test("UTC の日時を日本時間の年月日と時刻で書く", () => {
+    expect(formatDateTime("2026-10-27T15:05:09.123Z")).toBe("2026/10/28 00:05");
   });
 });

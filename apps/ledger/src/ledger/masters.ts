@@ -28,6 +28,22 @@ export const listAccountsWithHint = async (db: LedgerDb): Promise<AccountWithHin
     .where(eq(accounts.archived, false))
     .orderBy(asc(accounts.sort), asc(accounts.id));
 
+export type ManagedAccount = AccountWithHint & { archived: boolean };
+
+/**
+ * 管理画面に出す口座を返す。アーカイブ済みの口座は並び順の後ろに続ける。
+ */
+export const listManagedAccounts = async (db: LedgerDb): Promise<ManagedAccount[]> =>
+  db
+    .select({
+      id: accounts.id,
+      name: accounts.name,
+      aiHint: accounts.aiHint,
+      archived: accounts.archived,
+    })
+    .from(accounts)
+    .orderBy(asc(accounts.archived), asc(accounts.sort), asc(accounts.id));
+
 export type CategoryWithGenres = {
   id: number;
   name: string;
@@ -67,6 +83,46 @@ export const listCategories = async (
     genres: genreRows
       .filter((genre) => genre.categoryId === category.id)
       .map(({ id, name }) => ({ id, name })),
+  }));
+};
+
+export type ManagedCategory = {
+  id: number;
+  name: string;
+  archived: boolean;
+  genres: { id: number; name: string; archived: boolean }[];
+};
+
+/**
+ * 管理画面に出すカテゴリと内訳を返す。どちらもアーカイブ済みのものは並び順の後ろに続ける。
+ */
+export const listManagedCategories = async (
+  db: LedgerDb,
+  mode: CategoryMode,
+): Promise<ManagedCategory[]> => {
+  const [categoryRows, genreRows] = await Promise.all([
+    db
+      .select({ id: categories.id, name: categories.name, archived: categories.archived })
+      .from(categories)
+      .where(eq(categories.mode, mode))
+      .orderBy(asc(categories.archived), asc(categories.sort), asc(categories.id)),
+    db
+      .select({
+        id: genres.id,
+        name: genres.name,
+        archived: genres.archived,
+        categoryId: genres.categoryId,
+      })
+      .from(genres)
+      .innerJoin(categories, eq(categories.id, genres.categoryId))
+      .where(eq(categories.mode, mode))
+      .orderBy(asc(genres.archived), asc(genres.sort), asc(genres.id)),
+  ]);
+  return categoryRows.map((category) => ({
+    ...category,
+    genres: genreRows
+      .filter((genre) => genre.categoryId === category.id)
+      .map(({ id, name, archived }) => ({ id, name, archived })),
   }));
 };
 

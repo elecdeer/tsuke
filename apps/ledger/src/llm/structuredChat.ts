@@ -135,3 +135,135 @@ export const runStructuredChat = async <TSchema extends v.GenericSchema>(params:
     },
   };
 };
+
+/**
+ * `{"entries":[{...},{...}]}` の形の JSON を少しずつ読み、配列の要素が閉じるたびにその文字列を渡す関数を作る。
+ *
+ * LLM の応答はトークンごとに届き、要素の途中で切れるので、文字列の中かどうかと括弧の深さを追う。
+ */
+export const createArrayItemScanner = (onItem: (itemText: string) => void) => {
+  /** 最上位のオブジェクトと配列の中、つまり要素が始まる深さ */
+  const ITEM_DEPTH = 2;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let item = "";
+  return (text: string): void => {
+    for (const char of text) {
+      if (depth > ITEM_DEPTH) item += char;
+      else if (depth === ITEM_DEPTH && char === "{") item = char;
+
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === "\\") escaped = true;
+        else if (char === '"') inString = false;
+      } else if (char === '"') {
+        inString = true;
+      } else if (char === "{" || char === "[") {
+        depth += 1;
+      } else if (char === "}" || char === "]") {
+        depth -= 1;
+        if (depth === ITEM_DEPTH && char === "}") onItem(item);
+      }
+    }
+  };
+};
+
+/** Stream の 1 つの出来事。OpenAI 互換のモデルは delta で、他の Workers AI のモデルは response で本文を返す */
+const StreamChunkSchema = v.looseObject({
+  choices: v.optional(
+    v.array(
+      v.looseObject({ delta: v.optional(v.looseObject({ content: v.nullish(v.string()) })) }),
+    ),
+  ),
+  response: v.nullish(v.string()),
+});
+
+/**
+ * Server-Sent Events の本文を読み、届いた本文の文字列を順に渡す。読めない行は飛ばす。
+ */
+const readStreamContent = async (
+  body: ReadableStream<Uint8Array>,
+  onContent: (content: string) => void,
+): Promise<void> => {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  /**
+   * SSE の 1 行から本文を取り出して渡す。
+   */
+  const readLine = (line: string): void => {
+    if (!line.startsWith("data:")) return;
+    const data = line.slice("data:".length).trim();
+    if (data === "" || data === "[DONE]") return;
+    let json: unknown;
+    try {
+      json = JSON.parse(data);
+    } catch {
+      return;
+    }
+    const chunk = v.safeParse(StreamChunkSchema, json);
+    if (!chunk.success) return;
+    const content = chunk.output.choices?.[0]?.delta?.content ?? chunk.output.response;
+    if (content != null) onContent(content);
+  };
+  const reader = body.getReader();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      lines.forEach(readLine);
+    }
+    readLine(buffer);
+  } finally {
+    reader.releaseLock();
+  }
+};
+
+/**
+ * 出力スキーマを強制して chat を Stream で投げ、配列の要素が届くたびに検証して渡す。
+ *
+ * 形式に合わない要素は飛ばすので、渡されなかった要素は呼び出し側で未処理として扱う。
+ * Stream で応答しないモデルなら、全体が届いてから順に渡す。
+ */
+export const streamStructuredItems = async <TSchema extends v.GenericSchema>(params: {
+  ai: AiRunner;
+  model: string;
+  buildPrompt: () => StructuredPrompt;
+  schemaName: string;
+  jsonSchema: unknown;
+  itemSchema: TSchema;
+  reasoningEffort?: string;
+  abortSignal?: AbortSignal;
+  onItem: (item: v.InferOutput<TSchema>) => void;
+}): Promise<void> => {
+  const { system, prompt, images } = params.buildPrompt();
+  const scan = createArrayItemScanner((itemText) => {
+    const item = v.safeParse(params.itemSchema, JSON.parse(itemText));
+    if (item.success) params.onItem(item.output);
+  });
+  const output = await params.ai.run(
+    params.model,
+    {
+      stream: true,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: buildUserContent(prompt, images) },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: params.schemaName, strict: true, schema: params.jsonSchema },
+      },
+      ...(params.reasoningEffort === undefined ? {} : { reasoning_effort: params.reasoningEffort }),
+    },
+    { signal: params.abortSignal },
+  );
+  if (output instanceof ReadableStream) {
+    await readStreamContent(output, scan);
+    return;
+  }
+  // chat 系モデルは choices か response を持つオブジェクトを返す（取り出しは extractAssistantPayload が確かめる）
+  scan(JSON.stringify(extractAssistantPayload(output as WorkersAiChatResponse)));
+};
