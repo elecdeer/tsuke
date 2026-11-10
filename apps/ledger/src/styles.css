@@ -238,3 +238,13 @@
     animation: none;
   }
 }
+
+/*
+ * 集計のグラフ（MonthlyBarChart）。系列の色を黒とグレーにし、目盛りの文字は数字の幅をそろえる。
+ * TanStack Charts は既定の色を --ts-chart-N の変数から読むので、それを上書きする。
+ */
+.monthly-bar-chart {
+  --ts-chart-1: var(--foreground);
+  --ts-chart-2: color-mix(in oklch, var(--muted-foreground) 50%, transparent);
+  font-variant-numeric: tabular-nums;
+}

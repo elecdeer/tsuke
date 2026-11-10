@@ -129,12 +129,14 @@ export const resolveStatementPlaceName = (
 export const runExtractStatement = (params: {
   ai: AiRunner;
   model: string;
+  reasoningEffort?: string;
   input: ExtractStatementContext;
   abortSignal?: AbortSignal;
 }): Promise<{ object: ExtractedStatement; usage: unknown; timing: ExtractTiming }> =>
   runStructuredChat({
     ai: params.ai,
     model: params.model,
+    reasoningEffort: params.reasoningEffort,
     buildPrompt: () => buildStatementPrompt(params.input),
     schemaName: "ExtractedStatement",
     jsonSchema: EXTRACTED_STATEMENT_JSON_SCHEMA,

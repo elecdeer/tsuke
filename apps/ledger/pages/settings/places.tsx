@@ -28,7 +28,7 @@ import { selectTriggerClassName } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { monthOf } from "@/ledger/dates";
 import { cn } from "@/lib/utils";
-import { actionErrorMessage } from "@/web/actionError";
+import { type ActionResult, actionErrorMessage } from "@/web/actionError";
 import { ErrorMessage } from "@/web/components/ErrorMessage";
 import {
   filterPlaces,
@@ -43,9 +43,6 @@ import { transactionsHref } from "@/web/transactionsHref";
 import type { Props } from "./places.server";
 
 type Place = Props["places"][number];
-
-/** 確認のダイアログから実行する操作の結果。失敗したときの error は Void のアクションのエラーの形 */
-type ActionResult = { ok: true } | { ok: false; error: { body: unknown; message: string } };
 
 /**
  * 取り消せない操作を確かめるダイアログ。

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
-import { isActive, isNavigating, navPath } from "./nav.ts";
+import { isActive, isNavigating, navHref, navPath } from "./nav.ts";
 
 describe("isActive", () => {
   test("集計はトップのときだけ選ばれる", () => {
@@ -48,5 +48,35 @@ describe("isNavigating", () => {
     expect(isNavigating({ state: "idle", location: null, method: null })).toBe(false);
     expect(isNavigating({ state: "loading", location: null, method: "GET" })).toBe(true);
     expect(isNavigating({ state: "submitting", location: null, method: "POST" })).toBe(true);
+  });
+});
+
+describe("navHref", () => {
+  test("集計の月の表示から取引へ移るときは、その月の一覧にする", () => {
+    expect(navHref("/transactions", "/", new URLSearchParams("month=2026-09"))).toBe(
+      "/transactions?month=2026-09",
+    );
+  });
+
+  test("取引の一覧から集計へ移るときは、その月の集計にして絞り込みは引き継がない", () => {
+    expect(
+      navHref("/", "/transactions", new URLSearchParams("month=2026-09&categoryId=3&selected=5")),
+    ).toBe("/?month=2026-09");
+  });
+
+  test("年の集計からは、項目の URL のまま移る", () => {
+    expect(navHref("/transactions", "/", new URLSearchParams("year=2026"))).toBe("/transactions");
+  });
+
+  test("月を指定していない画面からは、項目の URL のまま移る", () => {
+    expect(navHref("/", "/transactions", new URLSearchParams())).toBe("/");
+  });
+
+  test("形の正しくない月は引き継がない", () => {
+    expect(navHref("/", "/transactions", new URLSearchParams("month=2026-13"))).toBe("/");
+  });
+
+  test("集計と取引のほかの項目には月を付けない", () => {
+    expect(navHref("/accounts", "/", new URLSearchParams("month=2026-09"))).toBe("/accounts");
   });
 });

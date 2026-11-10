@@ -116,4 +116,22 @@ describe("resolveStatementPlaceName", () => {
     expect(resolveStatementPlaceName({ place: "知らない店", placeName: null }, places)).toBeNull();
     expect(resolveStatementPlaceName({ place: null, placeName: null }, places)).toBeNull();
   });
+
+  test("推論量を指定したら送る", async () => {
+    const ai = {
+      run: vi.fn(async () => {
+        throw new Error("boom");
+      }),
+    };
+
+    await expect(
+      runExtractStatement({ ai, model: "test-model", reasoningEffort: "low", input: baseInput() }),
+    ).rejects.toThrow("boom");
+
+    expect(ai.run).toHaveBeenCalledWith(
+      "test-model",
+      expect.objectContaining({ reasoning_effort: "low" }),
+      { signal: undefined },
+    );
+  });
 });

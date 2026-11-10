@@ -52,7 +52,7 @@ Void の Pages（`pages/`）を使う。`pages/` はスパイクで作ったト�
 集計のきまり：
 
 - 支出は `mode = 'payment'`、収入は `mode = 'income'` の取引の品目の金額を合計する。振替と残高調整は入れない
-- `aggregation` が `always` の取引だけを入れる。`never`（集計に含めない）と `yearly_only`（年の集計にのみ含める）は月の集計に入れない。年の集計の画面は今回は作らない
+- `aggregation` が `always` の取引だけを入れる。`never`（集計に含めない）と `yearly_only`（年の集計にのみ含める）は月の集計に入れない。年の集計の画面は後で作った（[yearly-summary-design.md](yearly-summary-design.md)）
 - 品目の金額は符号付きなので、値引きの品目はそのまま差し引かれる
 - カテゴリのない品目は「未分類」にまとめる
 

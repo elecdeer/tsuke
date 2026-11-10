@@ -12,3 +12,6 @@ export const actionErrorMessage = (error: { body: unknown; message: string }): s
   }
   return error.message || "保存できませんでした";
 };
+
+/** ページのアクションの結果。失敗したときの error は Void のアクションのエラーの形 */
+export type ActionResult = { ok: true } | { ok: false; error: { body: unknown; message: string } };
