@@ -396,12 +396,14 @@ const ReceiptReview = ({
     }
     setError(null);
     setPending(true);
+    const model = entry.extracted?.model;
     try {
       const { id } = await ledgerApi()("/api/transactions", "POST", {
         body: {
           ...parsed.input,
           placePhone: entry.extracted?.placePhone ?? null,
           receiptImage: image,
+          ...(model !== undefined && { aiRead: { source: "receipt" as const, model } }),
         },
       });
       onRegistered(id);

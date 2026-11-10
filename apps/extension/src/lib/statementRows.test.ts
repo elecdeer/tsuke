@@ -64,6 +64,8 @@ describe("buildStatementRows", () => {
     });
 
     expect(rows.map((row) => row.category)).toEqual([{ categoryId: 102, genreId: 1003 }, null]);
+    // 推測の記録に使うので、一覧にない ID もそのまま残す
+    expect(rows.map((row) => row.aiGenreId)).toEqual([1003, 9999]);
   });
 
   test("LLM が推測した店舗名が一覧にあれば紐付け、なければ利用先名の完全一致で探す", () => {

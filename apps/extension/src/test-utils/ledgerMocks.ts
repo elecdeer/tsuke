@@ -88,6 +88,7 @@ export const mockStatementPlaces: LedgerOutput<"/api/places", "GET"> = {
 
 /** 読み取れる行が 3 件、日付と金額を読み取れない行が 1 件の明細 */
 export const mockStatement: LedgerOutput<"/api/statements/extract", "POST"> = {
+  model: "test-model",
   accountId: 2,
   rows: [
     { date: "2026-05-01", place: "ｽｰﾊﾟｰA", placeName: "スーパーA", amount: 1200, genreId: 1001 },

@@ -41,7 +41,8 @@ export const POST = defineHandler.withValidator({ body: ExtractBodySchema })(asy
       confidence: object.confidence,
       ...timing,
     });
-    return object;
+    // 登録のときに推測の記録へ残せるよう、読み取ったモデルも返す
+    return { ...object, model: model };
   } catch (error) {
     console.error("LLM extract-payment failed", {
       quality: body.quality,

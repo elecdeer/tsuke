@@ -37,7 +37,8 @@ export const POST = defineHandler.withValidator({ body: ExtractBodySchema })(asy
       rowCount: object.rows.length,
       ...timing,
     });
-    return object;
+    // 登録のときに推測の記録へ残せるよう、読み取ったモデルも返す
+    return { ...object, model: env.LLM_MODEL };
   } catch (error) {
     console.error("LLM extract-statement failed", {
       error: error instanceof Error ? error.message : String(error),

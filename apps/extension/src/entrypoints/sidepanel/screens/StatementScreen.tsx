@@ -114,6 +114,8 @@ export default function StatementScreen({ serverUrl }: Props) {
   const [accountId, setAccountId] = useState<number | null>(null);
   const [summary, setSummary] = useState<ExtractSummary | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  // 明細を読み取ったモデル。登録のときに推測の記録へ残す
+  const [readModel, setReadModel] = useState<string | null>(null);
 
   const updateRow = (id: string, patch: Partial<Omit<StatementRow, "id">>) => {
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
@@ -147,11 +149,13 @@ export default function StatementScreen({ serverUrl }: Props) {
       return {
         rows: buildStatementRows({ rows: readableRows, matches, places, categories }),
         accountId: extracted.accountId,
+        model: extracted.model,
         skippedCount: extracted.rows.length - readableRows.length,
       };
     },
-    onSuccess: ({ rows: newRows, accountId: extractedAccountId, skippedCount }) => {
+    onSuccess: ({ rows: newRows, accountId: extractedAccountId, model, skippedCount }) => {
       setRows(newRows);
+      setReadModel(model);
       if (extractedAccountId !== null) setAccountId(extractedAccountId);
       setSummary({
         rowCount: newRows.length,
@@ -188,8 +192,12 @@ export default function StatementScreen({ serverUrl }: Props) {
                     name: row.store === null ? row.place || null : null,
                     memo: null,
                     amount: row.amount,
+                    aiGuess: { genreId: row.aiGenreId, name: row.place || null },
                   },
                 ],
+                ...(readModel !== null && {
+                  aiRead: { source: "statement" as const, model: readModel },
+                }),
               },
             }),
           );

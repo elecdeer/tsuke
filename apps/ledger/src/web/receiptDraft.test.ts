@@ -62,8 +62,22 @@ describe("draftFromExtracted", () => {
       placeName: "ミドリマート",
       placeDetail: null,
       items: [
-        { key: 0, category: "g:1:11", name: "牛乳", memo: "", amount: "248" },
-        { key: 1, category: "g:2:21", name: "洗剤", memo: "詰め替え", amount: "328" },
+        {
+          key: 0,
+          category: "g:1:11",
+          name: "牛乳",
+          memo: "",
+          amount: "248",
+          aiGuess: { genreId: 11, name: "牛乳" },
+        },
+        {
+          key: 1,
+          category: "g:2:21",
+          name: "洗剤",
+          memo: "詰め替え",
+          amount: "328",
+          aiGuess: { genreId: 21, name: "洗剤" },
+        },
       ],
     });
   });
@@ -80,7 +94,16 @@ describe("draftFromExtracted", () => {
       context,
     );
     expect(draft).toMatchObject({ date: "2026-10-29", fromAccountId: "", placeName: "" });
-    expect(draft.items).toEqual([{ key: 0, category: "", name: "", memo: "", amount: "" }]);
+    expect(draft.items).toEqual([
+      {
+        key: 0,
+        category: "",
+        name: "",
+        memo: "",
+        amount: "",
+        aiGuess: { genreId: null, name: null },
+      },
+    ]);
   });
 
   test("候補にない口座・内訳は選んでいないことにする", () => {
@@ -90,6 +113,7 @@ describe("draftFromExtracted", () => {
     );
     expect(draft.fromAccountId).toBe("");
     expect(draft.items[0]?.category).toBe("");
+    expect(draft.items[0]?.aiGuess).toEqual({ genreId: 999, name: "牛乳" });
   });
 
   test("品目が空なら空の品目を 1 件置く", () => {
@@ -120,6 +144,24 @@ describe("paymentFromDraft", () => {
         items: [{ genreId: 11, name: "牛乳", memo: "", amount: 1248 }],
       },
     });
+  });
+
+  test("AI が読み取った品目には、フォームで直す前の内訳と品名を付ける", () => {
+    const items = [
+      { ...item, category: "g:2:21", name: "牛乳 1L", aiGuess: { genreId: 11, name: "牛乳" } },
+      { key: 1, category: "g:1:11", name: "手で足した品目", memo: "", amount: "100" },
+    ];
+    const result = paymentFromDraft({ ...draft, items });
+    expect(result.ok && result.input.items).toEqual([
+      {
+        genreId: 21,
+        name: "牛乳 1L",
+        memo: "",
+        amount: 1248,
+        aiGuess: { genreId: 11, name: "牛乳" },
+      },
+      { genreId: 11, name: "手で足した品目", memo: "", amount: 100 },
+    ]);
   });
 
   test("口座が空なら null にする", () => {

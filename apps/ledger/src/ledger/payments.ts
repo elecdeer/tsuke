@@ -3,6 +3,7 @@ import * as v from "valibot";
 import {
   accounts,
   categories,
+  genreInferences,
   genres,
   places,
   transactionItems,
@@ -14,6 +15,25 @@ import { PlacePhoneSchema } from "./placePhone.ts";
 import { rememberPlacePhone, upsertPlaceByName } from "./places.ts";
 
 const TextSchema = v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(200)));
+
+/**
+ * AI の読み取りから登録するときの、読み取りの元とモデル。モデルは読み取りの API が返した値をそのまま送る。
+ *
+ * 読み取りの優先（fast・accurate）から登録のときに引き直さないのは、読み直しに失敗して前の結果が残ったときに、
+ * 実際に読み取ったモデルとずれるため。
+ */
+export const AiReadSchema = v.object({
+  source: v.picklist(["page", "statement", "receipt"]),
+  model: v.pipe(v.string(), v.minLength(1), v.maxLength(100)),
+});
+
+/** AI が読み取ったままの品目。フォームで直す前の値 */
+const AiGuessSchema = v.object({
+  /** AI が推測した内訳。決められなかったときは null */
+  genreId: v.nullable(v.pipe(v.number(), v.safeInteger())),
+  /** AI が読み取った品名。明細では利用先名 */
+  name: TextSchema,
+});
 
 /** 支出の登録の入力 */
 export const PaymentInputSchema = v.object({
@@ -30,11 +50,15 @@ export const PaymentInputSchema = v.object({
         name: TextSchema,
         memo: TextSchema,
         amount: v.pipe(v.number(), v.safeInteger()),
+        /** AI が読み取った品目にだけ付ける。手で足した品目には付けない */
+        aiGuess: v.optional(AiGuessSchema),
       }),
     ),
     v.minLength(1),
     v.maxLength(100),
   ),
+  /** AI の読み取りから登録するときだけ付ける。品目の `aiGuess` と合わせて、推測の記録に使う */
+  aiRead: v.optional(AiReadSchema),
 });
 
 export type PaymentInput = v.InferOutput<typeof PaymentInputSchema>;
@@ -45,12 +69,39 @@ export type PaymentInput = v.InferOutput<typeof PaymentInputSchema>;
 const blankToNull = (value: string | null): string | null => (value === "" ? null : value);
 
 /**
+ * AI が読み取った品目ごとに、推測の記録の行を作る。AI の読み取りからの登録でなければ空になる。
+ */
+const genreInferenceRows = (
+  input: PaymentInput,
+  placeName: string | null,
+): Omit<typeof genreInferences.$inferInsert, "transactionId">[] => {
+  const { aiRead } = input;
+  if (aiRead === undefined) return [];
+  return input.items.flatMap((item) =>
+    item.aiGuess === undefined
+      ? []
+      : [
+          {
+            source: aiRead.source,
+            model: aiRead.model,
+            placeName,
+            itemName: blankToNull(item.aiGuess.name),
+            amount: item.amount,
+            inferredGenreId: item.aiGuess.genreId,
+            genreId: item.genreId,
+          },
+        ],
+  );
+};
+
+/**
  * 支出を 1 件の取引として登録する。
  *
  * 店舗の作成・取引・品目を 1 回の batch で入れるので、途中で失敗しても一部の品目だけが残ることはない。
  * batch の中では作った行の ID を受け渡せないので、取引は店舗を名前で、品目は直前に入れた取引を MAX(id) で
  * 参照する（batch はトランザクションで流れ、AUTOINCREMENT なので直前の取引の ID が最大になる）。
  * receiptImageKey には、先に保存したレシートの写真のキーを渡す。
+ * AI が読み取った品目は、推測した内訳と確定した内訳を同じ batch で記録する（プロンプトの改善に使う）。
  */
 export const createPayment = async (
   db: LedgerDb,
@@ -104,8 +155,21 @@ export const createPayment = async (
     })),
   );
 
+  const inferenceRows = genreInferenceRows(input, placeName);
+  const insertInferences =
+    inferenceRows.length === 0
+      ? []
+      : [
+          db.insert(genreInferences).values(
+            inferenceRows.map((row) => ({
+              ...row,
+              transactionId: sql`(SELECT MAX(${transactions.id}) FROM ${transactions})`,
+            })),
+          ),
+        ];
+
   if (placeName === null) {
-    const [[created]] = await db.batch([insertTransaction, insertItems]);
+    const [[created]] = await db.batch([insertTransaction, insertItems, ...insertInferences]);
     return created === undefined
       ? { ok: false, error: "取引を作れませんでした" }
       : { ok: true, id: created.id };
@@ -115,6 +179,7 @@ export const createPayment = async (
     rememberPlacePhone(db, placeName, input.placePhone ?? null),
     insertTransaction,
     insertItems,
+    ...insertInferences,
   ]);
   return created === undefined
     ? { ok: false, error: "取引を作れませんでした" }
