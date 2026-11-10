@@ -17,10 +17,9 @@ import {
   ComboboxClear,
   ComboboxContent,
   ComboboxEmpty,
-  ComboboxInput,
   ComboboxItem,
   ComboboxList,
-  ComboboxTrigger,
+  useComboboxAnchor,
 } from "@/components/ui/combobox";
 import {
   Dialog,
@@ -166,8 +165,11 @@ export const AccountSelect = ({
 };
 
 /**
- * 店舗（取引先）の入力欄。過去の店舗から選ぶか、一覧にない名前を打ち込んで追加する。
+ * 店舗（取引先）の入力欄。欄にそのまま打ち込み、過去の店舗から選ぶか、一覧にない名前を追加する。
  * 地図から近くの店舗を選んで、その名前を入れることもできる。
+ *
+ * 押すと検索の欄を別に開く形は、打ち始めるまでに 2 回押す必要があり、影と角丸の箱がほかの欄（下線だけ）から浮くので、
+ * 店舗の欄そのものを入力にし、候補は欄の下に罫線で区切って並べる。
  */
 export const PlaceInput = ({
   id,
@@ -184,7 +186,15 @@ export const PlaceInput = ({
   chainNames: string[];
   onChange: (value: string, detail: PlaceDetail | null) => void;
 }) => {
-  const [query, setQuery] = useState("");
+  // 欄に出す文字。打ち込んだだけでは店舗を変えず、候補を選んだときに変える
+  const [query, setQuery] = useState(value);
+  // 読み取りや地図から店舗が変わったら、欄の文字もその名前にする
+  const [shownValue, setShownValue] = useState(value);
+  if (shownValue !== value) {
+    setShownValue(value);
+    setQuery(value);
+  }
+  const anchor = useComboboxAnchor();
   const { contains } = ComboboxPrimitive.useFilter();
   const selected: PlaceOption | null = value === "" ? null : { name: value, isNew: false };
   const masters = { placeNames, chainNames };
@@ -200,26 +210,21 @@ export const PlaceInput = ({
         }}
         inputValue={query}
         onInputValueChange={setQuery}
+        onOpenChange={(open) => {
+          // 選ばずに閉じたら、打ちかけの文字を捨てて選んでいる店舗に戻す。選んで閉じたときは、
+          // 上で新しい店舗の名前に合わせ直す
+          if (!open) setQuery(value);
+        }}
         isItemEqualToValue={(a: PlaceOption, b: PlaceOption) => a.name === b.name}
         itemToStringLabel={(option: PlaceOption) => option.name}
+        // 欄はフォームの中にあるので、候補が選ばれていないと Enter でフォームを送ってしまう。
+        // 打ち込んだら先頭の候補を選んだ状態にして、Enter でその候補に決まるようにする
+        autoHighlight
         // 追加の候補は入力した名前そのものなので、絞り込みに関わらず常に出す
         filter={(option: PlaceOption, q: string) => option.isNew || contains(option.name, q)}
       >
-        <div className="flex min-w-0 items-center gap-0.5">
-          <ComboboxTrigger
-            id={id}
-            data-size="default"
-            className={cn(selectTriggerClassName, "w-full font-normal")}
-          >
-            <span
-              className={cn(
-                "line-clamp-1 flex-1 text-left",
-                value === "" && "text-muted-foreground",
-              )}
-            >
-              {value === "" ? "なし" : value}
-            </span>
-          </ComboboxTrigger>
+        <div ref={anchor} className="flex min-w-0 items-center gap-0.5">
+          <ComboboxPrimitive.Input id={id} placeholder="なし" render={<Input />} />
           {value !== "" && (
             <ComboboxClear
               render={<Button variant="ghost" size="icon-sm" aria-label="店舗を消す" />}
@@ -229,12 +234,23 @@ export const PlaceInput = ({
             onSelect={(poi) => onChange(poi.name, placeDetailFor(poi.name, masters, poi))}
           />
         </div>
-        <ComboboxContent>
-          <ComboboxInput placeholder="検索・追加" showTrigger={false} />
-          <ComboboxEmpty>過去の店舗はありません</ComboboxEmpty>
-          <ComboboxList>
+        <ComboboxContent
+          // 欄の右のボタンまで含めた幅で、欄のすぐ下に出す
+          anchor={anchor}
+          sideOffset={0}
+          // 箱ではなく欄の続きに見せたいので、影・角丸・枠をやめ、下の端だけ黒の線で閉じる（docs/design.md）
+          className="rounded-none border-b border-foreground bg-background shadow-none ring-0"
+        >
+          <ComboboxEmpty className="justify-start py-2 text-left">
+            過去の店舗はありません
+          </ComboboxEmpty>
+          <ComboboxList className="p-0">
             {(option: PlaceOption) => (
-              <ComboboxItem key={`${option.isNew}:${option.name}`} value={option}>
+              <ComboboxItem
+                key={`${option.isNew}:${option.name}`}
+                value={option}
+                className="rounded-none border-b py-2 pl-0 last:border-b-0 data-highlighted:bg-muted"
+              >
                 {option.isNew ? (
                   <>
                     <Plus aria-hidden="true" />「{option.name}」を追加
