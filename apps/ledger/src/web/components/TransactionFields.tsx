@@ -75,7 +75,8 @@ export type AccountOption = { id: number; name: string };
 /**
  * 品目の列。列の名前は表の見出しに 1 度だけ出す。
  *
- * 狭いところでは 1 行目に品目名と金額、2 行目に内訳とメモを置く。広いところでは品目を 1 行に並べる。
+ * 狭いところでは 1 行目に品目名、2 行目に内訳と金額、3 行目にメモを置く。広いところでは品目を 1 行に並べる。
+ * 内訳のない振替・残高調整は、1 行目に品目名と金額を並べる。
  * 取引の一覧のサイドパネルのような狭い場所にも置くので、画面の幅ではなく Section の幅（コンテナクエリ）で切り替える。
  * 支出は並べ替え・削除のメニューの列を持ち、振替・残高調整はカテゴリの列を持たない。
  */
@@ -414,7 +415,7 @@ const ItemFields = ({
           label={mode === "payment" ? "内訳" : "カテゴリ"}
           htmlFor={ids.category}
           labelClassName="sr-only"
-          className="order-4 @xl:order-none"
+          className="order-3 @xl:order-none"
         >
           <Select
             items={{
@@ -453,7 +454,8 @@ const ItemFields = ({
         label="品目名"
         htmlFor={ids.name}
         labelClassName="sr-only"
-        className="order-1 @xl:order-none"
+        // 内訳と金額を 1 行目から外し、品目名を広く取る。内訳だけが 2 行目にあると段がずれて見えるため
+        className={cn("order-1 @xl:order-none", hasCategory && "col-span-2 @xl:col-span-1")}
       >
         <ItemTextButton
           id={ids.name}
@@ -482,7 +484,12 @@ const ItemFields = ({
         label="金額"
         htmlFor={ids.amount}
         labelClassName="sr-only"
-        className="order-2 @xl:order-none"
+        className={cn(
+          hasCategory ? "order-4" : "order-2",
+          // 支出は 1 行目の右端にメニューがあるので、その列まで伸ばして右端をそろえる
+          mode === "payment" && "col-span-2 @xl:col-span-1",
+          "@xl:order-none",
+        )}
       >
         <div className="relative">
           <Input
@@ -502,7 +509,7 @@ const ItemFields = ({
         </div>
       </FormField>
       {mode === "payment" && (
-        <div className="order-3 flex justify-end @xl:order-none">
+        <div className="order-2 flex justify-end @xl:order-none">
           <DropdownMenu>
             <DropdownMenuTrigger
               render={<Button variant="ghost" size="icon-sm" aria-label="品目の操作" />}
@@ -588,13 +595,15 @@ export const ItemsFields = ({
           ITEM_COLUMNS[mode],
         )}
       >
-        {/* 狭いところでは 1 行目の品目名と金額の見出しだけを出す */}
+        {/* 狭いところでは品目名と金額の見出しだけを出す */}
         {(mode === "payment" || mode === "income") && (
           <span className="hidden @xl:block">{mode === "payment" ? "内訳" : "カテゴリ"}</span>
         )}
         <span>品目名</span>
         <span className="hidden @xl:block">メモ</span>
-        <span className="text-right">金額</span>
+        <span className={cn("text-right", mode === "payment" && "col-span-2 @xl:col-span-1")}>
+          金額
+        </span>
       </div>
       <div>
         {items.map((item, index) => (
