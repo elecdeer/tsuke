@@ -75,8 +75,8 @@ export type AccountOption = { id: number; name: string };
 /**
  * 品目の列。列の名前は表の見出しに 1 度だけ出す。
  *
- * 狭いところでは 1 行目に品目名、2 行目に内訳と金額、3 行目にメモを置く。広いところでは品目を 1 行に並べる。
- * 内訳のない振替・残高調整は、1 行目に品目名と金額を並べる。
+ * 狭いところでは内訳を小さく上に添え、その下に品目名と金額を並べ、メモはさらに下に置く。
+ * 広いところでは品目を 1 行に並べる。
  * 取引の一覧のサイドパネルのような狭い場所にも置くので、画面の幅ではなく Section の幅（コンテナクエリ）で切り替える。
  * 支出は並べ替え・削除のメニューの列を持ち、振替・残高調整はカテゴリの列を持たない。
  */
@@ -88,6 +88,13 @@ const ITEM_COLUMNS: Record<TransactionMode, string> = {
   transfer: "grid-cols-[minmax(0,1fr)_7rem] @xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]",
   adjustment: "grid-cols-[minmax(0,1fr)_7rem] @xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]",
 };
+
+/**
+ * 狭いところで品目の欄の下線を消すクラス。品目は 1 行ずつ罫線で区切るので、欄ごとの下線まであると線が多すぎて、
+ * 欄の長さがそろわない所が目立つ。触れたとき（ホバー・入力中）の線はそのまま出して、押せることを示す。
+ * 広いところでは品目を 1 行に並べ、欄の下線が行の区切りを兼ねるので残す。
+ */
+const ITEM_FIELD_LINE = "border-transparent @xl:border-foreground/40";
 
 /**
  * 金額に添える単位。順序は文字の大きさと太さで付ける（docs/design.md）ので、数字より小さく細く出す。
@@ -264,12 +271,14 @@ const ItemTextButton = ({
   id,
   value,
   placeholder,
+  className,
   onClick,
 }: {
   id: string;
   value: string;
   /** 空のときに薄く出す文字。列の見出しを出さない狭い場所で、何の欄かを示す */
   placeholder?: string;
+  className?: string;
   onClick: () => void;
 }) => (
   <button
@@ -277,7 +286,7 @@ const ItemTextButton = ({
     id={id}
     data-size="default"
     title={value === "" ? undefined : value}
-    className={cn(selectTriggerClassName, "w-full")}
+    className={cn(selectTriggerClassName, "w-full", className)}
     onClick={onClick}
   >
     {value === "" && placeholder !== undefined ? (
@@ -405,8 +414,8 @@ const ItemFields = ({
     <div
       className={cn(
         // 広い画面では入力欄の下線が行の区切りを兼ねるので、行の罫線は狭い画面（欄を積むとき）だけに引く。
-        // 積んだ欄の下線（foreground/40）より薄いと品目の区切りと欄の下線を取り違えるので、下線より濃くする
-        "grid items-end gap-x-4 gap-y-0.5 border-b border-foreground/80 py-2 @xl:gap-y-2 @xl:border-b-0",
+        // 狭い画面では欄の下線を消していて、品目の区切りはこの線だけになるので、薄くしすぎない
+        "grid items-end gap-x-4 gap-y-0 border-b border-foreground/80 py-2 @xl:gap-y-2 @xl:border-b-0",
         ITEM_COLUMNS[mode],
       )}
     >
@@ -415,7 +424,8 @@ const ItemFields = ({
           label={mode === "payment" ? "内訳" : "カテゴリ"}
           htmlFor={ids.category}
           labelClassName="sr-only"
-          className="order-3 @xl:order-none"
+          // 品目名の上に小さく添える。品目名と金額を同じ段に並べ、欄の高さをそろえるため
+          className="order-1 col-span-full @xl:order-none @xl:col-span-1"
         >
           <Select
             items={{
@@ -428,8 +438,11 @@ const ItemFields = ({
           >
             <SelectTrigger
               id={ids.category}
-              // 狭いところでは品目名に従う 2 行目なので、下線を消して小さく薄く出す
-              className="w-fit max-w-full border-transparent text-xs text-muted-foreground @xl:w-full @xl:border-foreground/40 @xl:text-sm @xl:text-foreground"
+              // 狭いところでは品目名に添える見出しのように、低く小さく薄く出す
+              className={cn(
+                "w-fit max-w-full text-xs text-muted-foreground data-[size=default]:h-6 @xl:w-full @xl:text-sm @xl:text-foreground @xl:data-[size=default]:h-8",
+                ITEM_FIELD_LINE,
+              )}
             >
               <SelectValue />
             </SelectTrigger>
@@ -454,13 +467,13 @@ const ItemFields = ({
         label="品目名"
         htmlFor={ids.name}
         labelClassName="sr-only"
-        // 内訳と金額を 1 行目から外し、品目名を広く取る。内訳だけが 2 行目にあると段がずれて見えるため
-        className={cn("order-1 @xl:order-none", hasCategory && "col-span-2 @xl:col-span-1")}
+        className="order-2 @xl:order-none"
       >
         <ItemTextButton
           id={ids.name}
           value={item.name}
           placeholder="品目名"
+          className={ITEM_FIELD_LINE}
           onClick={() => setEditing("name")}
         />
       </FormField>
@@ -477,6 +490,7 @@ const ItemFields = ({
           id={ids.memo}
           value={item.memo}
           placeholder="メモ"
+          className={ITEM_FIELD_LINE}
           onClick={() => setEditing("memo")}
         />
       </FormField>
@@ -484,18 +498,13 @@ const ItemFields = ({
         label="金額"
         htmlFor={ids.amount}
         labelClassName="sr-only"
-        className={cn(
-          hasCategory ? "order-4" : "order-2",
-          // 支出は 1 行目の右端にメニューがあるので、その列まで伸ばして右端をそろえる
-          mode === "payment" && "col-span-2 @xl:col-span-1",
-          "@xl:order-none",
-        )}
+        className="order-3 @xl:order-none"
       >
         <div className="relative">
           <Input
             id={ids.amount}
             inputMode="numeric"
-            className="pr-4 text-right tabular-nums"
+            className={cn("pr-4 text-right tabular-nums", ITEM_FIELD_LINE)}
             value={item.amount}
             onChange={(event) => onChange({ amount: event.target.value })}
           />
@@ -509,7 +518,7 @@ const ItemFields = ({
         </div>
       </FormField>
       {mode === "payment" && (
-        <div className="order-2 flex justify-end @xl:order-none">
+        <div className="order-4 flex justify-end @xl:order-none">
           <DropdownMenu>
             <DropdownMenuTrigger
               render={<Button variant="ghost" size="icon-sm" aria-label="品目の操作" />}
@@ -601,9 +610,7 @@ export const ItemsFields = ({
         )}
         <span>品目名</span>
         <span className="hidden @xl:block">メモ</span>
-        <span className={cn("text-right", mode === "payment" && "col-span-2 @xl:col-span-1")}>
-          金額
-        </span>
+        <span className="text-right">金額</span>
       </div>
       <div>
         {items.map((item, index) => (
