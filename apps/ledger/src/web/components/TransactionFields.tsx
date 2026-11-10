@@ -505,7 +505,8 @@ const ItemFields = ({
         </div>
       </FormField>
       {mode === "payment" && (
-        <div className="order-4 flex justify-end @xl:order-none">
+        // ボタン（h-7）は欄（h-8）より低く、下端でそろえると欄の文字より下に寄るので、欄と同じ高さの中で縦の中央に置く
+        <div className="order-4 flex h-8 items-center justify-end @xl:order-none">
           <DropdownMenu>
             <DropdownMenuTrigger
               render={<Button variant="ghost" size="icon-sm" aria-label="品目の操作" />}
