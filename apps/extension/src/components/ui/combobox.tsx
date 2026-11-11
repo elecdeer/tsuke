@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { CheckIcon, SearchIcon } from "lucide-react";
 
@@ -7,6 +8,13 @@ import { cn } from "@/lib/utils";
 import { InputGroup, InputGroupAddon } from "@/components/ui/input-group";
 
 const Combobox = ComboboxPrimitive.Root;
+
+/**
+ * 押すと候補を開く欄の見た目。台帳の選択欄（apps/ledger/src/components/ui/select.tsx）と同じく、
+ * 枠の代わりに下線だけを引き、開いている間と入力中は下線を太くする。
+ */
+const comboboxTriggerClassName =
+  "flex h-8 w-full min-w-0 items-center justify-between gap-1.5 rounded-none border-0 border-b border-foreground/40 bg-transparent py-1 pr-0.5 pl-0 text-left text-sm whitespace-nowrap transition-colors outline-none select-none hover:border-foreground focus-visible:border-foreground focus-visible:shadow-[inset_0_-1px_0_var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:shadow-[inset_0_-1px_0_var(--destructive)] data-popup-open:border-foreground data-popup-open:shadow-[inset_0_-1px_0_var(--foreground)] [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
 
 function ComboboxValue({ ...props }: ComboboxPrimitive.Value.Props) {
   return <ComboboxPrimitive.Value data-slot="combobox-value" {...props} />;
@@ -46,9 +54,13 @@ function ComboboxContent({
   sideOffset = 6,
   align = "start",
   alignOffset = 0,
+  anchor,
   ...props
 }: ComboboxPrimitive.Popup.Props &
-  Pick<ComboboxPrimitive.Positioner.Props, "side" | "sideOffset" | "align" | "alignOffset">) {
+  Pick<
+    ComboboxPrimitive.Positioner.Props,
+    "side" | "sideOffset" | "align" | "alignOffset" | "anchor"
+  >) {
   return (
     <ComboboxPrimitive.Portal>
       <ComboboxPrimitive.Positioner
@@ -56,12 +68,13 @@ function ComboboxContent({
         sideOffset={sideOffset}
         align={align}
         alignOffset={alignOffset}
+        anchor={anchor}
         className="isolate z-50"
       >
         <ComboboxPrimitive.Popup
           data-slot="combobox-content"
           className={cn(
-            "flex max-h-(--available-height) w-(--anchor-width) max-w-(--available-width) flex-col overflow-hidden rounded-xl! bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-hidden duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            "flex max-h-(--available-height) w-(--anchor-width) max-w-(--available-width) flex-col overflow-hidden rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-hidden duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
             className,
           )}
           {...props}
@@ -137,8 +150,17 @@ function ComboboxItem({ className, children, ...props }: ComboboxPrimitive.Item.
   );
 }
 
+/**
+ * 候補の位置を合わせる要素の ref。欄の横のボタンまで含めた幅で候補を出すときに使う。
+ */
+function useComboboxAnchor() {
+  return React.useRef<HTMLDivElement | null>(null);
+}
+
 export {
   Combobox,
+  comboboxTriggerClassName,
+  useComboboxAnchor,
   ComboboxValue,
   ComboboxTrigger,
   ComboboxClear,

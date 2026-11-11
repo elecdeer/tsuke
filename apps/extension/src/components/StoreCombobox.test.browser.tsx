@@ -1,7 +1,7 @@
 import { delay, http, HttpResponse } from "msw";
 import { useState } from "react";
 import { describe, expect, vi } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 import { test } from "../test-utils/browser-test.ts";
 import { MOCK_SERVER_URL, mockPlaces, mockUrl, placesHandler } from "../test-utils/ledgerMocks.ts";
@@ -69,8 +69,7 @@ describe("StoreCombobox", () => {
     worker.use(placesHandler);
 
     await render(<ControlledStoreCombobox />);
-    await page.getByRole("combobox", { name: "店舗" }).click();
-    await page.getByPlaceholder("店舗を検索・追加").fill("存在しない店舗");
+    await page.getByRole("combobox", { name: "店舗" }).fill("存在しない店舗");
 
     await expect
       .element(page.getByRole("option", { name: "「存在しない店舗」を追加" }))
@@ -78,13 +77,13 @@ describe("StoreCombobox", () => {
     await expect.element(page.getByRole("option", { name: "スーパーA" })).not.toBeInTheDocument();
   });
 
-  test("台帳に店舗がなく入力も空なら「見つかりません」を表示する", async ({ worker }) => {
+  test("台帳に店舗がなく入力も空なら、過去の店舗がないことを表示する", async ({ worker }) => {
     worker.use(http.get(mockUrl("/api/places"), () => HttpResponse.json({ places: [] })));
 
     await render(<ControlledStoreCombobox />);
     await page.getByRole("combobox", { name: "店舗" }).click();
 
-    await expect.element(page.getByText("店舗が見つかりません")).toBeVisible();
+    await expect.element(page.getByText("過去の店舗はありません")).toBeVisible();
   });
 
   test("店舗を選択すると店舗名でonChangeが呼ばれる", async ({ worker }) => {
@@ -105,22 +104,18 @@ describe("StoreCombobox", () => {
     const onChange = vi.fn<(value: string | null) => void>();
     await render(<ControlledStoreCombobox onChange={onChange} />);
 
-    await page.getByRole("combobox", { name: "店舗" }).click();
-    await page.getByPlaceholder("店舗を検索・追加").fill("はじめての店");
+    await page.getByRole("combobox", { name: "店舗" }).fill("はじめての店");
     await page.getByRole("option", { name: "「はじめての店」を追加" }).click();
 
     expect(onChange).toHaveBeenCalledWith("はじめての店");
-    await expect
-      .element(page.getByRole("combobox", { name: "店舗" }))
-      .toMatchTextContent("はじめての店");
+    await expect.element(page.getByRole("combobox", { name: "店舗" })).toHaveValue("はじめての店");
   });
 
   test("一覧にある名前を入れたときは追加の候補を出さない", async ({ worker }) => {
     worker.use(placesHandler);
 
     await render(<ControlledStoreCombobox />);
-    await page.getByRole("combobox", { name: "店舗" }).click();
-    await page.getByPlaceholder("店舗を検索・追加").fill("スーパーA");
+    await page.getByRole("combobox", { name: "店舗" }).fill("スーパーA");
 
     await expect.element(page.getByRole("option", { name: "スーパーA" })).toBeVisible();
     await expect.element(page.getByRole("option", { name: /を追加$/ })).not.toBeInTheDocument();
@@ -131,9 +126,7 @@ describe("StoreCombobox", () => {
 
     await render(<ControlledStoreCombobox initialValue="はじめての店" />);
 
-    await expect
-      .element(page.getByRole("combobox", { name: "店舗" }))
-      .toMatchTextContent("はじめての店");
+    await expect.element(page.getByRole("combobox", { name: "店舗" })).toHaveValue("はじめての店");
   });
 
   test("クリアするとonChangeがnullで呼ばれる", async ({ worker }) => {
@@ -148,6 +141,17 @@ describe("StoreCombobox", () => {
     await page.getByRole("button", { name: "クリア" }).click();
 
     expect(onChange).toHaveBeenLastCalledWith(null);
+  });
+
+  test("選ばずに閉じると、打ちかけの文字を捨てて選んでいる店舗に戻す", async ({ worker }) => {
+    worker.use(placesHandler);
+
+    await render(<ControlledStoreCombobox initialValue="スーパーA" />);
+    const input = page.getByRole("combobox", { name: "店舗" });
+    await input.fill("打ちかけ");
+    await userEvent.keyboard("{Escape}");
+
+    await expect.element(input).toHaveValue("スーパーA");
   });
 
   test("店舗取得エラー時にエラーメッセージが表示される", async ({ worker }) => {

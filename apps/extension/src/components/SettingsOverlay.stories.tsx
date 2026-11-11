@@ -1,5 +1,6 @@
 import { useState } from "react";
 import preview from "#storybook/preview";
+import { Button } from "@/components/ui/button";
 import { setupBrowserMock } from "../test-utils/browser-mock.ts";
 import { meHandler, MOCK_SERVER_URL, unauthenticatedHandler } from "../test-utils/ledgerMocks.ts";
 import { SettingsOverlay } from "./SettingsOverlay.tsx";
@@ -8,13 +9,9 @@ const ControlledWrapper = () => {
   const [open, setOpen] = useState(true);
   return (
     <div className="p-4">
-      <button
-        type="button"
-        className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white"
-        onClick={() => setOpen(true)}
-      >
+      <Button type="button" variant="outline" onClick={() => setOpen(true)}>
         設定を開く
-      </button>
+      </Button>
       <SettingsOverlay open={open} onOpenChange={setOpen} />
     </div>
   );

@@ -14,13 +14,7 @@ export default defineProject({
   // MSWサービスワーカー（mockServiceWorker.js）を /mockServiceWorker.js として配信する
   publicDir: "./storybook-public",
   optimizeDeps: {
-    include: [
-      "react",
-      "react-dom/client",
-      "react/jsx-dev-runtime",
-      "vitest-browser-react",
-      "@phosphor-icons/react",
-    ],
+    include: ["react", "react-dom/client", "react/jsx-dev-runtime", "vitest-browser-react"],
   },
   test: {
     // Vitest v4 compatibility: preserve mock call history.
