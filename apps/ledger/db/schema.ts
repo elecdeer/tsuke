@@ -261,13 +261,16 @@ export const genreInferences = sqliteTable(
     transactionId: integer("transaction_id")
       .notNull()
       .references(() => transactions.id, { onDelete: "cascade" }),
-    /** 読み取りの元。page は拡張機能でのページ、statement は明細、receipt はレシートの写真 */
-    source: text("source", { enum: ["page", "statement", "receipt"] }).notNull(),
+    /**
+     * 読み取りの元。page は拡張機能でのページ、statement は明細のページ、receipt はレシートの写真、
+     * statement_csv は履歴 CSV
+     */
+    source: text("source", { enum: ["page", "statement", "receipt", "statement_csv"] }).notNull(),
     /** 読み取ったモデル */
     model: text("model").notNull(),
     /** 登録した店舗の名前 */
     placeName: text("place_name"),
-    /** AI が読み取った品名。明細では利用先名 */
+    /** AI が読み取った品名。明細と履歴 CSV では利用先の表記 */
     itemName: text("item_name"),
     amount: integer("amount").notNull(),
     /** AI が推測した内訳。決められなかったときは null */

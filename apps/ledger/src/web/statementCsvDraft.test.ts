@@ -115,6 +115,26 @@ describe("applyClassifiedRows", () => {
     expect(applied).toMatchObject({ pending: false, genreId: 20, place: "スーパーA" });
   });
 
+  test("AI が分類した行には、AI が推測した内訳を持たせる", () => {
+    const [payment, income] = applyClassifiedRows(
+      [draft({ pending: true }), draft({ line: 3, pending: true })],
+      [classified, { ...classified, line: 3, mode: "income", genreId: null }],
+    );
+
+    expect(payment?.aiGuess).toEqual({ genreId: 20 });
+    // AI が支出と分類しなかった行は、内訳の推測がなかったものとして持つ
+    expect(income?.aiGuess).toEqual({ genreId: null });
+  });
+
+  test("AI が分類を返さなかった行には、推測を持たせない", () => {
+    const [applied] = applyClassifiedRows(
+      [draft({ pending: true })],
+      [{ ...classified, genreId: null, classified: false }],
+    );
+
+    expect(applied).not.toHaveProperty("aiGuess");
+  });
+
   test("登録済みと分かったら選択を外す", () => {
     const [applied] = applyClassifiedRows(
       [draft({ pending: true })],
@@ -220,6 +240,32 @@ describe("registerInputFromDrafts", () => {
       { placeName: "スーパーA", name: null },
       { placeName: null, name: "ｽｰﾊﾟｰA" },
     ]);
+  });
+
+  test("AI が分類した支出の行には、直す前の推測とモデルを付ける", () => {
+    const input = registerInputFromDrafts({
+      fileName: "a.csv",
+      accountId: 1,
+      model: "test-model",
+      drafts: [
+        draft({ genreId: 30, aiGuess: { genreId: 20 } }),
+        draft({ mode: "income", genreId: null, aiGuess: { genreId: null } }),
+        draft(),
+      ],
+    });
+
+    expect(input.aiModel).toBe("test-model");
+    expect(input.rows.map((row) => "aiGuess" in row && row.aiGuess)).toEqual([
+      { genreId: 20 },
+      false,
+      false,
+    ]);
+  });
+
+  test("モデルが分からなければ付けない", () => {
+    expect(
+      registerInputFromDrafts({ fileName: "a.csv", accountId: 1, drafts: [] }),
+    ).not.toHaveProperty("aiModel");
   });
 
   test("返金は負の金額の支出にする", () => {

@@ -128,6 +128,93 @@ describe("履歴 CSV の登録", () => {
     ]);
   });
 
+  const inferenceRows = () =>
+    sqlite
+      .prepare(
+        `SELECT transaction_id AS transactionId, source, model, place_name AS placeName, item_name AS itemName,
+                amount, inferred_genre_id AS inferredGenreId, genre_id AS genreId
+         FROM genre_inferences ORDER BY id`,
+      )
+      .all();
+
+  /** 支出の行。利用先の表記と AI の推測は行ごとに変える */
+  const paymentRow = (
+    overrides: Partial<Extract<StatementCsvRegisterInput["rows"][number], { mode: "payment" }>>,
+  ): StatementCsvRegisterInput["rows"][number] => ({
+    mode: "payment",
+    date: "2026-05-10",
+    amount: 1000,
+    placeName: null,
+    name: null,
+    genreId: genre,
+    ...overrides,
+  });
+
+  test("AI が分類した支出の行は、推測した内訳と確定した内訳を行の取引に結びつけて記録する", async () => {
+    const otherGenre = insert(
+      sqlite,
+      "INSERT INTO genres (category_id, name) VALUES (?, 'カフェ')",
+      paymentCategory,
+    );
+
+    await registerStatementCsv(db, {
+      fileName: "a.csv",
+      accountId: bank,
+      aiModel: "test-model",
+      rows: [
+        paymentRow({ description: "ｽｰﾊﾟｰA", placeName: "スーパーA", aiGuess: { genreId: genre } }),
+        // 覚えていた分類の行。AI の推測ではないので記録しない
+        paymentRow({ description: "ｵﾎﾞｴﾃｲﾀ" }),
+        paymentRow({ description: "ｶﾌｪC", genreId: otherGenre, aiGuess: { genreId: genre } }),
+        paymentRow({ description: "ﾌﾒｲ", amount: 500, aiGuess: { genreId: null } }),
+        {
+          mode: "income",
+          description: "ｷﾕｳﾖ",
+          date: "2026-05-25",
+          amount: 300000,
+          placeName: null,
+          name: null,
+          categoryId: incomeCategory,
+        },
+      ],
+    });
+
+    const base = { source: "statement_csv", model: "test-model", amount: 1000 };
+    expect(inferenceRows()).toEqual([
+      {
+        ...base,
+        transactionId: 1,
+        placeName: "スーパーA",
+        itemName: "ｽｰﾊﾟｰA",
+        inferredGenreId: genre,
+        genreId: genre,
+      },
+      {
+        ...base,
+        transactionId: 3,
+        placeName: null,
+        itemName: "ｶﾌｪC",
+        inferredGenreId: genre,
+        genreId: otherGenre,
+      },
+      {
+        ...base,
+        transactionId: 4,
+        placeName: null,
+        itemName: "ﾌﾒｲ",
+        amount: 500,
+        inferredGenreId: null,
+        genreId: genre,
+      },
+    ]);
+  });
+
+  test("モデルが分からなければ推測を記録しない", async () => {
+    await register([paymentRow({ description: "ｽｰﾊﾟｰA", aiGuess: { genreId: genre } })]);
+
+    expect(inferenceRows()).toEqual([]);
+  });
+
   test("知らない内訳があれば何も登録しない", async () => {
     const result = await register([
       {

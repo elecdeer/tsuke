@@ -6,6 +6,7 @@ import * as v from "valibot";
 import {
   accounts,
   categories,
+  genreInferences,
   genres,
   importBatches,
   places,
@@ -53,6 +54,11 @@ export const StatementCsvRegisterSchema = v.object({
           placeName: TextSchema,
           name: TextSchema,
           genreId: IdSchema,
+          /**
+           * AI が分類した行にだけ付ける、AI が推測した内訳。覚えていた分類の行や、AI の分類が届く前に手で直した行には付けない。
+           * AI が支出と分類しなかった行や、内訳を決められなかった行は null
+           */
+          aiGuess: v.optional(v.object({ genreId: v.nullable(IdSchema) })),
         }),
         v.object({
           mode: v.literal("income"),
@@ -78,6 +84,8 @@ export const StatementCsvRegisterSchema = v.object({
     v.minLength(1),
     v.maxLength(REGISTER_ROWS_MAX),
   ),
+  /** 読み取りの API が返した、分類に使ったモデル。行の `aiGuess` と合わせて、推測の記録に使う */
+  aiModel: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(100))),
 });
 
 export type StatementCsvRegisterInput = v.InferOutput<typeof StatementCsvRegisterSchema>;
@@ -226,6 +234,7 @@ const classificationsFromRows = (
  * batch の中では作った行の ID を受け渡せないので、createPayment と同じく取引は取り込みの記録を MAX(id) で、
  * 品目は直前に入れた取引を MAX(id) で参照する。
  * 形式と分類は、人が確かめた結果だけを覚えるよう、読み取りではなく登録のときに同じ batch で覚える。
+ * AI が分類した支出の行は、推測した内訳と確定した内訳を同じ batch で記録する（プロンプトの改善に使う）。
  */
 export const registerStatementCsv = async (
   db: LedgerDb,
@@ -238,8 +247,24 @@ export const registerStatementCsv = async (
   const lastBatchId: SQL<number> = sql`(SELECT MAX(${importBatches.id}) FROM ${importBatches})`;
 
   const placeNames = [...new Set(input.rows.flatMap((row) => placeNameOf(row) ?? []))];
+  const { aiModel } = input;
   const rowStatements = input.rows.flatMap((row) => {
     const placeName = placeNameOf(row);
+    const insertInference =
+      aiModel === undefined || row.mode !== "payment" || row.aiGuess === undefined
+        ? []
+        : [
+            db.insert(genreInferences).values({
+              transactionId: lastTransactionId,
+              source: "statement_csv",
+              model: aiModel,
+              placeName,
+              itemName: blankToNull(row.description?.trim() ?? ""),
+              amount: row.amount,
+              inferredGenreId: row.aiGuess.genreId,
+              genreId: row.genreId,
+            }),
+          ];
     return [
       db.insert(transactions).values({
         date: row.date,
@@ -264,6 +289,7 @@ export const registerStatementCsv = async (
         name: blankToNull(row.name),
         amount: row.amount,
       }),
+      ...insertInference,
     ];
   });
 

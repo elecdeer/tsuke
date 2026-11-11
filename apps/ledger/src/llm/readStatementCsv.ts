@@ -558,6 +558,7 @@ export const streamStatementCsvClassification = (params: {
     return {
       event: {
         type: "rows",
+        model: params.model,
         accountId: prepared.accountId,
         skippedCount: prepared.skippedCount,
         format: prepared.format,
