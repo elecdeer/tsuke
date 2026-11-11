@@ -238,10 +238,11 @@ export const PlaceInput = ({
           // 欄の右のボタンまで含めた幅で、欄のすぐ下に出す
           anchor={anchor}
           sideOffset={0}
-          // 箱ではなく欄の続きに見せたいので、影・角丸・枠をやめ、下の端だけ黒の線で閉じる（docs/design.md）
-          className="rounded-none border-b border-foreground bg-background shadow-none ring-0"
+          // 影・角丸は使わず（docs/design.md）、欄の下線を上の辺にした箱として左右と下を黒の線で閉じる。
+          // 下の端の線だけでは、後ろに透けて見えるページの罫線と候補の行の境目がつながり、どこまでが候補か読み取れない
+          className="rounded-none border-x border-b border-foreground bg-background shadow-none ring-0"
         >
-          <ComboboxEmpty className="justify-start py-2 text-left">
+          <ComboboxEmpty className="justify-start px-2 py-2 text-left">
             過去の店舗はありません
           </ComboboxEmpty>
           <ComboboxList className="p-0">
@@ -249,7 +250,7 @@ export const PlaceInput = ({
               <ComboboxItem
                 key={`${option.isNew}:${option.name}`}
                 value={option}
-                className="rounded-none border-b py-2 pl-0 last:border-b-0 data-highlighted:bg-muted"
+                className="rounded-none border-b py-2 pl-2 last:border-b-0 data-highlighted:bg-muted"
               >
                 {option.isNew ? (
                   <>
