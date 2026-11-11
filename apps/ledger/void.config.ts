@@ -7,8 +7,13 @@ export default defineConfig({
     htmlAttrs: { lang: "ja" },
     meta: [
       { charset: "utf-8" },
-      // viewport-fit=cover で画面の端まで描き、下のナビを env(safe-area-inset-bottom) でホームバーから避ける
-      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      // viewport-fit=cover で画面の端まで描き、下のナビを env(safe-area-inset-bottom) でホームバーから避ける。
+      // 入力欄の文字は 14px にしていて、iOS の Safari は 16px より小さい欄に触れると画面を拡大してしまうので、
+      // maximum-scale=1 で止める（iOS はこの指定があっても指での拡大はできる）
+      {
+        name: "viewport",
+        content: "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover",
+      },
       { name: "theme-color", content: "#ffffff" },
       { name: "apple-mobile-web-app-title", content: "台帳" },
     ],
