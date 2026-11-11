@@ -96,6 +96,8 @@ export type StatementCsvClassifiedRow = v.InferOutput<typeof ClassifiedRowSchema
 const ReadEventSchema = v.variant("type", [
   v.object({
     type: v.literal("rows"),
+    /** 分類に使うモデル。登録のときに推測の記録へ残す */
+    model: v.string(),
     accountId: v.nullable(v.number()),
     skippedCount: v.number(),
     /** 登録のときに覚える形式。見出しのない CSV は null */

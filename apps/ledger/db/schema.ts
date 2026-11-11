@@ -245,3 +245,41 @@ export const statementCsvDescriptions = sqliteTable("statement_csv_descriptions"
   counterAccountId: integer("counter_account_id"),
   ...timestamps(),
 });
+
+/**
+ * AI が推測した品目の内訳と、登録のときに確定した内訳の記録。プロンプトの改善に使う。
+ *
+ * 正答率も出せるよう、AI が読み取った品目は推測どおりに登録したものも残す。手で変えた品目は
+ * `inferred_genre_id IS NOT genre_id` で絞れる。
+ * 取引の編集は品目を入れ直すので、品目ではなく取引に結びつけ、品名と店舗名は登録のときの値を写して持つ。
+ * 記録のために内訳を消せなくならないよう、また AI が候補にない ID を返しても残せるよう、内訳には外部キーを張らない。
+ */
+export const genreInferences = sqliteTable(
+  "genre_inferences",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    transactionId: integer("transaction_id")
+      .notNull()
+      .references(() => transactions.id, { onDelete: "cascade" }),
+    /**
+     * 読み取りの元。page は拡張機能でのページ、statement は明細のページ、receipt はレシートの写真、
+     * statement_csv は履歴 CSV
+     */
+    source: text("source", { enum: ["page", "statement", "receipt", "statement_csv"] }).notNull(),
+    /** 読み取ったモデル */
+    model: text("model").notNull(),
+    /** 登録した店舗の名前 */
+    placeName: text("place_name"),
+    /** AI が読み取った品名。明細と履歴 CSV では利用先の表記 */
+    itemName: text("item_name"),
+    amount: integer("amount").notNull(),
+    /** AI が推測した内訳。決められなかったときは null */
+    inferredGenreId: integer("inferred_genre_id"),
+    /** 登録のときに確定した内訳 */
+    genreId: integer("genre_id").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+  },
+  (t) => [index("genre_inferences_transaction_idx").on(t.transactionId)],
+);

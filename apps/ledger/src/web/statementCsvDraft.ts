@@ -18,6 +18,8 @@ export type StatementCsvDraft = StatementCsvReadResultRow & {
   edited: boolean;
   /** 手で選択を変えた行。後から届く登録済みの判定で選択を変えない */
   selectionEdited: boolean;
+  /** AI が推測した内訳。AI の分類を反映した行だけが持ち、画面で直しても変えない。支出と分類しなかった行は null */
+  aiGuess?: { genreId: number | null };
 };
 
 /** 画面に出す、列の読み取りの 1 行 */
@@ -99,6 +101,8 @@ export const markDraftEdited = (
 
 /**
  * 届いた AI の分類を下書きに反映する。手で直した行と手で変えた選択はそのまま残す。
+ *
+ * AI が分類を返した行には、推測の記録のために推測した内訳を持たせる。
  */
 export const applyClassifiedRows = (
   drafts: ReadonlyArray<StatementCsvDraft>,
@@ -119,6 +123,7 @@ export const applyClassifiedRows = (
       pending: false,
       place: row.placeName ?? "",
       selected: draft.selectionEdited ? draft.selected : row.registered === null,
+      ...(row.classified && { aiGuess: { genreId: row.genreId } }),
     };
   });
 };
@@ -171,11 +176,14 @@ export const registerInputFromDrafts = (params: {
   fileName: string;
   accountId: number;
   format?: StatementCsvFormat | null;
+  /** 分類に使ったモデル。推測の記録に使う */
+  model?: string;
   drafts: ReadonlyArray<StatementCsvDraft>;
 }): StatementCsvRegisterInput => ({
   fileName: params.fileName,
   accountId: params.accountId,
   format: params.format ?? null,
+  ...(params.model !== undefined && { aiModel: params.model }),
   rows: params.drafts.flatMap((draft): StatementCsvRegisterInput["rows"] => {
     if (!draft.selected) return [];
     const placeName = draft.place.trim() === "" ? null : draft.place.trim();
@@ -194,6 +202,7 @@ export const registerInputFromDrafts = (params: {
                 placeName,
                 name,
                 genreId: draft.genreId,
+                ...(draft.aiGuess !== undefined && { aiGuess: draft.aiGuess }),
               },
             ];
       case "income":

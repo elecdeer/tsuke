@@ -50,6 +50,7 @@ export const draftFromExtracted = (
     name: item.name ?? "",
     memo: item.memo ?? "",
     amount: item.amount === null ? "" : String(item.amount),
+    aiGuess: { genreId: item.genreId, name: item.name },
   }));
   return {
     date: extracted.date ?? context.today,
@@ -64,6 +65,8 @@ export const draftFromExtracted = (
 
 /**
  * フォームの値を支出の登録の入力にする。金額が整数でない品目や、内訳を選んでいない品目があれば理由を返す。
+ *
+ * AI が読み取った品目には、推測の記録のために読み取ったままの値を付ける。
  */
 export const paymentFromDraft = (
   draft: TransactionDraft,
@@ -75,7 +78,14 @@ export const paymentFromDraft = (
     if (item.genreId === null) {
       return { ok: false, error: `${index + 1} 件目の内訳を選んでください` };
     }
-    items.push({ genreId: item.genreId, name: item.name, memo: item.memo, amount: item.amount });
+    const aiGuess = draft.items[index]?.aiGuess;
+    items.push({
+      genreId: item.genreId,
+      name: item.name,
+      memo: item.memo,
+      amount: item.amount,
+      ...(aiGuess !== undefined && { aiGuess }),
+    });
   }
   return {
     ok: true,

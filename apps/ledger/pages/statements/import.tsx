@@ -68,6 +68,8 @@ type ReadSummary = {
   /** AI を呼ばずに覚えていた分類を使った行数 */
   recalledCount: number;
   format: StatementCsvFormat | null;
+  /** 分類に使ったモデル。登録のときに推測の記録へ残す */
+  model: string;
   formatKnown: boolean;
   columns: StatementCsvReadColumns;
   /** 読み取りを始めてから行が届くまでの時間 */
@@ -451,6 +453,7 @@ const StatementImportPage = ({
             rowCount: event.rows.length,
             recalledCount: event.rows.filter((row) => !row.pending).length,
             format: event.format,
+            model: event.model,
             formatKnown: event.formatKnown,
             columns: event.columns,
             columnsReadMs: performance.now() - startedAt,
@@ -514,6 +517,7 @@ const StatementImportPage = ({
           fileName: summary.file.name.slice(0, 200),
           accountId,
           format: summary.format,
+          model: summary.model,
           drafts,
         }),
       });

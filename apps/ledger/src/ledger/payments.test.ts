@@ -43,7 +43,139 @@ const dumpTransactions = (): unknown[] =>
     )
     .all();
 
+/** 推測の記録を、入れた順に返す */
+const dumpInferences = (): unknown[] =>
+  sqlite
+    .prepare(
+      `SELECT transaction_id AS transactionId, source, model, place_name AS placeName, item_name AS itemName,
+              amount, inferred_genre_id AS inferredGenreId, genre_id AS genreId
+       FROM genre_inferences ORDER BY id`,
+    )
+    .all();
+
 describe("createPayment", () => {
+  test("AI が読み取った品目は、推測した内訳と確定した内訳を記録する", async () => {
+    // 記録が別の取引に付かないことを確かめるため、先に 1 件入れておく
+    await createPayment(db, payment());
+
+    await createPayment(
+      db,
+      payment({
+        aiRead: { source: "receipt", model: "test-model" },
+        items: [
+          {
+            genreId: groceryId,
+            name: "牛乳 1L",
+            memo: null,
+            amount: 200,
+            aiGuess: { genreId: groceryId, name: "牛乳" },
+          },
+          {
+            genreId: cafeId,
+            name: "コーヒー",
+            memo: null,
+            amount: 150,
+            aiGuess: { genreId: groceryId, name: "コーヒー" },
+          },
+          {
+            genreId: groceryId,
+            name: "読めなかった品目",
+            memo: null,
+            amount: 100,
+            aiGuess: { genreId: null, name: "" },
+          },
+          { genreId: groceryId, name: "手で足した品目", memo: null, amount: 50 },
+        ],
+      }),
+    );
+
+    const base = {
+      transactionId: 2,
+      source: "receipt",
+      model: "test-model",
+      placeName: "スーパー",
+    };
+    expect(dumpInferences()).toEqual([
+      { ...base, itemName: "牛乳", amount: 200, inferredGenreId: groceryId, genreId: groceryId },
+      { ...base, itemName: "コーヒー", amount: 150, inferredGenreId: groceryId, genreId: cafeId },
+      { ...base, itemName: null, amount: 100, inferredGenreId: null, genreId: groceryId },
+    ]);
+  });
+
+  test("店舗のない登録でも推測を記録する", async () => {
+    await createPayment(
+      db,
+      payment({
+        placeName: null,
+        aiRead: { source: "statement", model: "test-model" },
+        items: [
+          {
+            genreId: cafeId,
+            name: "ｶﾌｪ",
+            memo: null,
+            amount: 450,
+            aiGuess: { genreId: 9999, name: "ｶﾌｪ" },
+          },
+        ],
+      }),
+    );
+
+    expect(dumpInferences()).toEqual([
+      {
+        transactionId: 1,
+        source: "statement",
+        model: "test-model",
+        placeName: null,
+        itemName: "ｶﾌｪ",
+        amount: 450,
+        inferredGenreId: 9999,
+        genreId: cafeId,
+      },
+    ]);
+  });
+
+  test("AI の読み取りからの登録でなければ推測を記録しない", async () => {
+    await createPayment(db, payment());
+    await createPayment(
+      db,
+      payment({
+        items: [
+          {
+            genreId: groceryId,
+            name: "牛乳",
+            memo: null,
+            amount: 200,
+            aiGuess: { genreId: cafeId, name: "牛乳" },
+          },
+        ],
+      }),
+    );
+
+    expect(dumpInferences()).toEqual([]);
+  });
+
+  test("取引を消すと推測の記録も消える", async () => {
+    await createPayment(
+      db,
+      payment({
+        aiRead: { source: "page", model: "test-model" },
+        items: [
+          {
+            genreId: groceryId,
+            name: "牛乳",
+            memo: null,
+            amount: 200,
+            aiGuess: { genreId: cafeId, name: "牛乳" },
+          },
+        ],
+      }),
+    );
+
+    sqlite.prepare("DELETE FROM transactions").run();
+
+    expect(dumpInferences()).toEqual([]);
+  });
+
   test("取引と品目をまとめて登録し、カテゴリは内訳の親から決める", async () => {
     const result = await createPayment(
       db,

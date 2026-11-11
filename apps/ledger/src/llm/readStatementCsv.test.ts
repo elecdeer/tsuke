@@ -363,6 +363,7 @@ describe("streamStatementCsvClassification", () => {
     expect(events.at(0)?.type).toBe("rows");
     expect(events.at(-1)?.type).toBe("done");
     expect(events[0]).toMatchObject({
+      model: "test",
       accountId: 1,
       skippedCount: 1,
       rows: [{ pending: true }, { pending: true }, { pending: true }],

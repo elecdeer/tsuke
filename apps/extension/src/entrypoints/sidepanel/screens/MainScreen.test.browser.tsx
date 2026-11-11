@@ -335,6 +335,7 @@ describe("MainScreen", () => {
   }) => {
     const extractBody = vi.fn<(body: unknown) => void>();
     const extracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
+      model: "test-model",
       date: "2024-01-10",
       accountId: 2,
       placeName: "はじめての店",
@@ -410,6 +411,7 @@ describe("MainScreen", () => {
           typeof body === "object" && body !== null && "quality" in body ? body.quality : null;
         qualities.push(quality);
         const extracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
+          model: "test-model",
           date: "2024-01-10",
           accountId: null,
           placeName: null,
@@ -457,6 +459,7 @@ describe("MainScreen", () => {
           return HttpResponse.json({ error: "LLM failed" }, { status: 502 });
         }
         const extracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
+          model: "test-model",
           date: "2024-01-10",
           accountId: null,
           placeName: null,
@@ -487,6 +490,7 @@ describe("MainScreen", () => {
   const extractPaymentHandler = (placeName: string) =>
     http.post(mockUrl("/api/transactions/extract"), () => {
       const extracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
+        model: "test-model",
         date: "2026-06-13",
         accountId: 2,
         placeName,
@@ -511,6 +515,34 @@ describe("MainScreen", () => {
 
     await vi.waitFor(() => {
       expect(postHandler).toHaveBeenCalledWith(expect.objectContaining({ placeName: "スーパーA" }));
+    });
+  });
+
+  test("自動入力から登録すると、AI が読み取ったままの内訳と品名も送る", async ({ worker }) => {
+    const postHandler = vi.fn<(body: PaymentBody) => void>();
+    worker.use(...commonHandlers, extractPaymentHandler("スーパーA"), recordPayment(postHandler));
+
+    await render(<Default.Component />);
+
+    await page.getByRole("button", { name: "このページから自動入力" }).click();
+    await expect.element(page.getByText("牛乳")).toBeVisible();
+    await page.getByRole("button", { name: "登録" }).click();
+
+    await vi.waitFor(() => {
+      expect(postHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          aiRead: { source: "page", model: "test-model" },
+          items: [
+            {
+              genreId: 1001,
+              name: "牛乳",
+              memo: null,
+              amount: 250,
+              aiGuess: { genreId: 1001, name: "牛乳" },
+            },
+          ],
+        }),
+      );
     });
   });
 

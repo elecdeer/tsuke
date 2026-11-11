@@ -36,6 +36,7 @@ const meta = preview.meta({
 export default meta;
 
 const mockExtracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
+  model: "test-model",
   date: "2026-06-13",
   accountId: 2,
   placeName: "スーパーA",

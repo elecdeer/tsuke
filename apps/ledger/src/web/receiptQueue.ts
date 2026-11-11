@@ -13,10 +13,12 @@ import type { TransactionDraft } from "./transactionDraft.ts";
  */
 export type ReceiptStatus = "waiting" | "reading" | "read" | "failed";
 
-/** AI が読み取った結果。電話番号と範囲は、この項目を足す前に端末へ保存されたレシートにはない */
+/** AI が読み取った結果。電話番号と範囲とモデルは、この項目を足す前に端末へ保存されたレシートにはない */
 export type ReadReceipt = ExtractedPayment & {
   placePhone?: string | null;
   receiptBox?: ReceiptBox | null;
+  /** 読み取ったモデル */
+  model?: string;
 };
 
 /**

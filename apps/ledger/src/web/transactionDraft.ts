@@ -43,6 +43,8 @@ export type ItemDraft = {
   amount: string;
   /** 立替の対象の印 */
   isAdvanceTarget?: boolean;
+  /** AI が読み取ったままの内訳と品名。AI が読み取った品目だけが持ち、フォームで直しても変えない */
+  aiGuess?: { genreId: number | null; name: string | null };
 };
 
 /**

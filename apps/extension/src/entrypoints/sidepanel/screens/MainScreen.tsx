@@ -19,6 +19,8 @@ interface Item {
   amount: string;
   memo: string;
   category: CategorySelection | null;
+  /** AI が読み取ったままの内訳と品名。自動入力した品目だけが持ち、フォームで直しても変えない */
+  aiGuess?: { genreId: number | null; name: string | null };
 }
 
 interface Props {
@@ -164,6 +166,8 @@ export default function MainScreen({ serverUrl }: Props) {
 
   // 読み直しに失敗しても前の結果はフォームに残るので、読み直せるようボタンを出し続ける
   const [autofilled, setAutofilled] = useState(false);
+  // 自動入力で読み取ったモデル。登録のときに推測の記録へ残す
+  const [readModel, setReadModel] = useState<string | null>(null);
 
   const extractMutation = useMutation({
     mutationFn: async (quality: "fast" | "accurate") => {
@@ -182,6 +186,7 @@ export default function MainScreen({ serverUrl }: Props) {
     },
     onSuccess: ({ extracted, categories }) => {
       setAutofilled(true);
+      setReadModel(extracted.model);
       if (extracted.date !== null) setDate(extracted.date);
       if (extracted.accountId !== null) setAccountId(extracted.accountId);
       if (extracted.placeName !== null) setPlaceName(extracted.placeName);
@@ -196,6 +201,7 @@ export default function MainScreen({ serverUrl }: Props) {
               item.genreId !== null
                 ? findCategorySelectionByGenreId(categories, item.genreId)
                 : null,
+            aiGuess: { genreId: item.genreId, name: item.name },
           })),
         );
       }
@@ -211,17 +217,25 @@ export default function MainScreen({ serverUrl }: Props) {
           name: item.name || null,
           memo: item.memo || null,
           amount: parseInt(item.amount, 10),
+          aiGuess: item.aiGuess,
         };
       });
       await withErrorMessage(
         "登録",
         createServerClient(serverUrl)("/api/transactions", "POST", {
-          body: { date, fromAccountId: accountId, placeName, items: paymentItems },
+          body: {
+            date,
+            fromAccountId: accountId,
+            placeName,
+            items: paymentItems,
+            ...(readModel !== null && { aiRead: { source: "page" as const, model: readModel } }),
+          },
         }),
       );
     },
     onSuccess: () => {
       setAutofilled(false);
+      setReadModel(null);
       setItems([newItem()]);
       setDate(localDateString());
       setAccountId(null);

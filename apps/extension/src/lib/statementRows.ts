@@ -24,6 +24,8 @@ export interface StatementRow {
   store: string | null;
   amount: number;
   category: CategorySelection | null;
+  /** AI が推測した内訳。決められなかったときは null。画面で内訳を変えても変えない */
+  aiGenreId: number | null;
   /** 登録対象として選択されているか */
   selected: boolean;
   /** 既に登録済みと判定した支出。登録済みでなければ null */
@@ -81,6 +83,7 @@ export const buildStatementRows = (params: {
         row.genreId !== null
           ? findCategorySelectionByGenreId(params.categories, row.genreId)
           : null,
+      aiGenreId: row.genreId,
       selected: registered === null,
       registered,
       submitted: false,

@@ -79,13 +79,31 @@ describe("StatementScreen", () => {
         date: "2026-05-01",
         fromAccountId: 2,
         placeName: "スーパーA",
-        items: [{ genreId: 1001, name: null, memo: null, amount: 1200 }],
+        items: [
+          {
+            genreId: 1001,
+            name: null,
+            memo: null,
+            amount: 1200,
+            aiGuess: { genreId: 1001, name: "ｽｰﾊﾟｰA" },
+          },
+        ],
+        aiRead: { source: "statement", model: "test-model" },
       },
       {
         date: "2026-05-03",
         fromAccountId: 2,
         placeName: null,
-        items: [{ genreId: 1002, name: "カフェC", memo: null, amount: 450 }],
+        items: [
+          {
+            genreId: 1002,
+            name: "カフェC",
+            memo: null,
+            amount: 450,
+            aiGuess: { genreId: 1002, name: "カフェC" },
+          },
+        ],
+        aiRead: { source: "statement", model: "test-model" },
       },
     ]);
     expect(page.getByText("登録しました", { exact: true }).all().length).toBe(2);
