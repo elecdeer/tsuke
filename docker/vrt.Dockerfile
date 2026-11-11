@@ -1,8 +1,9 @@
-FROM mcr.microsoft.com/playwright:v1.60.0-jammy
+FROM mcr.microsoft.com/playwright:v1.64.1-jammy
 
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@12.14.0 --activate
+# Node 26 同梱のイメージには corepack が無いので npm で入れる
+RUN npm install -g pnpm@12.14.0
 
 # lockfileのみでパッケージをvirtual storeにダウンロード
 # lockfileとworkspace設定が変わらない限りこのレイヤーはキャッシュされる
