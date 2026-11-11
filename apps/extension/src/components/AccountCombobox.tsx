@@ -1,6 +1,6 @@
-import { ChevronDownIcon, XIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
 import { Suspense, useId } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 import {
   Combobox,
   ComboboxClear,
@@ -10,14 +10,14 @@ import {
   ComboboxItem,
   ComboboxList,
   ComboboxTrigger,
-  comboboxTriggerClassName,
   ComboboxValue,
-} from "@/components/ui/combobox";
+} from "@tsuke/ui/components/combobox";
+import { selectTriggerClassName } from "@tsuke/ui/components/select";
 import { ErrorBoundary } from "@/lib/ErrorBoundary";
 import { useSuspenseQuery } from "@/lib/query";
-import { cn } from "@/lib/utils";
+import { cn } from "@tsuke/ui/lib/utils";
 import { accountsQuery, type AccountsResponse } from "../queries";
-import { FormField } from "./FormField.tsx";
+import { FormField } from "@tsuke/ui/patterns/FormField";
 
 type Account = AccountsResponse["accounts"][number];
 
@@ -86,7 +86,8 @@ const AccountComboboxContent = ({
             <button
               type="button"
               aria-label={LABEL}
-              className={cn(comboboxTriggerClassName, "flex-1")}
+              data-size="default"
+              className={cn(selectTriggerClassName, "w-full flex-1")}
             />
           }
         >
@@ -97,7 +98,6 @@ const AccountComboboxContent = ({
               </span>
             )}
           </ComboboxValue>
-          <ChevronDownIcon className="text-muted-foreground" />
         </ComboboxTrigger>
         <ComboboxClear
           render={<Button type="button" variant="ghost" size="icon-sm" aria-label="クリア" />}
@@ -105,7 +105,7 @@ const AccountComboboxContent = ({
           <XIcon />
         </ComboboxClear>
         <ComboboxContent>
-          <ComboboxInput placeholder="口座を検索" />
+          <ComboboxInput showTrigger={false} placeholder="口座を検索" />
           <ComboboxEmpty>口座が見つかりません</ComboboxEmpty>
           <ComboboxList>
             {(item: Account) => (

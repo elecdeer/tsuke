@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@tsuke/ui/lib/utils";
 
 /**
  * 読むまでわからない文字（金額や名前など）の代わりに置く棒。文字と同じ行の高さに収め、まわりの配置をずらさない。

@@ -2,7 +2,7 @@ import type { LedgerOutput } from "ledger/client";
 import { delay, http, HttpResponse } from "msw";
 import { userEvent, within } from "storybook/test";
 import preview from "#storybook/preview";
-import { Toaster, ToastProvider } from "@/components/ui/toast";
+import { Toaster, ToastProvider } from "@tsuke/ui/components/toast";
 import {
   accountsHandler,
   masterHandlers,

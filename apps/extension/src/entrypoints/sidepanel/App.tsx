@@ -1,8 +1,8 @@
 import { SettingsIcon } from "lucide-react";
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { SettingsOverlay } from "../../components/SettingsOverlay.tsx";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Toaster, ToastProvider } from "@/components/ui/toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@tsuke/ui/components/tabs";
+import { Toaster, ToastProvider } from "@tsuke/ui/components/toast";
 import { ErrorBoundary } from "@/lib/ErrorBoundary";
 import { useSuspenseQuery } from "@/lib/query";
 import { authStatusQuery, serverUrlQuery } from "../../queries.ts";

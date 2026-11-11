@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useId, useState } from "react";
 import { browser } from "wxt/browser";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 import {
   Dialog,
   DialogClose,
@@ -8,8 +8,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@tsuke/ui/components/dialog";
+import { Input } from "@tsuke/ui/components/input";
 import { ErrorBoundary } from "@/lib/ErrorBoundary";
 import { useSuspenseQuery } from "@/lib/query";
 import { launchServerLogin } from "../auth/serverAuth.ts";
@@ -21,8 +21,8 @@ import {
   placesQuery,
   serverUrlQuery,
 } from "../queries.ts";
-import { ErrorMessage } from "./ErrorMessage.tsx";
-import { FormField } from "./FormField.tsx";
+import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
+import { FormField } from "@tsuke/ui/patterns/FormField";
 import ServerLogin from "./ServerLogin.tsx";
 
 interface Props {

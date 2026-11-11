@@ -1,4 +1,3 @@
-import { ChevronDownIcon } from "lucide-react";
 import { Suspense, useId, useMemo } from "react";
 import {
   Combobox,
@@ -6,19 +5,19 @@ import {
   ComboboxContent,
   ComboboxEmpty,
   ComboboxGroup,
-  ComboboxGroupLabel,
+  ComboboxLabel,
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
   ComboboxTrigger,
-  comboboxTriggerClassName,
   ComboboxValue,
-} from "@/components/ui/combobox";
+} from "@tsuke/ui/components/combobox";
+import { selectTriggerClassName } from "@tsuke/ui/components/select";
 import { ErrorBoundary } from "@/lib/ErrorBoundary";
 import { useSuspenseQuery } from "@/lib/query";
-import { cn } from "@/lib/utils";
+import { cn } from "@tsuke/ui/lib/utils";
 import { categoriesQuery } from "../queries";
-import { FormField } from "./FormField.tsx";
+import { FormField } from "@tsuke/ui/patterns/FormField";
 
 export type CategorySelection = {
   categoryId: number;
@@ -157,10 +156,13 @@ const CategoryComboboxContent = ({
           <button
             type="button"
             aria-label={LABEL}
+            data-size="default"
             className={cn(
-              comboboxTriggerClassName,
+              selectTriggerClassName,
+              "w-full",
+              // 品目の行では品目名に添える見出しのように、低く小さく薄く出す。下線も消し、下の品目名の欄と取り違えないようにする
               variant === "inline" &&
-                "h-6 w-fit max-w-full border-transparent text-xs text-muted-foreground",
+                "w-fit max-w-full border-transparent text-xs text-muted-foreground data-[size=default]:h-6",
             )}
           />
         }
@@ -173,15 +175,14 @@ const CategoryComboboxContent = ({
             </span>
           )}
         </ComboboxValue>
-        <ChevronDownIcon className="text-muted-foreground" />
       </ComboboxTrigger>
       <ComboboxContent>
-        <ComboboxInput placeholder="カテゴリを検索" />
+        <ComboboxInput showTrigger={false} placeholder="カテゴリを検索" />
         <ComboboxEmpty>カテゴリが見つかりません</ComboboxEmpty>
         <ComboboxList>
           {(group: GenreGroup) => (
             <ComboboxGroup key={group.categoryId} items={group.items}>
-              <ComboboxGroupLabel>{group.categoryName}</ComboboxGroupLabel>
+              <ComboboxLabel>{group.categoryName}</ComboboxLabel>
               <ComboboxCollection>
                 {(item: GenreItem) => (
                   <ComboboxItem key={item.genreId} value={item}>

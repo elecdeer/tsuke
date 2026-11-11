@@ -1,14 +1,15 @@
 import { CircleCheckIcon, ScanTextIcon } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { useToastManager } from "@/components/ui/toast";
+import { Button } from "@tsuke/ui/components/button";
+import { useToastManager } from "@tsuke/ui/components/toast";
 import { AccountCombobox } from "../../../components/AccountCombobox.tsx";
 import { CategoryCombobox, type CategorySelection } from "../../../components/CategoryCombobox.tsx";
-import { ErrorMessage } from "../../../components/ErrorMessage.tsx";
-import { YenUnit } from "../../../components/FormField.tsx";
+import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
+import { TotalAmount } from "@tsuke/ui/patterns/TotalAmount";
 import { StoreCombobox } from "../../../components/StoreCombobox.tsx";
-import { formatAmount, formatShortDate, formatYen } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { formatYen } from "@tsuke/ui/lib/format";
+import { formatShortDate } from "@/lib/format";
+import { cn } from "@tsuke/ui/lib/utils";
 import { collectPageContent } from "../../../lib/extraction.ts";
 import { createServerClient, withErrorMessage } from "../../../lib/serverClient";
 import {
@@ -303,15 +304,11 @@ export default function StatementScreen({ serverUrl }: Props) {
           )}
           {rows.length > 0 && (
             <div className="flex items-center justify-between gap-4">
-              <div className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
-                <span className="text-xs text-muted-foreground">
-                  合計（{selectedRows.length}件）
-                </span>
-                <span className="text-2xl font-semibold tracking-tight tabular-nums">
-                  {formatAmount(total)}
-                  <YenUnit className="ml-0.5" />
-                </span>
-              </div>
+              <TotalAmount
+                amount={total}
+                label={`合計（${selectedRows.length}件）`}
+                className="min-w-0 flex-1"
+              />
               <Button type="submit" size="lg" className="shrink-0 px-6" disabled={!canSubmit}>
                 {submitLabel}
               </Button>

@@ -11,6 +11,8 @@ export default defineConfig({
       "apps/extension/vitest.config.ts",
       "apps/extension/vitest.config.browser.ts",
       "apps/ledger/vitest.config.ts",
+      "packages/ui/vitest.config.ts",
+      "packages/ui/vitest.config.storybook.ts",
     ],
   },
 });

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import preview from "#storybook/preview";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 import { setupBrowserMock } from "../test-utils/browser-mock.ts";
 import { meHandler, MOCK_SERVER_URL, unauthenticatedHandler } from "../test-utils/ledgerMocks.ts";
 import { SettingsOverlay } from "./SettingsOverlay.tsx";

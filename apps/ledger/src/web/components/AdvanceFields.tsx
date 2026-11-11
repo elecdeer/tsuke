@@ -1,22 +1,22 @@
 import { Link } from "@void/react";
 import { Plus, TriangleAlert, X } from "lucide-react";
 import { useId, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@tsuke/ui/components/dialog";
+import { Input } from "@tsuke/ui/components/input";
 import { advanceStatusOf, unreceivedAmountOf } from "@/ledger/advance";
 import type {
   LinkedIncome,
   ReimbursablePayment,
   ReimbursementCandidate,
 } from "@/ledger/reimbursements";
-import { FormField } from "@/web/components/TransactionFields";
+import { FormField } from "@tsuke/ui/patterns/FormField";
 import { formatAmount, formatDay } from "@/web/format";
 import { ADVANCE_STATUS_LABELS } from "@/web/labels";
 import {

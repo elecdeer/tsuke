@@ -18,17 +18,17 @@ import {
   useRef,
   useState,
 } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button, buttonVariants } from "@tsuke/ui/components/button";
+import { Input } from "@tsuke/ui/components/input";
 import { createLedgerClient, LedgerFetchError } from "@/client";
 import type { DuplicateCandidate } from "@/ledger/payments";
 import type { ExtractedPayment } from "@/llm/extractPayment";
-import { ErrorMessage } from "@/web/components/ErrorMessage";
+import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
 import { ReceiptPhoto, ReceiptPhotoThumbnail } from "@/web/components/ReceiptPhoto";
-import { Section } from "@/web/components/Section";
+import { Section } from "@tsuke/ui/patterns/Section";
+import { FormField } from "@tsuke/ui/patterns/FormField";
 import {
   AccountSelect,
-  FormField,
   ItemsFields,
   ItemsTotal,
   PlaceInput,
@@ -51,7 +51,7 @@ import {
 } from "@/web/receiptQueue";
 import { isDraftEdited, type TransactionDraft } from "@/web/transactionDraft";
 import { useReceiptQueue } from "@/web/useReceiptQueue";
-import { cn } from "@/lib/utils";
+import { cn } from "@tsuke/ui/lib/utils";
 import type { Props } from "./new.server";
 
 /** 入力が止まってから重複を確かめるまでの間（ms） */

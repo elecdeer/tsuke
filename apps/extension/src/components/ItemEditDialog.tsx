@@ -1,5 +1,5 @@
 import { useId, useMemo, useRef } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 import {
   Dialog,
   DialogClose,
@@ -7,10 +7,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@tsuke/ui/components/dialog";
+import { Input } from "@tsuke/ui/components/input";
 import { CategoryCombobox, type CategorySelection } from "./CategoryCombobox.tsx";
-import { FormField, YenUnit } from "./FormField.tsx";
+import { FormField } from "@tsuke/ui/patterns/FormField";
+import { YenUnit } from "@tsuke/ui/patterns/YenUnit";
 
 export type ItemEditField = "name" | "memo" | "amount";
 

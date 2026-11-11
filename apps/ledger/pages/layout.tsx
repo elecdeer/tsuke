@@ -2,7 +2,7 @@ import "../src/styles.css";
 import { Link, useNavigation, useRouter } from "@void/react";
 import { Camera, ChartPie, List, type LucideIcon, Settings, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@tsuke/ui/lib/utils";
 import { isActive, isNavigating, navHref, navPath } from "../src/web/nav.ts";
 
 const NAV_ITEMS: ReadonlyArray<{ href: string; label: string; icon: LucideIcon }> = [

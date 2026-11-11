@@ -1,18 +1,19 @@
 import type { LedgerOutput } from "ledger/client";
 import { PlusIcon, RotateCwIcon, ScanTextIcon, TriangleAlertIcon, XIcon } from "lucide-react";
 import { useEffect, useId, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { comboboxTriggerClassName } from "@/components/ui/combobox";
+import { Button } from "@tsuke/ui/components/button";
+import { selectTriggerClassName } from "@tsuke/ui/components/select";
 import { AccountCombobox } from "../../../components/AccountCombobox.tsx";
 import { CategoryCombobox, type CategorySelection } from "../../../components/CategoryCombobox.tsx";
 import { DateField } from "../../../components/DateField.tsx";
-import { ErrorMessage } from "../../../components/ErrorMessage.tsx";
-import { YenUnit } from "../../../components/FormField.tsx";
+import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
+import { TotalAmount } from "@tsuke/ui/patterns/TotalAmount";
+import { YenUnit } from "@tsuke/ui/patterns/YenUnit";
 import { ItemEditDialog, type ItemEditField } from "../../../components/ItemEditDialog.tsx";
 import { StoreCombobox } from "../../../components/StoreCombobox.tsx";
-import { useToastManager } from "@/components/ui/toast";
-import { formatAmount, formatYen } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { useToastManager } from "@tsuke/ui/components/toast";
+import { formatAmount, formatYen } from "@tsuke/ui/lib/format";
+import { cn } from "@tsuke/ui/lib/utils";
 import { useMutation } from "../../../lib/useMutation.ts";
 import { collectPageContent, findCategorySelectionByGenreId } from "../../../lib/extraction.ts";
 import { createServerClient, withErrorMessage } from "../../../lib/serverClient";
@@ -48,6 +49,12 @@ const newItem = (category: CategorySelection | null = null): Item => ({
 
 const localDateString = () => Temporal.Now.plainDateISO().toString();
 
+/**
+ * 押すとモーダルを開く品目の欄。台帳の品目名・メモの欄と同じく、選択欄の見た目（下線）にする。
+ * 高さは data-size="default" で選択欄と同じにする。
+ */
+const FIELD_TRIGGER = cn(selectTriggerClassName, "w-full");
+
 const isItemReady = (item: Item): boolean =>
   parseInt(item.amount, 10) > 0 && item.category !== null && item.category.genreId > 0;
 
@@ -81,7 +88,8 @@ const ItemRow = ({ item, serverUrl, onEdit, onCategoryChange, onRemove }: ItemRo
       </div>
       <button
         type="button"
-        className={comboboxTriggerClassName}
+        data-size="default"
+        className={FIELD_TRIGGER}
         onClick={() => onEdit("name")}
         aria-label="品名を編集"
         title={item.name || undefined}
@@ -92,7 +100,8 @@ const ItemRow = ({ item, serverUrl, onEdit, onCategoryChange, onRemove }: ItemRo
       </button>
       <button
         type="button"
-        className={cn(comboboxTriggerClassName, "justify-end gap-0.5 tabular-nums")}
+        data-size="default"
+        className={cn(FIELD_TRIGGER, "justify-end gap-0.5 tabular-nums")}
         onClick={() => onEdit("amount")}
         aria-label="金額を編集"
       >
@@ -115,7 +124,8 @@ const ItemRow = ({ item, serverUrl, onEdit, onCategoryChange, onRemove }: ItemRo
       </div>
       <button
         type="button"
-        className={cn(comboboxTriggerClassName, "col-span-2 mt-1")}
+        data-size="default"
+        className={cn(FIELD_TRIGGER, "col-span-2 mt-1")}
         onClick={() => onEdit("memo")}
         aria-label="メモを編集"
         title={item.memo || undefined}
@@ -127,19 +137,6 @@ const ItemRow = ({ item, serverUrl, onEdit, onCategoryChange, onRemove }: ItemRo
     </div>
   );
 };
-
-/**
- * 品目の合計。一番大事な数字なので大きく出し、単位は小さく添えて数字を読む邪魔をしない。
- */
-const ItemsTotal = ({ total, className }: { total: number; className?: string }) => (
-  <div className={cn("flex items-baseline justify-between gap-3", className)}>
-    <span className="text-xs text-muted-foreground">合計</span>
-    <span className="text-2xl font-semibold tracking-tight tabular-nums">
-      {formatAmount(total)}
-      <YenUnit className="ml-0.5" />
-    </span>
-  </div>
-);
 
 export default function MainScreen({ serverUrl }: Props) {
   const toastManager = useToastManager();
@@ -421,7 +418,7 @@ export default function MainScreen({ serverUrl }: Props) {
         )}
 
         <div className="flex items-center justify-between gap-4">
-          <ItemsTotal total={total} className="min-w-0 flex-1" />
+          <TotalAmount amount={total} className="min-w-0 flex-1" />
           <Button
             type="submit"
             size="lg"

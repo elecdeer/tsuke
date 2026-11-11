@@ -14,16 +14,13 @@
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
-    "class-variance-authority": "catalog:",
-    "clsx": "catalog:",
+    "@tsuke/ui": "workspace:*",
     "date-fns": "catalog:",
     "jotai": "catalog:",
     "ledger": "workspace:*",
     "lucide-react": "catalog:",
     "react": "^19.2.5",
-    "react-day-picker": "catalog:",
     "react-dom": "^19.2.5",
-    "tailwind-merge": "catalog:",
     "tw-animate-css": "catalog:",
     "valibot": "catalog:"
   },

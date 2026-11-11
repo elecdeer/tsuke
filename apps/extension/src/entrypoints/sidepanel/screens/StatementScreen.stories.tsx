@@ -1,6 +1,6 @@
 import { userEvent, within } from "storybook/test";
 import preview from "#storybook/preview";
-import { Toaster, ToastProvider } from "@/components/ui/toast";
+import { Toaster, ToastProvider } from "@tsuke/ui/components/toast";
 import { MOCK_SERVER_URL, statementHandlers } from "../../../test-utils/ledgerMocks.ts";
 import StatementScreen from "./StatementScreen.tsx";
 

@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 
 interface ServerUser {
   email?: string;

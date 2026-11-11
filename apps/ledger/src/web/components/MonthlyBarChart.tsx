@@ -5,7 +5,7 @@ import { scaleBand } from "@tanstack/charts/scales/band";
 import { scaleLinear } from "@tanstack/charts/scales/linear";
 import { tooltip } from "@tanstack/charts/tooltip";
 import { useMemo } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@tsuke/ui/lib/utils";
 import { formatYen } from "@/web/format";
 import { formatCompactAmount, monthSummaryHref } from "@/web/summaryView";
 
@@ -20,7 +20,7 @@ const monthLabel = (month: string): string => `${Number(month.slice(5))}月`;
 /**
  * 月ごとの金額の棒グラフ。系列が複数あれば月ごとに横に並べる。棒を押すとその月の集計へ移る。
  *
- * 色は黒とグレーだけにする（docs/design.md）。系列の色はグラフの既定の色の変数を、出てきた順に上書きして決める。
+ * 色は黒とグレーだけにする（packages/ui/docs/design.md）。系列の色はグラフの既定の色の変数を、出てきた順に上書きして決める。
  */
 export const MonthlyBarChart = ({
   bars,

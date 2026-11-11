@@ -5,8 +5,8 @@
  */
 import { LoaderCircle, MapPin, X } from "lucide-react";
 import { useEffect, useId, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@tsuke/ui/components/button";
+import { Input } from "@tsuke/ui/components/input";
 import type { PlaceDetail } from "@/ledger/placeDetail";
 import { OPEN_POI_ATTRIBUTION_URL, poiKey, suggestPois, uniquePois, type Poi } from "@/web/openPoi";
 import {

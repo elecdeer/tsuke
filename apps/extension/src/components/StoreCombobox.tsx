@@ -1,7 +1,7 @@
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { PlusIcon, XIcon } from "lucide-react";
 import { Suspense, useId, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 import {
   Combobox,
   ComboboxClear,
@@ -10,13 +10,13 @@ import {
   ComboboxItem,
   ComboboxList,
   useComboboxAnchor,
-} from "@/components/ui/combobox";
-import { Input } from "@/components/ui/input";
+} from "@tsuke/ui/components/combobox";
+import { Input } from "@tsuke/ui/components/input";
 import { ErrorBoundary } from "@/lib/ErrorBoundary";
 import { useSuspenseQuery } from "@/lib/query";
 import { placeOptions, type PlaceOption } from "@/lib/placeOptions";
 import { placesQuery } from "../queries";
-import { FormField } from "./FormField.tsx";
+import { FormField } from "@tsuke/ui/patterns/FormField";
 
 interface Props {
   serverUrl: string;
