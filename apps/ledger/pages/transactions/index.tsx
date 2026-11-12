@@ -23,7 +23,7 @@ import { Section } from "@tsuke/ui/patterns/Section";
 import { FavoriteButton } from "@/web/components/FavoriteButton";
 import { TransactionEditor } from "@/web/components/TransactionEditor";
 import { CategoryOptions } from "@/web/components/CategoryOptions";
-import { MonthHeading } from "@/web/components/MonthHeading";
+import { MonthHeading, StickyMonthBar, useMonthHeadingHidden } from "@/web/components/MonthHeading";
 import { PeriodPager } from "@/web/components/PeriodPager";
 import { SkeletonBlock, SkeletonText } from "@/web/components/Skeleton";
 import { formatAmount, formatDayOfMonth, formatFullDay } from "@/web/format";
@@ -502,8 +502,14 @@ const TransactionList = ({
               key={group.date}
               className="gap-y-0"
               // スクロールしても今見ている日付がわかるよう、日付をヘッダーの下に貼り付ける。
+              // 月のバーが出ているときはその下に並べる（未入金の一覧には月のバーがない）。
               // 狭い画面では日付が行の上に積まれ、行と重なるので背景で隠す
-              labelClassName="sticky top-(--header-height) z-10 self-start bg-background"
+              labelClassName={cn(
+                "sticky z-10 self-start bg-background",
+                unreceivedOnly
+                  ? "top-(--header-height)"
+                  : "top-[calc(var(--header-height)+var(--month-bar-height))]",
+              )}
               label={
                 <span className="block pt-2.5 text-xs font-normal text-muted-foreground tabular-nums">
                   {unreceivedOnly ? formatFullDay(group.date) : formatDayOfMonth(group.date)}
@@ -586,6 +592,8 @@ const TransactionsPage = ({
       advance: filter.advance === "unreceived" ? undefined : filter.advance,
     });
   const unreceivedOnly = filter.advance === "unreceived";
+  // 月の見出しがスクロールで隠れたら、ヘッダーの下に月のバーを貼り付ける
+  const { headingRef, hidden: monthHeadingHidden } = useMonthHeadingHidden(!unreceivedOnly);
 
   /**
    * パネルの列が縮みきったら、残しておいた中身を外す。中の要素のトランジションも届くので、列の幅の変化だけを見る。
@@ -617,24 +625,30 @@ const TransactionsPage = ({
       onTransitionEnd={onTransitionEnd}
     >
       <div className="flex min-w-0 flex-col gap-8">
+        {!unreceivedOnly && (
+          <StickyMonthBar month={filter.month} hrefOf={monthHref} shown={monthHeadingHidden} />
+        )}
         <div className="grid gap-x-4 gap-y-6 md:grid-cols-12 md:items-end">
           <div className="md:col-span-3">
             {unreceivedOnly ? (
               <h1 className="text-2xl font-semibold">未入金の立替</h1>
             ) : (
-              <MonthHeading month={filter.month} hrefOf={monthHref} />
+              <MonthHeading month={filter.month} hrefOf={monthHref} headingRef={headingRef} />
             )}
           </div>
           <div className="flex flex-col gap-3 md:col-span-9">
-            <div className="flex items-start justify-between gap-x-5">
-              <Filters
-                filter={filter}
-                accounts={accounts}
-                categories={categories}
-                placeName={placeName}
-                chainNames={chainNames}
-              />
-              <div className="flex shrink-0 items-center gap-3">
+            {/* 狭い画面ではボタンを上の行に出し、フィルタに全幅を使わせて横に折り返す */}
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-x-5">
+              <div className="min-w-0 md:flex-1">
+                <Filters
+                  filter={filter}
+                  accounts={accounts}
+                  categories={categories}
+                  placeName={placeName}
+                  chainNames={chainNames}
+                />
+              </div>
+              <div className="order-first flex shrink-0 items-center justify-end gap-3 md:order-last">
                 <Link
                   href="/statements/import"
                   className="text-xs text-muted-foreground underline hover:text-foreground"

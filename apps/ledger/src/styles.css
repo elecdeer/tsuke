@@ -7,6 +7,8 @@
 :root {
   /* 画面の上に固定するヘッダーの高さ（pages/layout.tsx）。固定して置くものはこの下から並べる */
   --header-height: 2.75rem;
+  /* スクロールでヘッダーの下に貼り付く月のバーの高さ（MonthHeading の StickyMonthBar）。日付などはこの下から並べる */
+  --month-bar-height: 2.5rem;
   /* 狭い画面で画面の下に固定するナビの高さ（pages/layout.tsx） */
   --bottom-nav-height: 3.5rem;
 }
