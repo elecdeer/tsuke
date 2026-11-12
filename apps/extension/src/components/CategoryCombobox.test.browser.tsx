@@ -32,8 +32,10 @@ const ControlledCategoryCombobox = ({
 
 describe("CategoryCombobox", () => {
   test("ローディング中はスケルトンが表示される", async ({ worker }) => {
+    let requestReceived = false;
     worker.use(
       http.get(mockUrl("/api/categories"), async () => {
+        requestReceived = true;
         await delay("infinite");
         return HttpResponse.json(mockCategories);
       }),
@@ -42,6 +44,10 @@ describe("CategoryCombobox", () => {
     await render(<ControlledCategoryCombobox />);
 
     await expect.element(page.getByRole("status", { name: "カテゴリを読み込み中" })).toBeVisible();
+    // スケルトンは描画直後に出るので、リクエストが MSW に届く前にテストが終わることがある。
+    // 届き損ねたリクエストは次のテストが登録したハンドラーで処理され、そのテストのリクエスト数が狂うため、
+    // このテストのハンドラーが受け取るまで待ってから終える
+    await expect.poll(() => requestReceived).toBe(true);
   });
 
   test("支出のカテゴリを取得し、内訳をカテゴリごとにグループ化して表示する", async ({ worker }) => {

@@ -29,8 +29,10 @@ const ControlledStoreCombobox = ({
 
 describe("StoreCombobox", () => {
   test("ローディング中はスケルトンが表示される", async ({ worker }) => {
+    let requestReceived = false;
     worker.use(
       http.get(mockUrl("/api/places"), async () => {
+        requestReceived = true;
         await delay("infinite");
         return HttpResponse.json(mockPlaces);
       }),
@@ -39,6 +41,10 @@ describe("StoreCombobox", () => {
     await render(<ControlledStoreCombobox />);
 
     await expect.element(page.getByRole("status", { name: "店舗を読み込み中" })).toBeVisible();
+    // スケルトンは描画直後に出るので、リクエストが MSW に届く前にテストが終わることがある。
+    // 届き損ねたリクエストは次のテストが登録したハンドラーで処理され、そのテストのリクエスト数が狂うため、
+    // このテストのハンドラーが受け取るまで待ってから終える
+    await expect.poll(() => requestReceived).toBe(true);
   });
 
   test("台帳の店舗一覧が表示される", async ({ worker }) => {
