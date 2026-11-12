@@ -1,12 +1,12 @@
 import { action, Link } from "@void/react";
 import { Star } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 import type { TransactionMode } from "@/ledger/transactions";
 import { actionErrorMessage } from "@/web/actionError";
-import { ErrorMessage } from "@/web/components/ErrorMessage";
+import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
 import { FavoriteButton } from "@/web/components/FavoriteButton";
-import { Section } from "@/web/components/Section";
+import { Section } from "@tsuke/ui/patterns/Section";
 import { TransactionDraftFields } from "@/web/components/TransactionFields";
 import { formatAmount } from "@/web/format";
 import { MODE_LABELS, TRANSACTION_MODES } from "@/web/labels";

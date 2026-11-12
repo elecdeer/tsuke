@@ -1,4 +1,4 @@
-import { SelectGroup, SelectItem, SelectLabel } from "@/components/ui/select";
+import { SelectGroup, SelectItem, SelectLabel } from "@tsuke/ui/components/select";
 import type { CategoryWithGenres } from "@/ledger/masters";
 import { categoryValueOf } from "@/web/categoryValue";
 

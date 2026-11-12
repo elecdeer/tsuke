@@ -1,8 +1,8 @@
 import { Link, useRouter } from "@void/react";
 import { ChevronRight, CircleCheck, FileUp, LoaderCircle, TriangleAlert } from "lucide-react";
 import { memo, useCallback, useId, useState, type ChangeEvent } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button, buttonVariants } from "@tsuke/ui/components/button";
+import { Input } from "@tsuke/ui/components/input";
 import {
   Table,
   TableBody,
@@ -10,12 +10,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@tsuke/ui/components/table";
 import {
   NativeSelect,
   NativeSelectOptGroup,
   NativeSelectOption,
-} from "@/components/ui/native-select";
+} from "@tsuke/ui/components/native-select";
 import { createLedgerClient, LedgerFetchError } from "@/client";
 import {
   readStatementCsvEvents,
@@ -23,9 +23,9 @@ import {
   type StatementCsvReadColumns,
 } from "@/import/statementCsvEvents";
 import type { ReadQuality } from "@/llm/readQuality";
-import { cn } from "@/lib/utils";
-import { ErrorMessage } from "@/web/components/ErrorMessage";
-import { Section } from "@/web/components/Section";
+import { cn } from "@tsuke/ui/lib/utils";
+import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
+import { Section } from "@tsuke/ui/patterns/Section";
 import { formatDateTime, formatDay, formatYen } from "@/web/format";
 import { MODE_LABELS } from "@/web/labels";
 import { formatReadTime } from "@/web/receiptQueue";

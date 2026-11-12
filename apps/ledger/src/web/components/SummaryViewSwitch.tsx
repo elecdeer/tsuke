@@ -1,5 +1,5 @@
 import { Link } from "@void/react";
-import { cn } from "@/lib/utils";
+import { cn } from "@tsuke/ui/lib/utils";
 
 /**
  * 集計の画面の、月の表示と年の表示の切り替え。今の表示はナビと同じく下線で示す。

@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 
 /**
  * 並びの中で行を上下へ動かすボタン。端の行では、その向きのボタンを押せなくする。

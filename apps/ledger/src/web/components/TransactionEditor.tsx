@@ -1,6 +1,6 @@
 import { Check, Info, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 import {
   Dialog,
   DialogClose,
@@ -10,14 +10,14 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@tsuke/ui/components/dialog";
 import type { CategoryWithGenres } from "@/ledger/masters";
 import type { ReimbursementCandidate } from "@/ledger/reimbursements";
 import type { getTransaction, TransactionUpdate } from "@/ledger/transactionEdit";
 import { actionErrorMessage } from "@/web/actionError";
 import { IncomeReimbursementFields, PaymentAdvanceFields } from "@/web/components/AdvanceFields";
-import { ErrorMessage } from "@/web/components/ErrorMessage";
-import { Section } from "@/web/components/Section";
+import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
+import { Section } from "@tsuke/ui/patterns/Section";
 import { TransactionDraftFields, type AccountOption } from "@/web/components/TransactionFields";
 import { MODE_LABELS } from "@/web/labels";
 import {

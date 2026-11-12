@@ -1,10 +1,17 @@
-import { useMemo, useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { useId, useMemo, useRef } from "react";
+import { Button } from "@tsuke/ui/components/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@tsuke/ui/components/dialog";
+import { Input } from "@tsuke/ui/components/input";
 import { CategoryCombobox, type CategorySelection } from "./CategoryCombobox.tsx";
+import { FormField } from "@tsuke/ui/patterns/FormField";
+import { YenUnit } from "@tsuke/ui/patterns/YenUnit";
 
 export type ItemEditField = "name" | "memo" | "amount";
 
@@ -37,6 +44,7 @@ export const ItemEditDialog = ({
   initialFocus,
   onChange,
 }: Props) => {
+  const ids = { name: useId(), memo: useId(), amount: useId() };
   const nameRef = useRef<HTMLInputElement>(null);
   const memoRef = useRef<HTMLInputElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
@@ -59,53 +67,56 @@ export const ItemEditDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent initialFocus={initialFocusFn} className="sm:min-w-72">
-        <DialogTitle>品目を編集</DialogTitle>
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="item-edit-name">品名</FieldLabel>
-            <Input
-              ref={nameRef}
-              id="item-edit-name"
-              placeholder="品名"
-              value={item.name}
-              onChange={(e) => onChange({ name: e.target.value })}
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="item-edit-memo">メモ</FieldLabel>
-            <Input
-              ref={memoRef}
-              id="item-edit-memo"
-              placeholder="メモ"
-              value={item.memo}
-              onChange={(e) => onChange({ memo: e.target.value })}
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="item-edit-amount">金額</FieldLabel>
-            <InputGroup className="isolate">
-              <InputGroupAddon>¥</InputGroupAddon>
-              <InputGroupInput
-                ref={amountRef}
-                id="item-edit-amount"
-                className="appearance-none text-right [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                type="number"
-                min={1}
-                step={1}
-                placeholder="0"
-                value={item.amount}
-                onChange={(e) => onChange({ amount: e.target.value })}
-              />
-            </InputGroup>
-          </Field>
-          <CategoryCombobox
-            serverUrl={serverUrl}
-            value={item.category}
-            onChange={(value) => onChange({ category: value })}
+      <DialogContent initialFocus={initialFocusFn} className="gap-4 sm:min-w-72">
+        <DialogHeader>
+          <DialogTitle>品目を編集</DialogTitle>
+        </DialogHeader>
+        <FormField label="品名" htmlFor={ids.name}>
+          <Input
+            ref={nameRef}
+            id={ids.name}
+            value={item.name}
+            onChange={(e) => onChange({ name: e.target.value })}
           />
+        </FormField>
+        <FormField label="メモ" htmlFor={ids.memo}>
+          <Input
+            ref={memoRef}
+            id={ids.memo}
+            value={item.memo}
+            onChange={(e) => onChange({ memo: e.target.value })}
+          />
+        </FormField>
+        <FormField label="金額" htmlFor={ids.amount}>
+          <div className="relative">
+            <Input
+              ref={amountRef}
+              id={ids.amount}
+              className="appearance-none pr-4 text-right tabular-nums [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              type="number"
+              min={1}
+              step={1}
+              placeholder="0"
+              value={item.amount}
+              onChange={(e) => onChange({ amount: e.target.value })}
+            />
+            {/* 入力欄の文字と同じ大きさの行に置き、小さくした「円」の下端を数字にそろえる */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-0 py-1 text-sm"
+            >
+              <YenUnit />
+            </span>
+          </div>
+        </FormField>
+        <CategoryCombobox
+          serverUrl={serverUrl}
+          value={item.category}
+          onChange={(value) => onChange({ category: value })}
+        />
+        <DialogFooter>
           <DialogClose render={<Button type="button">完了</Button>} />
-        </FieldGroup>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -7,7 +7,7 @@ import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { LoaderCircle, LocateFixed, MapPin, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -15,8 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@tsuke/ui/components/dialog";
+import { Input } from "@tsuke/ui/components/input";
 import {
   boundsOfPois,
   distance,
@@ -31,7 +31,7 @@ import {
 } from "@/web/openPoi";
 import { poiKindColor, PoiKindIcon } from "@/web/components/PoiKindIcon";
 import { adjustMapStyle, MAP_STYLE_URL } from "@/web/mapStyle";
-import { cn } from "@/lib/utils";
+import { cn } from "@tsuke/ui/lib/utils";
 
 type MapLibre = typeof import("maplibre-gl");
 

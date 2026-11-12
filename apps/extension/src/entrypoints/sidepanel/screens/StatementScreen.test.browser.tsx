@@ -51,8 +51,8 @@ describe("StatementScreen", () => {
       .not.toBeChecked();
     await expect.element(page.getByText("登録済み 5/2")).toBeVisible();
     // AI が推測した既存店舗が選ばれ、推測できなかった行は未選択
-    await expect.element(storeOf("ｽｰﾊﾟｰA")).toHaveTextContent("スーパーA");
-    await expect.element(storeOf("カフェC")).toHaveTextContent("店舗を選択（任意）");
+    await expect.element(storeOf("ｽｰﾊﾟｰA")).toHaveValue("スーパーA");
+    await expect.element(storeOf("カフェC")).toHaveValue("");
     await expect
       .element(page.getByRole("status").filter({ hasText: "件読み取りました" }))
       .toHaveTextContent(

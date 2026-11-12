@@ -1,22 +1,22 @@
 import { action, Link } from "@void/react";
 import { ChevronRight, Plus } from "lucide-react";
 import { useId, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 import {
   Dialog,
   DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+} from "@tsuke/ui/components/dialog";
+import { Input } from "@tsuke/ui/components/input";
+import { Label } from "@tsuke/ui/components/label";
+import { cn } from "@tsuke/ui/lib/utils";
 import { type ActionResult, actionErrorMessage } from "@/web/actionError";
 import { ArchiveButton } from "@/web/components/ArchiveButton";
-import { ErrorMessage } from "@/web/components/ErrorMessage";
+import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
 import { MoveButtons } from "@/web/components/MoveButtons";
-import { Section } from "@/web/components/Section";
+import { Section } from "@tsuke/ui/patterns/Section";
 import type { Props } from "./categories.server";
 
 type Category = Props["payment"][number];

@@ -1,11 +1,15 @@
+import { CircleCheckIcon, ScanTextIcon } from "lucide-react";
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useToastManager } from "@/components/ui/toast";
+import { Button } from "@tsuke/ui/components/button";
+import { useToastManager } from "@tsuke/ui/components/toast";
 import { AccountCombobox } from "../../../components/AccountCombobox.tsx";
 import { CategoryCombobox, type CategorySelection } from "../../../components/CategoryCombobox.tsx";
+import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
+import { TotalAmount } from "@tsuke/ui/patterns/TotalAmount";
 import { StoreCombobox } from "../../../components/StoreCombobox.tsx";
+import { formatYen } from "@tsuke/ui/lib/format";
+import { formatShortDate } from "@/lib/format";
+import { cn } from "@tsuke/ui/lib/utils";
 import { collectPageContent } from "../../../lib/extraction.ts";
 import { createServerClient, withErrorMessage } from "../../../lib/serverClient";
 import {
@@ -28,14 +32,6 @@ interface ExtractSummary {
   skippedCount: number;
 }
 
-/** "2026-05-19" を明細の表記に近い "5/19" にする */
-const formatShortDate = (date: string): string => {
-  const [, month, day] = date.split("-");
-  return `${Number(month)}/${Number(day)}`;
-};
-
-const formatYen = (amount: number): string => `¥${amount.toLocaleString("ja-JP")}`;
-
 interface StatementRowItemProps {
   row: StatementRow;
   serverUrl: string;
@@ -45,6 +41,11 @@ interface StatementRowItemProps {
   onCategoryChange: (category: CategorySelection | null) => void;
 }
 
+/**
+ * 明細の 1 行。台帳の明細の取り込み（apps/ledger/pages/statements/import.tsx）の行にそろえ、
+ * 選ぶかどうかのチェックを左に、利用先と金額・日付をその右に、店舗とカテゴリの欄をさらに下に積む。
+ * 選んでいない行は文字を薄くする。
+ */
 const StatementRowItem = ({
   row,
   serverUrl,
@@ -56,47 +57,49 @@ const StatementRowItem = ({
   const placeLabel = row.place || "(利用先不明)";
   return (
     <li
-      className={`flex flex-col gap-1 rounded-md border bg-card p-2 ${row.selected ? "" : "opacity-70"}`}
+      className={cn(
+        "grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3 gap-y-2 border-b py-3",
+        !row.selected && "text-muted-foreground",
+      )}
     >
-      <div className="flex items-center gap-2">
-        <Checkbox
-          checked={row.selected}
-          onCheckedChange={onSelectedChange}
-          disabled={disabled || row.submitted}
-          aria-label={`${placeLabel}（${formatShortDate(row.date)}）を登録する`}
-        />
-        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+      <input
+        type="checkbox"
+        className="mt-1 size-4 accent-primary"
+        checked={row.selected}
+        onChange={(e) => onSelectedChange(e.target.checked)}
+        disabled={disabled || row.submitted}
+        aria-label={`${placeLabel}（${formatShortDate(row.date)}）を登録する`}
+      />
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="flex items-baseline justify-between gap-3">
+          <span className="truncate" title={placeLabel}>
+            {placeLabel}
+          </span>
+          <span className="shrink-0 font-medium tabular-nums">{formatYen(row.amount)}</span>
+        </span>
+        <span className="text-xs text-muted-foreground tabular-nums">
           {formatShortDate(row.date)}
         </span>
-        <span className="min-w-0 flex-1 truncate text-sm" title={placeLabel}>
-          {placeLabel}
-        </span>
-        <span className="shrink-0 text-sm tabular-nums">{formatYen(row.amount)}</span>
-      </div>
-      <div className="pl-6">
-        <StoreCombobox
-          serverUrl={serverUrl}
-          value={row.store}
-          onChange={onStoreChange}
-          size="sm"
-          showIcon={false}
-        />
-      </div>
-      <div className="flex items-center gap-1 pl-6">
-        <div className="min-w-0 flex-1">
-          <CategoryCombobox
-            serverUrl={serverUrl}
-            value={row.category}
-            onChange={onCategoryChange}
-            size="sm"
-            label={null}
-          />
-        </div>
         {row.submitted ? (
-          <Badge variant="secondary">登録しました</Badge>
+          <span className="flex items-center gap-1 text-xs text-foreground">
+            <CircleCheckIcon className="size-3" aria-hidden="true" />
+            登録しました
+          </span>
         ) : row.registered ? (
-          <Badge variant="outline">登録済み {formatShortDate(row.registered.date)}</Badge>
+          <span className="flex items-center gap-1 text-xs">
+            <CircleCheckIcon className="size-3" aria-hidden="true" />
+            登録済み {formatShortDate(row.registered.date)}
+          </span>
         ) : null}
+      </div>
+      <div className="col-start-2 grid gap-y-2">
+        <StoreCombobox serverUrl={serverUrl} value={row.store} onChange={onStoreChange} hideLabel />
+        <CategoryCombobox
+          serverUrl={serverUrl}
+          value={row.category}
+          onChange={onCategoryChange}
+          hideLabel
+        />
       </div>
     </li>
   );
@@ -231,22 +234,26 @@ export default function StatementScreen({ serverUrl }: Props) {
     : `${selectedRows.length}件を登録`;
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-1">
+    <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+      <div className="flex flex-col items-start gap-2">
         <Button
           type="button"
-          variant="secondary"
+          variant="outline"
+          className="w-full"
           disabled={isBusy}
           onClick={() => extractMutation.mutate()}
         >
+          <ScanTextIcon />
           {extractMutation.isPending ? "読み取り中…" : "このページの明細を読み取る"}
         </Button>
         {extractMutation.isError && (
-          <p role="alert" className="text-sm font-medium text-destructive">
-            {extractMutation.error instanceof Error
-              ? extractMutation.error.message
-              : "明細の読み取りに失敗しました"}
-          </p>
+          <ErrorMessage
+            message={
+              extractMutation.error instanceof Error
+                ? extractMutation.error.message
+                : "明細の読み取りに失敗しました"
+            }
+          />
         )}
         {summary === null ? (
           <p className="text-xs text-muted-foreground">
@@ -263,45 +270,51 @@ export default function StatementScreen({ serverUrl }: Props) {
         )}
       </div>
 
-      <AccountCombobox serverUrl={serverUrl} value={accountId} onChange={setAccountId} />
+      <div className="border-t border-foreground pt-3">
+        <AccountCombobox serverUrl={serverUrl} value={accountId} onChange={setAccountId} />
+      </div>
 
       {rows.length > 0 && (
-        <section className="flex flex-col gap-3">
-          <ul className="flex flex-col gap-2" aria-label="明細">
-            {rows.map((row) => (
-              <StatementRowItem
-                key={row.id}
-                row={row}
-                serverUrl={serverUrl}
-                disabled={isBusy}
-                onSelectedChange={(selected) => updateRow(row.id, { selected })}
-                onStoreChange={(store) => updateRow(row.id, { store })}
-                onCategoryChange={(category) => updateRow(row.id, { category })}
+        <ul className="border-t border-foreground" aria-label="明細">
+          {rows.map((row) => (
+            <StatementRowItem
+              key={row.id}
+              row={row}
+              serverUrl={serverUrl}
+              disabled={isBusy}
+              onSelectedChange={(selected) => updateRow(row.id, { selected })}
+              onStoreChange={(store) => updateRow(row.id, { store })}
+              onCategoryChange={(category) => updateRow(row.id, { category })}
+            />
+          ))}
+        </ul>
+      )}
+
+      {(rows.length > 0 || registerMutation.isError) && (
+        // 登録のボタンと合計は、行が多くてスクロールしても見えるよう下の帯に置く
+        <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-foreground bg-background py-2">
+          {registerMutation.isError && (
+            <ErrorMessage
+              message={
+                registerMutation.error instanceof Error
+                  ? registerMutation.error.message
+                  : "登録に失敗しました"
+              }
+            />
+          )}
+          {rows.length > 0 && (
+            <div className="flex items-center justify-between gap-4">
+              <TotalAmount
+                amount={total}
+                label={`合計（${selectedRows.length}件）`}
+                className="min-w-0 flex-1"
               />
-            ))}
-          </ul>
-
-          <div className="flex items-center justify-between border-t pt-2 pr-2">
-            <span className="text-sm font-semibold text-foreground">
-              合計（{selectedRows.length}件）
-            </span>
-            <span className="text-lg font-bold text-foreground">{formatYen(total)}</span>
-          </div>
-        </section>
-      )}
-
-      {rows.length > 0 && (
-        <Button type="submit" disabled={!canSubmit}>
-          {submitLabel}
-        </Button>
-      )}
-
-      {registerMutation.isError && (
-        <p role="alert" className="text-sm font-medium text-destructive">
-          {registerMutation.error instanceof Error
-            ? registerMutation.error.message
-            : "登録に失敗しました"}
-        </p>
+              <Button type="submit" size="lg" className="shrink-0 px-6" disabled={!canSubmit}>
+                {submitLabel}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
     </form>
   );

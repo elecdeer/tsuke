@@ -6,6 +6,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "ledger", "exec", "vp", "dev", "--port", "5173", "--strictPort"],
       "port": 5173
+    },
+    {
+      "name": "ui-storybook",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@tsuke/ui", "run", "storybook", "--no-open", "--ci"],
+      "port": 6007
     }
   ]
 }

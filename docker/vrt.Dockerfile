@@ -10,6 +10,7 @@ WORKDIR /app
 COPY --chown=vp:vp package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY --chown=vp:vp apps/extension/package.json apps/extension/
 COPY --chown=vp:vp apps/ledger/package.json apps/ledger/
+COPY --chown=vp:vp packages/ui/package.json packages/ui/
 
 RUN CI=true vp install --frozen-lockfile
 

@@ -2,7 +2,7 @@ import { Link } from "@void/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { type Ref, useEffect, useRef, useState } from "react";
 import { formatMonth, shiftMonth } from "@/ledger/dates";
-import { cn } from "@/lib/utils";
+import { cn } from "@tsuke/ui/lib/utils";
 import { navigatePeriod } from "@/web/components/PeriodPager";
 
 /**

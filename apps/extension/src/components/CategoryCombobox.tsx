@@ -1,24 +1,23 @@
-import { ChevronsUpDownIcon } from "lucide-react";
-import { Suspense, useMemo } from "react";
-import { Button } from "@/components/ui/button";
+import { Suspense, useId, useMemo } from "react";
 import {
   Combobox,
   ComboboxCollection,
   ComboboxContent,
   ComboboxEmpty,
   ComboboxGroup,
-  ComboboxGroupLabel,
+  ComboboxLabel,
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
   ComboboxTrigger,
   ComboboxValue,
-} from "@/components/ui/combobox";
-import { FieldLabel } from "@/components/ui/field";
+} from "@tsuke/ui/components/combobox";
+import { selectTriggerClassName } from "@tsuke/ui/components/select";
 import { ErrorBoundary } from "@/lib/ErrorBoundary";
 import { useSuspenseQuery } from "@/lib/query";
-import { cn } from "@/lib/utils";
+import { cn } from "@tsuke/ui/lib/utils";
 import { categoriesQuery } from "../queries";
+import { FormField } from "@tsuke/ui/patterns/FormField";
 
 export type CategorySelection = {
   categoryId: number;
@@ -42,11 +41,19 @@ interface Props {
   serverUrl: string;
   value: CategorySelection | null;
   onChange: (value: CategorySelection | null) => void;
-  /** ボタンのサイズ。省略時は `default`。 */
-  size?: "xs" | "sm" | "default" | "lg";
-  /** 表示ラベル。null の場合はラベル領域を出さない（インライン用途）。 */
-  label?: string | null;
+  /** ラベルを見た目から隠す。行の中に並べるときに使う */
+  hideLabel?: boolean;
+  /**
+   * 欄の見た目。`inline` は品目の行で品目名の上に添える見出しのように、低く小さく薄く出し、
+   * 下線も消して下の品目名の欄と取り違えないようにする（台帳の品目の行と同じ）。
+   */
+  variant?: "default" | "inline";
 }
+
+const LABEL = "カテゴリ";
+
+/** 選んだ内訳の名前。台帳の選択欄（categoryLabels）と同じく「カテゴリ / 内訳」と書く */
+const genreLabel = (item: GenreItem): string => `${item.categoryName} / ${item.genreName}`;
 
 /**
  * カテゴリ（カテゴリでグループ化された内訳）の combobox コンポーネント。
@@ -56,44 +63,48 @@ export const CategoryCombobox = ({
   serverUrl,
   value,
   onChange,
-  size = "default",
-  label = "カテゴリ",
+  hideLabel = false,
+  variant = "default",
 }: Props) => {
+  const id = useId();
   if (!serverUrl) return null;
 
   return (
-    <ErrorBoundary
-      fallback={<p className="text-sm text-destructive">カテゴリの取得に失敗しました</p>}
-    >
-      <Suspense
-        fallback={
-          <div className="flex flex-col gap-2">
+    <FormField label={LABEL} htmlFor={id} hideLabel={hideLabel}>
+      <ErrorBoundary
+        fallback={<p className="py-1.5 text-sm text-destructive">カテゴリの取得に失敗しました</p>}
+      >
+        <Suspense
+          fallback={
             <output
-              className="block h-8 animate-pulse rounded-lg bg-muted"
+              className={cn(
+                "block animate-pulse bg-muted",
+                variant === "inline" ? "h-6 w-24" : "h-8 border-b border-foreground/40",
+              )}
               aria-label="カテゴリを読み込み中"
             />
-          </div>
-        }
-      >
-        <CategoryComboboxContent
-          serverUrl={serverUrl}
-          value={value}
-          onChange={onChange}
-          size={size}
-          label={label}
-        />
-      </Suspense>
-    </ErrorBoundary>
+          }
+        >
+          <CategoryComboboxContent
+            id={id}
+            serverUrl={serverUrl}
+            value={value}
+            onChange={onChange}
+            variant={variant}
+          />
+        </Suspense>
+      </ErrorBoundary>
+    </FormField>
   );
 };
 
 const CategoryComboboxContent = ({
+  id,
   serverUrl,
   value,
   onChange,
-  size,
-  label,
-}: { serverUrl: string } & Pick<Props, "value" | "onChange" | "size" | "label">) => {
+  variant,
+}: { id: string; serverUrl: string } & Pick<Props, "value" | "onChange" | "variant">) => {
   const { data } = useSuspenseQuery(categoriesQuery, serverUrl);
 
   const groups = useMemo<GenreGroup[]>(
@@ -120,7 +131,7 @@ const CategoryComboboxContent = ({
     return null;
   }, [groups, value]);
 
-  const trigger = (
+  return (
     <Combobox
       items={groups}
       value={selectedItem}
@@ -139,32 +150,39 @@ const CategoryComboboxContent = ({
       }
     >
       <ComboboxTrigger
+        id={id}
         render={
-          <Button
+          // 名前はラベルからも付くが、lint はラベルとの結び付きを読めないので、同じ名前を直接付ける
+          <button
             type="button"
-            variant="outline"
-            size={size}
-            aria-label={label ?? "カテゴリ"}
-            className="w-full justify-between font-normal"
+            aria-label={LABEL}
+            data-size="default"
+            className={cn(
+              selectTriggerClassName,
+              "w-full",
+              // 品目の行では品目名に添える見出しのように、低く小さく薄く出す。下線も消し、下の品目名の欄と取り違えないようにする
+              variant === "inline" &&
+                "w-fit max-w-full border-transparent text-xs text-muted-foreground data-[size=default]:h-6",
+            )}
           />
         }
       >
         <ComboboxValue>
           {(v: GenreItem | null) => (
             <span className={cn("truncate", !v && "text-muted-foreground")}>
-              {v ? `${v.categoryName} > ${v.genreName}` : "カテゴリを選択"}
+              {/* 台帳と違い未分類のままでは登録できないので、選ぶよう促す */}
+              {v ? genreLabel(v) : "カテゴリを選択"}
             </span>
           )}
         </ComboboxValue>
-        <ChevronsUpDownIcon className="ml-2 opacity-50" />
       </ComboboxTrigger>
       <ComboboxContent>
-        <ComboboxInput placeholder="カテゴリを検索" />
+        <ComboboxInput showTrigger={false} placeholder="カテゴリを検索" />
         <ComboboxEmpty>カテゴリが見つかりません</ComboboxEmpty>
         <ComboboxList>
           {(group: GenreGroup) => (
             <ComboboxGroup key={group.categoryId} items={group.items}>
-              <ComboboxGroupLabel>{group.categoryName}</ComboboxGroupLabel>
+              <ComboboxLabel>{group.categoryName}</ComboboxLabel>
               <ComboboxCollection>
                 {(item: GenreItem) => (
                   <ComboboxItem key={item.genreId} value={item}>
@@ -177,16 +195,5 @@ const CategoryComboboxContent = ({
         </ComboboxList>
       </ComboboxContent>
     </Combobox>
-  );
-
-  if (label === null) {
-    return trigger;
-  }
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <FieldLabel>{label}</FieldLabel>
-      {trigger}
-    </div>
   );
 };

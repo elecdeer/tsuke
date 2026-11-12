@@ -1,9 +1,9 @@
 import { Star } from "lucide-react";
 import { useState } from "react";
 import { actionErrorMessage } from "@/web/actionError";
-import { ErrorMessage } from "@/web/components/ErrorMessage";
+import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
 import type { EditorActionResult } from "@/web/components/TransactionEditor";
-import { cn } from "@/lib/utils";
+import { cn } from "@tsuke/ui/lib/utils";
 
 /**
  * よく使う取引の印を付け外しするボタン。印の有無は色だけに頼らず、星を塗るかどうかでも示す。
