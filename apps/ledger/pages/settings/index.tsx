@@ -1,6 +1,6 @@
 import { Link, useShared } from "@void/react";
-import { buttonVariants } from "@/components/ui/button";
-import { Section } from "@/web/components/Section";
+import { buttonVariants } from "@tsuke/ui/components/button";
+import { Section } from "@tsuke/ui/patterns/Section";
 
 /**
  * 設定の画面。ログイン中のアカウントと、マスタの管理の画面への入口を置く。

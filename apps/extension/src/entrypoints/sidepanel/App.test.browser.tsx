@@ -18,7 +18,7 @@ describe("App: 設定オーバーレイの自動オープン", () => {
 
     await render(<App />);
 
-    await expect.element(page.getByRole("heading", { name: "Tsuke" })).toBeVisible();
+    await expect.element(page.getByRole("heading", { name: "tsuke" })).toBeVisible();
     await expect.element(page.getByRole("dialog", { name: "設定" })).not.toBeInTheDocument();
   });
 

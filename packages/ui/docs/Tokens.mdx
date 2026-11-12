@@ -1,0 +1,61 @@
+import { ColorItem, ColorPalette, Meta, Typeset } from "@storybook/addon-docs/blocks";
+
+<Meta title="Tokens" />
+
+# トークン
+
+値は `src/styles/theme.css` で決めている。ここに並べているのは、その変数を読んで描いたもの。
+
+## 色
+
+基本は黒と白と、グレーの濃淡。赤（primary）は画面ごとに 1〜2 か所にだけ使う。
+
+<ColorPalette>
+  <ColorItem
+    title="文字と背景"
+    subtitle="foreground / background"
+    colors={{ foreground: "var(--foreground)", background: "var(--background)" }}
+  />
+  <ColorItem
+    title="薄い文字・面"
+    subtitle="muted-foreground / muted"
+    colors={{ "muted-foreground": "var(--muted-foreground)", muted: "var(--muted)" }}
+  />
+  <ColorItem
+    title="線"
+    subtitle="border / input / ring"
+    colors={{ border: "var(--border)", input: "var(--input)", ring: "var(--ring)" }}
+  />
+  <ColorItem
+    title="アクセント"
+    subtitle="primary（ナビの下線・一番見てほしい数字・主ボタン）"
+    colors={{ primary: "var(--primary)", "primary-foreground": "var(--primary-foreground)" }}
+  />
+  <ColorItem
+    title="注意"
+    subtitle="destructive（色だけに頼らず、必ずアイコンと文言を付ける）"
+    colors={{ destructive: "var(--destructive)" }}
+  />
+</ColorPalette>
+
+## 文字
+
+書体は癖のないサンセリフ 1 つ。順序は文字の大きさと太さで付ける。
+
+<Typeset
+  fontFamily='"Helvetica Neue", Helvetica, Arial, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif'
+  fontSizes={[12, 14, 16, 24, 30]}
+  fontWeight={400}
+  sampleText="取引 1,234 円 Tsuke"
+/>
+
+## 線と角
+
+- まとまりの始まりは黒の細線（`border-t border-foreground`）、行の境目は薄い細線（`border-b`）
+- 角丸と影は使わない（`--radius: 0`）
+
+<div style={{ display: "grid", gap: 16, maxWidth: 360 }}>
+  <div className="border-t border-foreground pt-2 text-sm">まとまりの始まり</div>
+  <div className="border-b py-2 text-sm">行の境目</div>
+  <div className="border-b border-foreground/40 py-1 text-sm">入力欄の下線</div>
+</div>

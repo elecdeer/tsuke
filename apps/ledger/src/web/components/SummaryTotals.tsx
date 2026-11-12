@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@tsuke/ui/lib/utils";
 import { SkeletonText } from "@/web/components/Skeleton";
 import { formatAmount, formatSignedAmount } from "@/web/format";
 

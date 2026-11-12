@@ -2,7 +2,7 @@ import type { LedgerOutput } from "ledger/client";
 import { delay, http, HttpResponse } from "msw";
 import { userEvent, within } from "storybook/test";
 import preview from "#storybook/preview";
-import { Toaster, ToastProvider } from "@/components/ui/toast";
+import { Toaster, ToastProvider } from "@tsuke/ui/components/toast";
 import {
   accountsHandler,
   masterHandlers,
@@ -23,8 +23,8 @@ const meta = preview.meta({
   decorators: [
     (Story) => (
       <ToastProvider>
-        <div className="flex min-h-screen flex-col gap-4 bg-gray-50 p-4">
-          <h1 className="text-lg font-bold text-gray-900">Tsuke</h1>
+        {/* サイドパネルの本文（App の main）と同じ余白で置く */}
+        <div className="min-h-screen bg-background px-4 pt-6">
           <Story />
           <Toaster />
         </div>

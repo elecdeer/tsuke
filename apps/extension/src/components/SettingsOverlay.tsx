@@ -1,9 +1,15 @@
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useId, useState } from "react";
 import { browser } from "wxt/browser";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { Button } from "@tsuke/ui/components/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@tsuke/ui/components/dialog";
+import { Input } from "@tsuke/ui/components/input";
 import { ErrorBoundary } from "@/lib/ErrorBoundary";
 import { useSuspenseQuery } from "@/lib/query";
 import { launchServerLogin } from "../auth/serverAuth.ts";
@@ -15,6 +21,8 @@ import {
   placesQuery,
   serverUrlQuery,
 } from "../queries.ts";
+import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
+import { FormField } from "@tsuke/ui/patterns/FormField";
 import ServerLogin from "./ServerLogin.tsx";
 
 interface Props {
@@ -28,8 +36,10 @@ interface Props {
 export const SettingsOverlay = ({ open, onOpenChange }: Props) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex flex-col gap-4">
-        <DialogTitle>設定</DialogTitle>
+      <DialogContent className="flex flex-col gap-6">
+        <DialogHeader>
+          <DialogTitle>設定</DialogTitle>
+        </DialogHeader>
         <Suspense fallback={null}>
           <SettingsOverlayContent onOpenChange={onOpenChange} />
         </Suspense>
@@ -40,6 +50,7 @@ export const SettingsOverlay = ({ open, onOpenChange }: Props) => {
 
 const SettingsOverlayContent = ({ onOpenChange: _onOpenChange }: Pick<Props, "onOpenChange">) => {
   const { data: serverUrl } = useSuspenseQuery(serverUrlQuery, undefined);
+  const serverUrlId = useId();
   const [serverUrlInput, setServerUrlInput] = useState("");
   const [storageError, setStorageError] = useState<string | null>(null);
   const [isRefetching, setIsRefetching] = useState(false);
@@ -94,19 +105,20 @@ const SettingsOverlayContent = ({ onOpenChange: _onOpenChange }: Pick<Props, "on
   return (
     <>
       <section className="flex items-end gap-2">
-        <Field className="min-w-0 flex-1">
-          <FieldLabel htmlFor="settings-server-url">サーバー URL</FieldLabel>
+        <FormField label="サーバー URL" htmlFor={serverUrlId} className="flex-1">
           <Input
-            id="settings-server-url"
+            id={serverUrlId}
             type="url"
             value={serverUrlInput}
             onChange={(e) => setServerUrlInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSaveServerUrl()}
             placeholder="https://your-server.workers.dev"
           />
-        </Field>
+        </FormField>
         <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={handleSaveServerUrl}
           disabled={!serverUrlInput || serverUrlInput === serverUrl}
         >
@@ -114,18 +126,10 @@ const SettingsOverlayContent = ({ onOpenChange: _onOpenChange }: Pick<Props, "on
         </Button>
       </section>
 
-      {storageError && (
-        <p className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">{storageError}</p>
-      )}
+      {storageError && <ErrorMessage message={storageError} />}
 
       {serverUrl && (
-        <ErrorBoundary
-          fallback={(error) => (
-            <p className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">
-              {error.message}
-            </p>
-          )}
-        >
+        <ErrorBoundary fallback={(error) => <ErrorMessage message={error.message} />}>
           <Suspense fallback={null}>
             <AuthSection
               serverUrl={serverUrl}
@@ -138,15 +142,15 @@ const SettingsOverlayContent = ({ onOpenChange: _onOpenChange }: Pick<Props, "on
         </ErrorBoundary>
       )}
 
-      <div className="flex justify-end">
+      <DialogFooter>
         <DialogClose
           render={
-            <Button type="button" variant="secondary">
+            <Button type="button" variant="outline">
               閉じる
             </Button>
           }
         />
-      </div>
+      </DialogFooter>
     </>
   );
 };

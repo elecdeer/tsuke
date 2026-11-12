@@ -2,9 +2,9 @@ import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { monthsOfYear } from "@/ledger/dates";
 import type { YearlyModeSummary, YearlySummary } from "@/ledger/summary";
-import { cn } from "@/lib/utils";
+import { cn } from "@tsuke/ui/lib/utils";
 import { MonthlyBarChart } from "@/web/components/MonthlyBarChart";
-import { Section } from "@/web/components/Section";
+import { Section } from "@tsuke/ui/patterns/Section";
 import { ROW_COLUMNS } from "@/web/components/SummaryTotals";
 import { formatAmount, formatPercent } from "@/web/format";
 

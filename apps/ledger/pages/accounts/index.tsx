@@ -1,10 +1,10 @@
 import { Link, useRouter } from "@void/react";
 import { ChevronRight } from "lucide-react";
 import { useId } from "react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "@tsuke/ui/components/input";
+import { Label } from "@tsuke/ui/components/label";
 import { isDate, monthOf } from "@/ledger/dates";
-import { Section } from "@/web/components/Section";
+import { Section } from "@tsuke/ui/patterns/Section";
 import { formatAmount } from "@/web/format";
 import { transactionsHref } from "@/web/transactionsHref";
 import type { Props } from "./index.server";

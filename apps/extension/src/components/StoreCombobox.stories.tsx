@@ -9,7 +9,7 @@ const ControlledWrapper = ({ serverUrl }: { serverUrl: string }) => {
   return (
     <div className="flex flex-col gap-2">
       <StoreCombobox serverUrl={serverUrl} value={value} onChange={setValue} />
-      <p className="text-xs text-gray-500">選択中: {value ?? "なし"}</p>
+      <p className="text-xs text-muted-foreground">選択中: {value ?? "なし"}</p>
     </div>
   );
 };

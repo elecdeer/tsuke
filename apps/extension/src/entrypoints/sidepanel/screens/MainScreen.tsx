@@ -1,13 +1,19 @@
-import { PencilSimpleIcon } from "@phosphor-icons/react";
 import type { LedgerOutput } from "ledger/client";
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { PlusIcon, RotateCwIcon, ScanTextIcon, TriangleAlertIcon, XIcon } from "lucide-react";
+import { useEffect, useId, useState } from "react";
+import { Button } from "@tsuke/ui/components/button";
+import { selectTriggerClassName } from "@tsuke/ui/components/select";
 import { AccountCombobox } from "../../../components/AccountCombobox.tsx";
 import { CategoryCombobox, type CategorySelection } from "../../../components/CategoryCombobox.tsx";
 import { DateField } from "../../../components/DateField.tsx";
+import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
+import { TotalAmount } from "@tsuke/ui/patterns/TotalAmount";
+import { YenUnit } from "@tsuke/ui/patterns/YenUnit";
 import { ItemEditDialog, type ItemEditField } from "../../../components/ItemEditDialog.tsx";
 import { StoreCombobox } from "../../../components/StoreCombobox.tsx";
-import { useToastManager } from "@/components/ui/toast";
+import { useToastManager } from "@tsuke/ui/components/toast";
+import { formatAmount, formatYen } from "@tsuke/ui/lib/format";
+import { cn } from "@tsuke/ui/lib/utils";
 import { useMutation } from "../../../lib/useMutation.ts";
 import { collectPageContent, findCategorySelectionByGenreId } from "../../../lib/extraction.ts";
 import { createServerClient, withErrorMessage } from "../../../lib/serverClient";
@@ -43,6 +49,12 @@ const newItem = (category: CategorySelection | null = null): Item => ({
 
 const localDateString = () => Temporal.Now.plainDateISO().toString();
 
+/**
+ * 押すとモーダルを開く品目の欄。台帳の品目名・メモの欄と同じく、選択欄の見た目（下線）にする。
+ * 高さは data-size="default" で選択欄と同じにする。
+ */
+const FIELD_TRIGGER = cn(selectTriggerClassName, "w-full");
+
 const isItemReady = (item: Item): boolean =>
   parseInt(item.amount, 10) > 0 && item.category !== null && item.category.genreId > 0;
 
@@ -54,80 +66,81 @@ interface ItemRowProps {
   onRemove: () => void;
 }
 
+/**
+ * 品目 1 件の行。台帳の狭い画面の品目の行（apps/ledger/src/web/components/TransactionFields.tsx）にそろえ、
+ * 内訳を小さく上に添え、その下に品目名と金額を並べ、メモはさらに下に置く。
+ * 行の境目は欄の下線より濃い罫線にして、行の区切りと欄の下線を取り違えないようにする。
+ */
 const ItemRow = ({ item, serverUrl, onEdit, onCategoryChange, onRemove }: ItemRowProps) => {
   const amountNum = parseInt(item.amount, 10);
-  const amountLabel =
-    Number.isInteger(amountNum) && amountNum > 0 ? amountNum.toLocaleString("ja-JP") : "0";
+  const hasAmount = Number.isInteger(amountNum) && amountNum > 0;
 
   return (
-    <div className="flex flex-col gap-1 rounded-md border bg-card py-2 pl-2 pr-2">
-      <div className="flex items-center gap-1">
+    <div className="grid grid-cols-[minmax(0,1fr)_7rem_1.75rem] items-end gap-x-4 border-b border-foreground/60 py-2">
+      <div className="col-span-full">
+        <CategoryCombobox
+          serverUrl={serverUrl}
+          value={item.category}
+          onChange={onCategoryChange}
+          variant="inline"
+          hideLabel
+        />
+      </div>
+      <button
+        type="button"
+        data-size="default"
+        className={FIELD_TRIGGER}
+        onClick={() => onEdit("name")}
+        aria-label="品名を編集"
+        title={item.name || undefined}
+      >
+        <span className={cn("min-w-0 flex-1 truncate", !item.name && "text-muted-foreground")}>
+          {item.name || "品名"}
+        </span>
+      </button>
+      <button
+        type="button"
+        data-size="default"
+        className={cn(FIELD_TRIGGER, "justify-end gap-0.5 tabular-nums")}
+        onClick={() => onEdit("amount")}
+        aria-label="金額を編集"
+      >
+        <span className={cn("truncate", !hasAmount && "text-muted-foreground")}>
+          {hasAmount ? formatAmount(amountNum) : "0"}
+        </span>
+        <YenUnit />
+      </button>
+      {/* ボタン（h-7）は欄（h-8）より低いので、欄と同じ高さの中で縦の中央に置く */}
+      <div className="flex h-8 items-center justify-end">
         <Button
-          size="sm"
+          size="icon-sm"
           variant="ghost"
           type="button"
-          className="min-w-0 flex-1 justify-start text-left font-normal"
-          onClick={() => onEdit("name")}
-          aria-label="品名を編集"
+          onClick={onRemove}
+          aria-label="品目を削除"
         >
-          <span
-            className={`min-w-0 truncate text-base ${item.name ? "text-foreground" : "text-muted-foreground"}`}
-          >
-            {item.name || "品名"}
-          </span>
-        </Button>
-        <Button size="sm" variant="ghost" type="button" onClick={onRemove} aria-label="品目を削除">
-          ×
+          <XIcon />
         </Button>
       </div>
-      <div className="flex items-center gap-1">
-        <Button
-          size="sm"
-          variant="ghost"
-          type="button"
-          className="min-w-0 flex-1 justify-start text-left font-normal"
-          onClick={() => onEdit("memo")}
-          aria-label="メモを編集"
-        >
-          <PencilSimpleIcon
-            size={12}
-            className="shrink-0 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <span
-            className={`min-w-0 truncate text-[11px] ${item.memo ? "text-foreground" : "text-muted-foreground"}`}
-          >
-            {item.memo || "メモ"}
-          </span>
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          type="button"
-          className="font-normal tabular-nums"
-          onClick={() => onEdit("amount")}
-          aria-label="金額を編集"
-        >
-          <span
-            className={`text-base ${item.amount ? "text-foreground" : "text-muted-foreground"}`}
-          >
-            ¥{amountLabel}
-          </span>
-        </Button>
-      </div>
-      <CategoryCombobox
-        serverUrl={serverUrl}
-        value={item.category}
-        onChange={onCategoryChange}
-        size="sm"
-        label={null}
-      />
+      <button
+        type="button"
+        data-size="default"
+        className={cn(FIELD_TRIGGER, "col-span-2 mt-1")}
+        onClick={() => onEdit("memo")}
+        aria-label="メモを編集"
+        title={item.memo || undefined}
+      >
+        <span className={cn("min-w-0 flex-1 truncate", !item.memo && "text-muted-foreground")}>
+          {item.memo || "メモ"}
+        </span>
+      </button>
     </div>
   );
 };
 
 export default function MainScreen({ serverUrl }: Props) {
   const toastManager = useToastManager();
+  const itemsHeadingId = useId();
   const [items, setItems] = useState<Item[]>([newItem()]);
   const [date, setDate] = useState(localDateString);
   const [accountId, setAccountId] = useState<number | null>(null);
@@ -300,18 +313,20 @@ export default function MainScreen({ serverUrl }: Props) {
           : "登録";
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-1">
+    <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+      <div className="flex flex-col items-start gap-2">
         <Button
           type="button"
-          variant="secondary"
+          variant="outline"
+          className="w-full"
           disabled={extractMutation.isPending || mutation.isPending}
           onClick={() => extractMutation.mutate("fast")}
         >
+          <ScanTextIcon />
           {extractMutation.isPending ? "自動入力中…" : "このページから自動入力"}
         </Button>
         {autofilled && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <Button
               type="button"
               variant="outline"
@@ -319,6 +334,7 @@ export default function MainScreen({ serverUrl }: Props) {
               disabled={extractMutation.isPending || mutation.isPending}
               onClick={() => extractMutation.mutate("accurate")}
             >
+              <RotateCwIcon />
               もう一度読み取る
             </Button>
             <span className="text-xs text-muted-foreground">
@@ -327,81 +343,93 @@ export default function MainScreen({ serverUrl }: Props) {
           </div>
         )}
         {extractMutation.isError && (
-          <p role="alert" className="text-sm font-medium text-destructive">
-            {extractMutation.error instanceof Error
-              ? extractMutation.error.message
-              : "自動入力に失敗しました"}
-          </p>
+          <ErrorMessage
+            message={
+              extractMutation.error instanceof Error
+                ? extractMutation.error.message
+                : "自動入力に失敗しました"
+            }
+          />
         )}
       </div>
-      <DateField value={date} onChange={setDate} required />
-      <AccountCombobox serverUrl={serverUrl} value={accountId} onChange={setAccountId} />
-      <StoreCombobox serverUrl={serverUrl} value={placeName} onChange={setPlaceName} />
-      <section className="flex flex-col gap-3">
-        {items.map((item) => (
-          <ItemRow
-            key={item.id}
-            item={item}
-            serverUrl={serverUrl}
-            onEdit={(field) => openItemEditor(item.id, field)}
-            onCategoryChange={(category) => updateItem(item.id, { category })}
-            onRemove={() => removeItem(item.id)}
-          />
-        ))}
 
+      <div className="grid gap-y-4 border-t border-foreground pt-3">
+        <DateField value={date} onChange={setDate} required />
+        <AccountCombobox serverUrl={serverUrl} value={accountId} onChange={setAccountId} />
+        <StoreCombobox serverUrl={serverUrl} value={placeName} onChange={setPlaceName} />
+      </div>
+
+      <section aria-labelledby={itemsHeadingId} className="flex flex-col">
+        <h2 id={itemsHeadingId} className="pb-2 text-base font-semibold">
+          品目
+        </h2>
+        <div className="border-t border-foreground">
+          {items.map((item) => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              serverUrl={serverUrl}
+              onEdit={(field) => openItemEditor(item.id, field)}
+              onCategoryChange={(category) => updateItem(item.id, { category })}
+              onRemove={() => removeItem(item.id)}
+            />
+          ))}
+        </div>
         <Button
-          className="self-start"
-          size="sm"
+          className="mt-1 -ml-2.5 self-start text-muted-foreground"
           variant="ghost"
           type="button"
           onClick={() => setItems((prev) => [...prev, newItem(prev.at(-1)?.category ?? null)])}
         >
-          + 品目を追加
+          <PlusIcon />
+          品目を追加
         </Button>
-
-        <div className="flex items-center justify-between border-t pt-2 pr-2">
-          <span className="text-sm font-semibold text-foreground">合計</span>
-          <span className="text-lg font-bold text-foreground">
-            ¥{total.toLocaleString("ja-JP")}
-          </span>
-        </div>
       </section>
 
-      {duplicateState === "warned" && (
-        <div
-          role="alert"
-          className="flex flex-col gap-1 rounded-md bg-amber-50 p-2 text-xs text-amber-900"
-        >
-          <p className="font-medium">直近で同額の支払いが登録されている可能性があります：</p>
-          <ul className="ml-4 list-disc">
-            {items.flatMap((item) => {
-              const dups = duplicatesByItemId[item.id] ?? [];
-              if (dups.length === 0) return [];
-              const amountNum = parseInt(item.amount, 10);
-              return [
-                <li key={item.id}>
-                  {item.name || "(品目名なし)"} ¥{amountNum.toLocaleString("ja-JP")}（
-                  {dups[0]?.date} に登録済み）
-                </li>,
-              ];
-            })}
-          </ul>
+      {/* 登録のボタンと合計は、品目が多くてスクロールしても見えるよう下の帯に置く（台帳のレシートの登録と同じ） */}
+      <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-foreground bg-background py-2">
+        {duplicateState === "warned" && (
+          <div role="alert" className="flex gap-1.5 text-sm text-destructive">
+            <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <div className="flex flex-col gap-1">
+              <p>直近で同額の支払いが登録されている可能性があります：</p>
+              <ul className="flex flex-col gap-0.5 text-foreground">
+                {items.flatMap((item) => {
+                  const dups = duplicatesByItemId[item.id] ?? [];
+                  if (dups.length === 0) return [];
+                  return [
+                    <li key={item.id}>
+                      {item.name || "(品目名なし)"} {formatYen(parseInt(item.amount, 10))}（
+                      {dups[0]?.date} に登録済み）
+                    </li>,
+                  ];
+                })}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {mutation.isError && (
+          <ErrorMessage
+            message={
+              mutation.error instanceof Error ? mutation.error.message : "登録に失敗しました"
+            }
+          />
+        )}
+
+        <div className="flex items-center justify-between gap-4">
+          <TotalAmount amount={total} className="min-w-0 flex-1" />
+          <Button
+            type="submit"
+            size="lg"
+            className="shrink-0 px-8"
+            variant={duplicateState === "warned" ? "destructive" : "default"}
+            disabled={!canSubmit || mutation.isPending || duplicateState === "checking"}
+          >
+            {buttonLabel}
+          </Button>
         </div>
-      )}
-
-      <Button
-        type="submit"
-        variant={duplicateState === "warned" ? "destructive" : "default"}
-        disabled={!canSubmit || mutation.isPending || duplicateState === "checking"}
-      >
-        {buttonLabel}
-      </Button>
-
-      {mutation.isError && (
-        <p role="alert" className="text-sm font-medium text-destructive">
-          {mutation.error instanceof Error ? mutation.error.message : "登録に失敗しました"}
-        </p>
-      )}
+      </div>
 
       {editingItem && (
         <ItemEditDialog

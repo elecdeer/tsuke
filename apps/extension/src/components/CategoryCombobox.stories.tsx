@@ -14,7 +14,7 @@ const ControlledWrapper = ({ serverUrl }: { serverUrl: string }) => {
   return (
     <div className="flex flex-col gap-2">
       <CategoryCombobox serverUrl={serverUrl} value={value} onChange={setValue} />
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-muted-foreground">
         選択中: {value ? `categoryId=${value.categoryId}, genreId=${value.genreId}` : "なし"}
       </p>
     </div>

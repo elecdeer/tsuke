@@ -1,6 +1,6 @@
 import { useRouter } from "@void/react";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@tsuke/ui/lib/utils";
 import { type MonthSlideDirection, setMonthSlide } from "@/web/monthSlide";
 import { fillHeight, neighborOffset, revealHeight, snappedPage } from "@/web/monthPager";
 

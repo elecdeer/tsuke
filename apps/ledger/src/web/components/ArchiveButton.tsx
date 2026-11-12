@@ -1,5 +1,5 @@
 import { Archive, ArchiveRestore } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 
 /**
  * マスタをアーカイブするか元に戻すボタン。どちらも取り消せる操作なので、確認のダイアログは挟まない。

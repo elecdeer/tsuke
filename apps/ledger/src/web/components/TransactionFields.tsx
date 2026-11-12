@@ -11,7 +11,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 import {
   Combobox,
   ComboboxClear,
@@ -20,7 +20,7 @@ import {
   ComboboxItem,
   ComboboxList,
   useComboboxAnchor,
-} from "@/components/ui/combobox";
+} from "@tsuke/ui/components/combobox";
 import {
   Dialog,
   DialogClose,
@@ -28,16 +28,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@tsuke/ui/components/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@tsuke/ui/components/dropdown-menu";
+import { Input } from "@tsuke/ui/components/input";
 import {
   Select,
   SelectContent,
@@ -45,16 +44,15 @@ import {
   SelectTrigger,
   selectTriggerClassName,
   SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+} from "@tsuke/ui/components/select";
+import { Textarea } from "@tsuke/ui/components/textarea";
 import type { CategoryWithGenres } from "@/ledger/masters";
 import type { TransactionMode } from "@/ledger/transactions";
 import { categoryLabels, categoryValueOf } from "@/web/categoryValue";
 import { CategoryOptions } from "@/web/components/CategoryOptions";
 import { PlaceCandidates } from "@/web/components/PlaceCandidates";
 import { PlaceMapDialog } from "@/web/components/PlaceMapDialog";
-import { Section } from "@/web/components/Section";
-import { formatAmount } from "@/web/format";
+import { Section } from "@tsuke/ui/patterns/Section";
 import { AGGREGATION_LABELS } from "@/web/labels";
 import type { PlaceDetail } from "@/ledger/placeDetail";
 import { placeDetailFor } from "@/web/placeMatching";
@@ -67,7 +65,10 @@ import {
   type ItemDraft,
   type TransactionDraft,
 } from "@/web/transactionDraft";
-import { cn } from "@/lib/utils";
+import { cn } from "@tsuke/ui/lib/utils";
+import { FormField } from "@tsuke/ui/patterns/FormField";
+import { TotalAmount } from "@tsuke/ui/patterns/TotalAmount";
+import { YenUnit } from "@tsuke/ui/patterns/YenUnit";
 
 export type AccountOption = { id: number; name: string };
 
@@ -87,42 +88,6 @@ const ITEM_COLUMNS: Record<TransactionMode, string> = {
   transfer: "grid-cols-[minmax(0,1fr)_7rem] @xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]",
   adjustment: "grid-cols-[minmax(0,1fr)_7rem] @xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]",
 };
-
-/**
- * 金額に添える単位。順序は文字の大きさと太さで付ける（docs/design.md）ので、数字より小さく細く出す。
- */
-const YenUnit = ({ className }: { className?: string }) => (
-  <span className={cn("text-xs font-normal tracking-normal text-muted-foreground", className)}>
-    円
-  </span>
-);
-
-/**
- * ラベル付きの入力欄。labelClassName でラベルを隠す（見出しのある表の中など）こともできる。
- */
-export const FormField = ({
-  label,
-  children,
-  htmlFor,
-  labelClassName,
-  className,
-}: {
-  label: string;
-  htmlFor: string;
-  children: ReactNode;
-  labelClassName?: string;
-  className?: string;
-}) => (
-  <div className={cn("flex min-w-0 flex-col gap-0.5", className)}>
-    <Label
-      htmlFor={htmlFor}
-      className={cn("text-xs font-normal text-muted-foreground", labelClassName)}
-    >
-      {label}
-    </Label>
-    {children}
-  </div>
-);
 
 /**
  * 口座の選択。選んでいる口座が一覧にない（アーカイブした）ときも、その値を選択肢に残す。
@@ -238,7 +203,7 @@ export const PlaceInput = ({
           // 欄の右のボタンまで含めた幅で、欄のすぐ下に出す
           anchor={anchor}
           sideOffset={0}
-          // 影・角丸は使わず（docs/design.md）、欄の下線を上の辺にした箱として左右と下を黒の線で閉じる。
+          // 影・角丸は使わず（packages/ui/docs/design.md）、欄の下線を上の辺にした箱として左右と下を黒の線で閉じる。
           // 下の端の線だけでは、後ろに透けて見えるページの罫線と候補の行の境目がつながり、どこまでが候補か読み取れない
           className="rounded-none border-x border-b border-foreground bg-background shadow-none ring-0"
         >
@@ -431,7 +396,7 @@ const ItemFields = ({
         <FormField
           label={mode === "payment" ? "内訳" : "カテゴリ"}
           htmlFor={ids.category}
-          labelClassName="sr-only"
+          hideLabel
           // 品目名の上に小さく添える。品目名と金額を同じ段に並べ、欄の高さをそろえるため
           className="order-1 col-span-full @xl:order-none @xl:col-span-1"
         >
@@ -469,12 +434,7 @@ const ItemFields = ({
           </Select>
         </FormField>
       )}
-      <FormField
-        label="品目名"
-        htmlFor={ids.name}
-        labelClassName="sr-only"
-        className="order-2 @xl:order-none"
-      >
+      <FormField label="品目名" htmlFor={ids.name} hideLabel className="order-2 @xl:order-none">
         <ItemTextButton
           id={ids.name}
           value={item.name}
@@ -485,7 +445,7 @@ const ItemFields = ({
       <FormField
         label="メモ"
         htmlFor={ids.memo}
-        labelClassName="sr-only"
+        hideLabel
         className={cn(
           "order-5 col-span-full @xl:order-none @xl:col-span-1",
           memoCollapsed && "hidden @xl:flex",
@@ -498,12 +458,7 @@ const ItemFields = ({
           onClick={() => setEditing("memo")}
         />
       </FormField>
-      <FormField
-        label="金額"
-        htmlFor={ids.amount}
-        labelClassName="sr-only"
-        className="order-3 @xl:order-none"
-      >
+      <FormField label="金額" htmlFor={ids.amount} hideLabel className="order-3 @xl:order-none">
         <div className="relative">
           <Input
             id={ids.amount}
@@ -569,16 +524,10 @@ const ItemFields = ({
 };
 
 /**
- * 品目の合計。一番大事な数字なので大きく出し、単位は小さく添えて数字を読む邪魔をしない。
+ * 品目の合計。一番大事な数字なので大きく出す。
  */
 export const ItemsTotal = ({ items, className }: { items: ItemDraft[]; className?: string }) => (
-  <div className={cn("flex items-baseline justify-between gap-3", className)}>
-    <span className="text-xs text-muted-foreground">合計</span>
-    <span className="text-2xl font-semibold tracking-tight tabular-nums">
-      {formatAmount(itemsTotal(items))}
-      <YenUnit className="ml-0.5" />
-    </span>
-  </div>
+  <TotalAmount amount={itemsTotal(items)} className={className} />
 );
 
 /**

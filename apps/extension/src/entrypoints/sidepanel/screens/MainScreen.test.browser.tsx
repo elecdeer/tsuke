@@ -1,6 +1,6 @@
 import type { LedgerInput, LedgerOutput } from "ledger/client";
 import { http, HttpResponse } from "msw";
-import { describe, expect, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 import type { collectFromActiveTab } from "../../../page-collector/collectFromActiveTab.ts";
@@ -68,7 +68,7 @@ describe("MainScreen", () => {
     await page.getByRole("spinbutton", { name: "金額" }).fill("1000");
     await page.getByRole("button", { name: "完了" }).click();
 
-    await expect.element(page.getByText("¥1,000").last()).toBeVisible();
+    await expect.element(page.getByText("1,000").last()).toBeVisible();
   });
 
   test("品目を追加ボタンで入力行が増える", async ({ worker }) => {
@@ -80,7 +80,7 @@ describe("MainScreen", () => {
     await expect.element(page.getByRole("button", { name: "品目を削除" })).toBeVisible();
     expect(page.getByRole("button", { name: "品目を削除" }).all().length).toBe(1);
 
-    await page.getByRole("button", { name: "+ 品目を追加" }).click();
+    await page.getByRole("button", { name: "品目を追加" }).click();
 
     expect(page.getByRole("button", { name: "品目を削除" }).all().length).toBe(2);
   });
@@ -93,11 +93,11 @@ describe("MainScreen", () => {
     await page.getByRole("button", { name: "金額を編集" }).click();
     await page.getByRole("spinbutton", { name: "金額" }).fill("1000");
     await page.getByRole("button", { name: "完了" }).click();
-    await expect.element(page.getByText("¥1,000").last()).toBeVisible();
+    await expect.element(page.getByText("1,000").last()).toBeVisible();
 
     await page.getByRole("button", { name: "品目を削除" }).click();
 
-    await expect.element(page.getByText("¥0")).toBeVisible();
+    await expect.element(page.getByText("0円", { exact: true })).toBeVisible();
   });
 
   test("カテゴリと金額を入力すると登録ボタンが有効になる", async ({ worker }) => {
@@ -276,7 +276,7 @@ describe("MainScreen", () => {
     await page.getByRole("button", { name: "完了" }).click();
 
     // 2 行目を追加し、カテゴリ=電車・バス, 金額=500
-    await page.getByRole("button", { name: "+ 品目を追加" }).click();
+    await page.getByRole("button", { name: "品目を追加" }).click();
     await page.getByRole("button", { name: "品名を編集" }).nth(1).click();
     await page.getByRole("spinbutton", { name: "金額" }).fill("500");
     await page.getByRole("combobox", { name: "カテゴリ" }).click();
@@ -313,7 +313,7 @@ describe("MainScreen", () => {
     await render(<Default.Component />);
 
     await fillMinimumForm();
-    await page.getByRole("button", { name: "+ 品目を追加" }).click();
+    await page.getByRole("button", { name: "品目を追加" }).click();
     await page.getByRole("button", { name: "品名を編集" }).nth(1).click();
     await page.getByRole("spinbutton", { name: "金額" }).fill("500");
     await page.getByRole("button", { name: "完了" }).click();
@@ -373,13 +373,11 @@ describe("MainScreen", () => {
     await expect
       .element(page.getByRole("combobox", { name: "口座" }))
       .toMatchTextContent("クレジットカード");
-    await expect
-      .element(page.getByRole("combobox", { name: "店舗" }))
-      .toMatchTextContent("はじめての店");
+    await expect.element(page.getByRole("combobox", { name: "店舗" })).toHaveValue("はじめての店");
     await expect
       .element(page.getByRole("combobox", { name: "カテゴリ" }).nth(1))
-      .toMatchTextContent("交通費 > 電車・バス");
-    await expect.element(page.getByText("¥360")).toBeVisible();
+      .toMatchTextContent("交通費 / 電車・バス");
+    await expect.element(page.getByText("360")).toBeVisible();
   });
 
   test("自動入力に失敗したら状態コード付きのエラーを表示する", async ({ worker }) => {
@@ -508,9 +506,7 @@ describe("MainScreen", () => {
     await render(<Default.Component />);
 
     await page.getByRole("button", { name: "このページから自動入力" }).click();
-    await expect
-      .element(page.getByRole("combobox", { name: "店舗" }))
-      .toHaveTextContent("スーパーA");
+    await expect.element(page.getByRole("combobox", { name: "店舗" })).toHaveValue("スーパーA");
     await page.getByRole("button", { name: "登録" }).click();
 
     await vi.waitFor(() => {
@@ -565,6 +561,18 @@ describe("MainScreen", () => {
 });
 
 describe("MainScreen visual regression", () => {
+  // 日付欄の初期値は今日の日付なので、撮った日で画像が変わらないよう固定する。
+  // Temporal.Now は Date のモックを見ないため "Temporal" も偽装する。
+  // 他のタイマーまで偽装すると描画や MSW の待機が進まなくなるので対象を絞る
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date", "Temporal"] });
+    vi.setSystemTime(new Date(2024, 0, 10, 12, 0, 0));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   /** 口座・店舗・カテゴリの選択欄が読み込まれるまで待つ（読み込み中や失敗の表示を撮らないため） */
   const waitForMasters = async () => {
     await expect.element(page.getByRole("combobox", { name: "口座" })).toBeVisible();
@@ -576,6 +584,8 @@ describe("MainScreen visual regression", () => {
     worker.use(...commonHandlers);
     await render(<Default.Component />);
     await waitForMasters();
+    // 固定が効いていないと基準画像が日付で揺れるので、先に値で確かめる
+    await expect.element(page.getByRole("textbox", { name: "日付" })).toHaveValue("2024-01-10");
     await expect(page.elementLocator(document.body)).toMatchScreenshot("main-screen-initial");
   });
 
@@ -583,7 +593,7 @@ describe("MainScreen visual regression", () => {
     worker.use(...commonHandlers);
     const screen = await render(<Default.Component />);
     await waitForMasters();
-    await userEvent.click(screen.getByRole("button", { name: "+ 品目を追加" }));
+    await userEvent.click(screen.getByRole("button", { name: "品目を追加" }));
     await expect(page.elementLocator(document.body)).toMatchScreenshot("main-screen-two-items");
   });
 

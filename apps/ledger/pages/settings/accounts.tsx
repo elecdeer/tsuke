@@ -1,7 +1,7 @@
 import { action, Link } from "@void/react";
 import { Plus } from "lucide-react";
 import { useId, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 import {
   Dialog,
   DialogClose,
@@ -9,13 +9,13 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+} from "@tsuke/ui/components/dialog";
+import { Input } from "@tsuke/ui/components/input";
+import { Label } from "@tsuke/ui/components/label";
+import { Textarea } from "@tsuke/ui/components/textarea";
 import { type ActionResult, actionErrorMessage } from "@/web/actionError";
 import { ArchiveButton } from "@/web/components/ArchiveButton";
-import { ErrorMessage } from "@/web/components/ErrorMessage";
+import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
 import { MoveButtons } from "@/web/components/MoveButtons";
 import type { Props } from "./accounts.server";
 

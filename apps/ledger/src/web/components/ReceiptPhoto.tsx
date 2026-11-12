@@ -1,14 +1,14 @@
 import { Crop, Maximize } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+} from "@tsuke/ui/components/dialog";
+import { cn } from "@tsuke/ui/lib/utils";
 import { cropLayout, type ReceiptCrop } from "@/web/receiptCrop";
 
 /**

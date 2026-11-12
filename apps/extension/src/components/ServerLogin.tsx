@@ -1,5 +1,4 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button } from "@tsuke/ui/components/button";
 
 interface ServerUser {
   email?: string;
@@ -24,31 +23,37 @@ export default function ServerLogin({
   onRefresh,
 }: Props) {
   return (
-    <section className="flex flex-col gap-3 rounded-lg border bg-card p-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">サーバー認証</h2>
-        <Badge variant={isAuthenticated ? "default" : "secondary"}>
-          {isAuthenticated ? "ログイン済み" : "未ログイン"}
-        </Badge>
-      </div>
-
-      {isAuthenticated && user?.email && (
-        <p className="text-sm text-muted-foreground">{user.email}</p>
-      )}
-
-      <div className="flex gap-2">
-        {isAuthenticated ? (
-          <Button type="button" variant="secondary" onClick={onLogout} disabled={isLoading}>
-            ログアウト
+    // 台帳の設定の画面（apps/ledger/pages/settings/index.tsx）のアカウントの行にそろえ、
+    // 箱で囲まず、見出しの下の黒の線から行を始める
+    <section className="flex flex-col gap-2">
+      <h2 className="text-sm font-semibold">サーバー認証</h2>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 border-t border-b border-t-foreground py-2.5">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-xs text-muted-foreground">
+            {isAuthenticated ? "ログイン済み" : "未ログイン"}
+          </span>
+          {isAuthenticated && user?.email && <span className="truncate">{user.email}</span>}
+        </div>
+        <div className="flex gap-1">
+          <Button type="button" variant="ghost" size="sm" onClick={onRefresh} disabled={isLoading}>
+            更新
           </Button>
-        ) : (
-          <Button type="button" onClick={onLogin} disabled={isLoading}>
-            ログイン
-          </Button>
-        )}
-        <Button type="button" variant="ghost" onClick={onRefresh} disabled={isLoading}>
-          更新
-        </Button>
+          {isAuthenticated ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onLogout}
+              disabled={isLoading}
+            >
+              ログアウト
+            </Button>
+          ) : (
+            <Button type="button" size="sm" onClick={onLogin} disabled={isLoading}>
+              ログイン
+            </Button>
+          )}
+        </div>
       </div>
     </section>
   );
