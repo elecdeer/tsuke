@@ -1,6 +1,6 @@
 import type { LedgerInput, LedgerOutput } from "ledger/client";
 import { http, HttpResponse } from "msw";
-import { describe, expect, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 import type { collectFromActiveTab } from "../../../page-collector/collectFromActiveTab.ts";
@@ -565,6 +565,18 @@ describe("MainScreen", () => {
 });
 
 describe("MainScreen visual regression", () => {
+  // 日付欄の初期値は今日の日付なので、撮った日で画像が変わらないよう固定する。
+  // Temporal.Now は Date のモックを見ないため "Temporal" も偽装する。
+  // 他のタイマーまで偽装すると描画や MSW の待機が進まなくなるので対象を絞る
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date", "Temporal"] });
+    vi.setSystemTime(new Date(2024, 0, 10, 12, 0, 0));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   /** 口座・店舗・カテゴリの選択欄が読み込まれるまで待つ（読み込み中や失敗の表示を撮らないため） */
   const waitForMasters = async () => {
     await expect.element(page.getByRole("combobox", { name: "口座" })).toBeVisible();
@@ -576,6 +588,8 @@ describe("MainScreen visual regression", () => {
     worker.use(...commonHandlers);
     await render(<Default.Component />);
     await waitForMasters();
+    // 固定が効いていないと基準画像が日付で揺れるので、先に値で確かめる
+    await expect.element(page.getByRole("textbox", { name: "日付" })).toHaveValue("2024-01-10");
     await expect(page.elementLocator(document.body)).toMatchScreenshot("main-screen-initial");
   });
 

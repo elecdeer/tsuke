@@ -8,7 +8,7 @@
     "dev": "vp run --filter=ledger --filter=extension --parallel dev",
     "test": "vp test run",
     "test:browser": "docker compose -f docker-compose.vrt.yml run --build --rm vrt",
-    "test:browser:update": "docker compose -f docker-compose.vrt.yml run --build --rm vrt pnpm run test:browser --update",
+    "test:browser:update": "docker compose -f docker-compose.vrt.yml run --build --rm vrt vp run test:browser --update",
     "prepare": "node -e \"if(!process.env.CI)require('child_process').execSync('vp config',{stdio:'inherit'})\""
   },
   "devDependencies": {
