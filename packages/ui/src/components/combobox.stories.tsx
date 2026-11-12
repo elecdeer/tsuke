@@ -1,7 +1,7 @@
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import preview from "#storybook/preview";
-import { expect, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 import { Input } from "./input.tsx";
 import {
   Combobox,
@@ -141,6 +141,8 @@ export const InlineInput = meta.story({
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.type(canvas.getByRole("combobox", { name: "店舗" }), "はじめての店");
     const body = within(canvasElement.ownerDocument.body);
-    await expect(await body.findByRole("option", { name: "「はじめての店」を追加" })).toBeVisible();
+    const option = await body.findByRole("option", { name: "「はじめての店」を追加" });
+    // 開くときのアニメーションが終わるまでは見えない扱いになる
+    await waitFor(() => expect(option).toBeVisible());
   },
 });

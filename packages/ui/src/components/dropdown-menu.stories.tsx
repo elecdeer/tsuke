@@ -1,6 +1,6 @@
 import { ArrowDown, ArrowUp, Ellipsis, Trash2 } from "lucide-react";
 import preview from "#storybook/preview";
-import { expect, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 import { Button } from "./button.tsx";
 import {
   DropdownMenu,
@@ -48,6 +48,8 @@ export const Default = meta.story({
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: "品目の操作" }));
     const body = within(canvasElement.ownerDocument.body);
-    await expect(await body.findByRole("menuitem", { name: "品目を消す" })).toBeVisible();
+    const item = await body.findByRole("menuitem", { name: "品目を消す" });
+    // 開くときのアニメーション（フェードイン）が終わるまでは見えない扱いになる
+    await waitFor(() => expect(item).toBeVisible());
   },
 });
