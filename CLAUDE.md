@@ -30,6 +30,8 @@ release. Add a tool name to select part of the graph. For example, run
 
 <!--VITE PLUS END-->
 
+@AGENTS.md
+
 ## Pull Requests
 
 Create pull requests directly with `gh pr create`, without asking for confirmation. Do not use the browser flow (`--web`), even when a skill such as `create-github-pr` says to. Push the branch first if it is not on the remote or is behind the local branch.
