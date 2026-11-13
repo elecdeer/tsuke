@@ -14,7 +14,7 @@ import { Input } from "./input.tsx";
 import { FormField } from "../patterns/FormField.tsx";
 
 /**
- * モーダル。角丸と影を持たず、下の帯で閉じる操作を並べる。
+ * モーダル。角丸を持たず、浮く面なので影を付ける。下の帯で閉じる操作を並べる。
  */
 const meta = preview.meta({
   title: "Components/Dialog",

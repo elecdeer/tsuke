@@ -40,7 +40,7 @@ const Header = ({ nav, onOpenSettings }: { nav?: ReactNode; onOpenSettings?: () 
       <button
         type="button"
         aria-label="設定"
-        className="mb-1 ml-auto p-1 text-muted-foreground outline-none hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="mb-1 ml-auto p-1 text-muted-foreground outline-none hover:text-foreground focus-visible:text-foreground focus-visible:outline-3 focus-visible:outline-solid focus-visible:outline-ring"
         onClick={onOpenSettings}
       >
         <SettingsIcon className="size-4" aria-hidden="true" />
