@@ -2,7 +2,8 @@
  * レシートの写真からの抽出のプロンプトと、画像の入力の検証のテスト。
  */
 import * as v from "valibot";
-import { describe, expect, test, vi } from "vite-plus/test";
+import { describe, expect, test } from "vite-plus/test";
+import { createFakeModelProvider } from "./fakeModelProvider.ts";
 import { ACCOUNT_NOTES_RULE } from "./extractPayment.ts";
 import {
   buildReceiptPrompt,
@@ -194,126 +195,90 @@ describe("resolveReceiptPlaceName", () => {
 });
 
 describe("runExtractReceipt", () => {
-  test("写真の中のレシートの範囲をそのまま返す", async () => {
-    const ai = {
-      run: vi.fn(async () => ({
-        choices: [{ message: { content: JSON.stringify(extracted) } }],
-      })),
-    };
+  /**
+   * 渡した読み取り結果を返す偽の AI でレシートを読む。
+   */
+  const extract = async (
+    response: unknown,
+    quality: "fast" | "accurate" = "fast",
+    input = baseInput(),
+  ) => {
+    const { ai, calls } = createFakeModelProvider(() => JSON.stringify(response));
+    const result = await runExtractReceipt({ ai, quality, input });
+    return { object: result.object, calls };
+  };
 
-    const { object } = await runExtractReceipt({ ai, quality: "fast", input: baseInput() });
+  test("写真の中のレシートの範囲をそのまま返す", async () => {
+    const { object } = await extract(extracted);
 
     expect(object.receiptBox).toEqual({ ymin: 100, xmin: 200, ymax: 900, xmax: 700 });
   });
 
   test("外れた範囲が返っても読み取りは失敗にしない", async () => {
     const receiptBox = { ymin: 100, xmin: 200, ymax: 1600, xmax: 700 };
-    const ai = {
-      run: vi.fn(async () => ({
-        choices: [{ message: { content: JSON.stringify({ ...extracted, receiptBox }) } }],
-      })),
-    };
 
-    const { object } = await runExtractReceipt({ ai, quality: "fast", input: baseInput() });
+    const { object } = await extract({ ...extracted, receiptBox });
 
     expect(object.receiptBox).toEqual(receiptBox);
   });
 
   test("読み取った店舗名を既存の店舗の名前に直して返す", async () => {
-    const ai = {
-      run: vi.fn(async () => ({
-        choices: [
-          { message: { content: JSON.stringify({ ...extracted, placeName: "スーパー A" }) } },
-        ],
-      })),
-    };
-
-    const { object } = await runExtractReceipt({ ai, quality: "fast", input: baseInput() });
+    const { object } = await extract({ ...extracted, placeName: "スーパー A" });
 
     expect(object.placeName).toBe("スーパーA");
   });
 
   test("電話番号を数字だけにして返し、既存の店舗の紐付けに使う", async () => {
-    const ai = {
-      run: vi.fn(async () => ({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                ...extracted,
-                placeName: "ミドリ青果",
-                placePhone: "TEL 03-1234-5678",
-              }),
-            },
-          },
-        ],
-      })),
-    };
     const places = [
       { id: 2, name: "八百屋みどり", lastUsedOn: null, useCount: 0, phone: "0312345678" },
     ];
 
-    const { object } = await runExtractReceipt({
-      ai,
-      quality: "fast",
-      input: baseInput({ places }),
-    });
+    const { object } = await extract(
+      { ...extracted, placeName: "ミドリ青果", placePhone: "TEL 03-1234-5678" },
+      "fast",
+      baseInput({ places }),
+    );
 
     expect(object).toMatchObject({ placeName: "八百屋みどり", placePhone: "0312345678" });
   });
 
-  test("user メッセージに文字と画像を content parts で入れ、抽出結果を返す", async () => {
-    const ai = {
-      run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
-    };
-
-    const { object } = await runExtractReceipt({ ai, quality: "fast", input: baseInput() });
+  test("user メッセージに文字と画像を入れ、抽出結果を返す", async () => {
+    const { object, calls } = await extract(extracted);
 
     expect(object).toEqual(extracted);
-    expect(ai.run).toHaveBeenCalledWith(
-      "google/gemini-3.1-flash-lite",
+    expect(calls[0]?.schemaName).toBe("ExtractedReceipt");
+    expect(calls[0]?.options.prompt).toEqual([
+      expect.objectContaining({ role: "system" }),
       expect.objectContaining({
-        messages: [
-          expect.objectContaining({ role: "system" }),
-          {
-            role: "user",
-            content: [
-              { type: "text", text: expect.stringContaining("Today: 2026-10-29") },
-              { type: "image_url", image_url: { url: IMAGE } },
-            ],
-          },
+        role: "user",
+        content: [
+          expect.objectContaining({
+            type: "text",
+            text: expect.stringContaining("Today: 2026-10-29"),
+          }),
+          expect.objectContaining({
+            type: "file",
+            mediaType: "image/jpeg",
+            data: { type: "data", data: IMAGE.slice(IMAGE.indexOf(",") + 1) },
+          }),
         ],
       }),
-      { signal: undefined },
-    );
+    ]);
   });
 
-  test("fast は速いモデルを使い、推論量を low にして送る", async () => {
-    const ai = {
-      run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
-    };
+  test("fast は速いモデルを使い、推論量を low にして渡す", async () => {
+    const { calls } = await extract(extracted, "fast");
 
-    await runExtractReceipt({ ai, quality: "fast", input: baseInput() });
-
-    expect(ai.run).toHaveBeenCalledWith(
-      "google/gemini-3.1-flash-lite",
-      expect.objectContaining({ reasoning_effort: "low" }),
-      { signal: undefined },
-    );
+    expect(calls[0]).toMatchObject({
+      modelId: "google/gemini-3.1-flash-lite",
+      reasoningEffort: "low",
+    });
   });
 
-  test("accurate は正確なモデルを使い、推論量を low にして送る", async () => {
-    const ai = {
-      run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
-    };
+  test("accurate は正確なモデルを使い、推論量を low にして渡す", async () => {
+    const { calls } = await extract(extracted, "accurate");
 
-    await runExtractReceipt({ ai, quality: "accurate", input: baseInput() });
-
-    expect(ai.run).toHaveBeenCalledWith(
-      "google/gemini-3.8-flash",
-      expect.objectContaining({ reasoning_effort: "low" }),
-      { signal: undefined },
-    );
+    expect(calls[0]).toMatchObject({ modelId: "google/gemini-3.8-flash", reasoningEffort: "low" });
   });
 });
 

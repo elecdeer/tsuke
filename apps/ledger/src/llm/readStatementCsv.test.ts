@@ -15,7 +15,8 @@ import {
   type StatementCsvReadEvent,
 } from "../import/statementCsvEvents.ts";
 import type { StatementCsvMemory } from "../ledger/statementCsv.ts";
-import type { AiRunner } from "./structuredChat.ts";
+import { createFakeModelProvider } from "./fakeModelProvider.ts";
+import type { ModelProvider } from "./structuredChat.ts";
 
 const context: StatementCsvContext = {
   paymentCategories: [{ id: 101, name: "食費", genres: [{ id: 10101, name: "食料品" }] }],
@@ -51,24 +52,23 @@ const CSV = [
 const fakeAi = (
   classify: () => unknown,
   detected: unknown = { mapping, accountId: 1, reasoning: "x" },
-) => ({
-  run: vi.fn(async (_model: string, inputs: Record<string, unknown>) => {
-    const format = inputs["response_format"] as { json_schema: { name: string } };
-    const payload = format.json_schema.name === "DetectedColumns" ? detected : classify();
-    return { response: payload };
-  }),
-});
+) => {
+  const { ai, calls } = createFakeModelProvider((call) =>
+    JSON.stringify(call.schemaName === "DetectedColumns" ? detected : classify()),
+  );
+  return { ...ai, calls };
+};
 
 const noMemory: StatementCsvMemory = { formats: [], classifications: new Map() };
 
-const prepare = (ai: AiRunner, text: string = CSV, memory: StatementCsvMemory = noMemory) =>
+const prepare = (ai: ModelProvider, text: string = CSV, memory: StatementCsvMemory = noMemory) =>
   prepareStatementCsv({ ai, model: "test", fileName: "a.csv", text, context, memory });
 
 /**
  * 読み取りの全体を流し、届いた出来事を順に集める。
  */
 const collect = async (
-  ai: AiRunner,
+  ai: ModelProvider,
   memory: StatementCsvMemory = noMemory,
   text: string = CSV,
   findRegistered: Parameters<typeof streamStatementCsvClassification>[0]["findRegistered"] = async (
@@ -202,7 +202,7 @@ const incomeEntry = {
   categoryId: 201,
   counterAccountId: null,
 };
-const classified = { entries: [paymentEntry, incomeEntry] };
+const classified = { elements: [paymentEntry, incomeEntry] };
 
 const HEADER = JSON.stringify(["日付", "摘要", "出金", "入金"]);
 
@@ -246,7 +246,7 @@ describe("prepareStatementCsv", () => {
     const result = await prepare(ai, CSV, memoryWithFormat);
 
     expect(result).toMatchObject({ ok: true, accountId: 2, formatKnown: true });
-    expect(ai.run).not.toHaveBeenCalled();
+    expect(ai.calls).toHaveLength(0);
   });
 
   test("見出しの前の行数が変わっても、覚えていた形式で読む", async () => {
@@ -257,7 +257,7 @@ describe("prepareStatementCsv", () => {
     expect(result).toMatchObject({ ok: true, formatKnown: true });
     if (!result.ok) throw new Error("読み取りに失敗した");
     expect(result.rows[0]).toMatchObject({ date: "2026-05-10", line: 3 });
-    expect(ai.run).not.toHaveBeenCalled();
+    expect(ai.calls).toHaveLength(0);
   });
 
   test("推論量を指定したら列の判定に送る", async () => {
@@ -273,7 +273,7 @@ describe("prepareStatementCsv", () => {
       memory: noMemory,
     });
 
-    expect(ai.run.mock.calls[0]?.[1]).toMatchObject({ reasoning_effort: "low" });
+    expect(ai.calls[0]).toMatchObject({ schemaName: "DetectedColumns", reasoningEffort: "low" });
   });
 
   test("見出しが同じでも読めなければ AI の判定に回す", async () => {
@@ -284,7 +284,7 @@ describe("prepareStatementCsv", () => {
     };
 
     expect(await prepare(ai, CSV, memory)).toMatchObject({ ok: true, formatKnown: false });
-    expect(ai.run).toHaveBeenCalledTimes(1);
+    expect(ai.calls).toHaveLength(1);
   });
 
   test("候補にない口座は null にする", async () => {
@@ -300,7 +300,9 @@ describe("prepareStatementCsv", () => {
 
     expect(
       await prepareStatementCsv({
-        ai: { run: vi.fn().mockRejectedValue(new Error("boom")) },
+        ai: createFakeModelProvider(() => {
+          throw new Error("boom");
+        }).ai,
         model: "test",
         fileName: "a.csv",
         text: CSV,
@@ -328,7 +330,7 @@ describe("prepareStatementCsv", () => {
     const ai = fakeAi(() => classified);
 
     expect(await prepare(ai, "\n\n")).toMatchObject({ ok: false, status: 400 });
-    expect(ai.run).not.toHaveBeenCalled();
+    expect(ai.calls).toHaveLength(0);
   });
 
   test("行数が上限を超えたら 400 を返す", async () => {
@@ -374,12 +376,12 @@ describe("streamStatementCsvClassification", () => {
       { line: 4, mode: "income", categoryId: 201, classified: true },
     ]);
     // 列の判定と分類で 1 回ずつ
-    expect(ai.run).toHaveBeenCalledTimes(2);
+    expect(ai.calls).toHaveLength(2);
   });
 
   test("覚えている利用先は AI に渡さず、最初から分類を付けて送る", async () => {
     const ai = fakeAi(() => ({
-      entries: [{ ...incomeEntry, id: 0 }],
+      elements: [{ ...incomeEntry, id: 0 }],
     }));
     const memory: StatementCsvMemory = {
       formats: memoryWithFormat.formats,
@@ -408,7 +410,7 @@ describe("streamStatementCsvClassification", () => {
       ],
     });
     expect(classifiedRows(events)).toMatchObject([{ line: 4, mode: "income" }]);
-    expect(ai.run).toHaveBeenCalledTimes(1);
+    expect(ai.calls).toHaveLength(1);
   });
 
   test("すべて覚えていれば AI を呼ばない", async () => {
@@ -431,11 +433,11 @@ describe("streamStatementCsvClassification", () => {
     const events = await collect(ai, memory);
 
     expect(events.map((event) => event.type)).toEqual(["rows", "done"]);
-    expect(ai.run).not.toHaveBeenCalled();
+    expect(ai.calls).toHaveLength(0);
   });
 
   test("覚えた内訳がなくなっていたら AI に分類させる", async () => {
-    const ai = fakeAi(() => ({ entries: [] }));
+    const ai = fakeAi(() => ({ elements: [] }));
     const memory: StatementCsvMemory = {
       formats: memoryWithFormat.formats,
       classifications: new Map([
@@ -477,7 +479,11 @@ describe("streamStatementCsvClassification", () => {
       // 最後まで流す
     }
 
-    expect(ai.run.mock.lastCall?.[1]).toMatchObject({ stream: true, reasoning_effort: "low" });
+    expect(ai.calls.at(-1)).toMatchObject({
+      schemaName: "ClassifiedEntries",
+      method: "stream",
+      reasoningEffort: "low",
+    });
   });
 
   test("分類に失敗しても読み取りは続け、未分類の行として返す", async () => {
@@ -498,41 +504,36 @@ describe("streamStatementCsvClassification", () => {
   });
 
   test("利用先が多ければ分けて分類する", async () => {
-    const ai = fakeAi(() => ({ entries: [] }));
+    const ai = fakeAi(() => ({ elements: [] }));
     const rows = Array.from({ length: 70 }, (_, index) => `2026/05/10,店${index},100,`);
 
     const events = await collect(ai, noMemory, ["日付,摘要,出金,入金", ...rows].join("\n"));
 
     // 列の判定と、3 つに分けた分類
-    expect(ai.run).toHaveBeenCalledTimes(4);
+    expect(ai.calls).toHaveLength(4);
     expect(classifiedRows(events)).toHaveLength(70);
   });
 
   test("AI の応答が途中まででも、届いた利用先の分だけ先に送る", async () => {
-    const encoder = new TextEncoder();
     let finishResponse = (): void => {};
-    const sse = (content: string) =>
-      encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`);
-    const ai = {
-      run: vi.fn(async (_model: string, inputs: Record<string, unknown>) => {
-        if (inputs["stream"] !== true) {
-          return { response: { mapping, accountId: 1, reasoning: "x" } };
-        }
-        return new ReadableStream<Uint8Array>({
-          start: (controller) => {
-            controller.enqueue(sse(`{"entries":[${JSON.stringify(paymentEntry)},`));
-            finishResponse = () => {
-              controller.enqueue(sse(`${JSON.stringify(incomeEntry)}]}`));
-              controller.close();
-            };
-          },
-        });
-      }),
-    };
-    const prepared = await prepare(ai);
+    const { ai: streamingAi } = createFakeModelProvider((call) =>
+      call.method === "generate"
+        ? JSON.stringify({ mapping, accountId: 1, reasoning: "x" })
+        : new ReadableStream<string>({
+            start: (controller) => {
+              // 要素は次の要素が始まった時点で閉じたと分かるので、次の要素の書き出しまで送る
+              controller.enqueue(`{"elements":[${JSON.stringify(paymentEntry)},{"id":`);
+              finishResponse = () => {
+                controller.enqueue(`${JSON.stringify(incomeEntry).slice('{"id":'.length)}]}`);
+                controller.close();
+              };
+            },
+          }),
+    );
+    const prepared = await prepare(streamingAi);
     if (!prepared.ok) throw new Error(prepared.message);
     const stream = streamStatementCsvClassification({
-      ai,
+      ai: streamingAi,
       model: "test",
       prepared,
       context,
@@ -555,24 +556,16 @@ describe("streamStatementCsvClassification", () => {
 
   test("応答の途中で失敗しても、届かなかった利用先だけを未分類にする", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const ai = {
-      run: vi.fn(async (_model: string, inputs: Record<string, unknown>) => {
-        if (inputs["stream"] !== true) {
-          return { response: { mapping, accountId: 1, reasoning: "x" } };
-        }
-        return new ReadableStream<Uint8Array>({
-          start: (controller) => {
-            const content = `{"entries":[${JSON.stringify(paymentEntry)},`;
-            controller.enqueue(
-              new TextEncoder().encode(
-                `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`,
-              ),
-            );
-          },
-          pull: (controller) => controller.error(new Error("boom")),
-        });
-      }),
-    };
+    const { ai } = createFakeModelProvider((call) =>
+      call.method === "generate"
+        ? JSON.stringify({ mapping, accountId: 1, reasoning: "x" })
+        : new ReadableStream<string>({
+            start: (controller) => {
+              controller.enqueue(`{"elements":[${JSON.stringify(paymentEntry)},{"id":`);
+            },
+            pull: (controller) => controller.error(new Error("boom")),
+          }),
+    );
     const prepared = await prepare(ai);
     if (!prepared.ok) throw new Error(prepared.message);
     const events: StatementCsvReadEvent[] = [];
@@ -602,7 +595,7 @@ describe("streamStatementCsvClassification", () => {
       entries.map((entry) => (entry.amount === 1000 ? registered : null)),
     );
     const refund = {
-      entries: [
+      elements: [
         { ...paymentEntry, id: 0 },
         { ...paymentEntry, id: 1 },
       ],
@@ -645,14 +638,10 @@ describe("streamStatementCsvClassification", () => {
 
   test("読み手が止めたら AI の呼び出しも止める", async () => {
     const signals: AbortSignal[] = [];
-    const ai = {
-      run: vi.fn(
-        (_model: string, _inputs: Record<string, unknown>, options?: { signal?: AbortSignal }) => {
-          if (options?.signal !== undefined) signals.push(options.signal);
-          return new Promise<unknown>(() => {});
-        },
-      ),
-    };
+    const { ai } = createFakeModelProvider((call) => {
+      if (call.options.abortSignal !== undefined) signals.push(call.options.abortSignal);
+      return new Promise<string>(() => {});
+    });
     const stream = streamStatementCsvClassification({
       ai,
       model: "test",

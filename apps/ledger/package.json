@@ -19,6 +19,8 @@
     "@tanstack/charts": "catalog:",
     "@tsuke/ui": "workspace:*",
     "@valibot/to-json-schema": "catalog:",
+    "agents": "catalog:",
+    "ai": "catalog:",
     "csv-parse": "catalog:",
     "drizzle-orm": "catalog:",
     "hono": "^4.13.14",

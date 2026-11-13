@@ -2,6 +2,7 @@
  * AI の読み取りで使う、速さと正確さの設定。レシート、ページ、明細、履歴 CSV で共通にする。
  */
 import * as v from "valibot";
+import type { ReasoningEffort } from "./structuredChat.ts";
 
 /** 読み取りで、速さと正確さのどちらを優先するか */
 export const ReadQualitySchema = v.picklist(["fast", "accurate"]);
@@ -21,7 +22,10 @@ export type ReadQuality = v.InferOutput<typeof ReadQualitySchema>;
  *   モデルの既定に任せず読み取りごとの推論量を揃えるために明示する
  * - accurate：low を送る。送らないと推論トークンが 3000 を超え、20 秒以上かかることがあった
  */
-export const READ_SETTINGS: Record<ReadQuality, { model: string; reasoningEffort: string }> = {
+export const READ_SETTINGS: Record<
+  ReadQuality,
+  { model: string; reasoningEffort: ReasoningEffort }
+> = {
   fast: { model: "google/gemini-3.1-flash-lite", reasoningEffort: "low" },
   accurate: { model: "google/gemini-3.8-flash", reasoningEffort: "low" },
 };

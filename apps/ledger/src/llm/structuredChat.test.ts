@@ -1,104 +1,112 @@
 import * as v from "valibot";
-import { describe, expect, test, vi } from "vite-plus/test";
-import { createArrayItemScanner, streamStructuredItems } from "./structuredChat.ts";
+import { describe, expect, test } from "vite-plus/test";
+import { createFakeModelProvider } from "./fakeModelProvider.ts";
+import { runStructuredChat, streamStructuredItems } from "./structuredChat.ts";
 
-const scanAll = (chunks: string[]): string[] => {
-  const items: string[] = [];
-  const scan = createArrayItemScanner((item) => items.push(item));
-  chunks.forEach(scan);
-  return items;
-};
+const IMAGE = "data:image/jpeg;base64,/9j/4AAQ";
 
-describe("createArrayItemScanner", () => {
-  test("要素が閉じるたびに文字列を渡す", () => {
-    expect(scanAll(['{"entries":[{"id":0},{"id":1}]}'])).toEqual(['{"id":0}', '{"id":1}']);
+describe("runStructuredChat", () => {
+  const ResultSchema = v.strictObject({ id: v.number(), name: v.string() });
+
+  /**
+   * 偽のモデルで runStructuredChat を呼ぶ。
+   */
+  const run = async (
+    response: string,
+    extra: { reasoningEffort?: "low"; images?: string[] } = {},
+  ) => {
+    const { ai, calls } = createFakeModelProvider(() => response);
+    const result = await runStructuredChat({
+      ai,
+      model: "test-model",
+      buildPrompt: () => ({ system: "s", prompt: "p", images: extra.images }),
+      schemaName: "Result",
+      schema: ResultSchema,
+      reasoningEffort: extra.reasoningEffort,
+    });
+    return { result, calls };
+  };
+
+  test("スキーマの名前を付けて出力の形を強制し、検証した結果を返す", async () => {
+    const { result, calls } = await run('{"id":1,"name":"A"}');
+
+    expect(result.object).toEqual({ id: 1, name: "A" });
+    expect(calls).toEqual([
+      expect.objectContaining({ modelId: "test-model", schemaName: "Result" }),
+    ]);
+    expect(calls[0]?.options.responseFormat).toMatchObject({
+      type: "json",
+      schema: { type: "object", required: ["id", "name"] },
+    });
   });
 
-  test("要素の途中で切れても 1 文字ずつ届いても同じ結果になる", () => {
-    const json = '{"entries":[{"id":0,"name":"A"},{"id":1,"name":"B"}]}';
+  test("推論量を指定したらモデルに渡し、指定しなければ渡さない", async () => {
+    const withEffort = await run('{"id":1,"name":"A"}', { reasoningEffort: "low" });
+    const withoutEffort = await run('{"id":1,"name":"A"}');
 
-    expect(scanAll(json.split(""))).toEqual(['{"id":0,"name":"A"}', '{"id":1,"name":"B"}']);
+    expect(withEffort.calls[0]?.reasoningEffort).toBe("low");
+    expect(withoutEffort.calls[0]?.reasoningEffort).toBeUndefined();
   });
 
-  test("文字列の中の括弧と引用符は数えない", () => {
-    const item = '{"name":"a}]\\"{["}';
+  test("system と user のメッセージを送り、画像は本文の後に添える", async () => {
+    const { calls } = await run('{"id":1,"name":"A"}', { images: [IMAGE] });
 
-    expect(scanAll([`{"entries":[${item}]}`])).toEqual([item]);
+    expect(calls[0]?.options.prompt).toEqual([
+      { role: "system", content: "s" },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "p" },
+          expect.objectContaining({ type: "file", mediaType: "image/jpeg" }),
+        ],
+      },
+    ]);
   });
 
-  test("要素の中の入れ子はまとめて 1 つの要素にする", () => {
-    const item = '{"tags":[{"a":1}],"b":{"c":2}}';
-
-    expect(scanAll([`{"entries":[${item}]}`])).toEqual([item]);
-  });
-
-  test("閉じていない要素は渡さない", () => {
-    expect(scanAll(['{"entries":[{"id":0},{"id":'])).toEqual(['{"id":0}']);
+  test("スキーマに合わない出力ならエラーにする", async () => {
+    await expect(run('{"id":"x","name":"A"}')).rejects.toThrow();
   });
 });
 
 describe("streamStructuredItems", () => {
-  const encoder = new TextEncoder();
   const ItemSchema = v.strictObject({ id: v.number() });
 
   /**
-   * 渡したバイト列の塊をそのまま流す本文を作る。
+   * 偽のモデルの Stream を読み、届いた要素を集める。
    */
-  const bodyOf = (chunks: Uint8Array[]) =>
-    new ReadableStream<Uint8Array>({
-      start: (controller) => {
-        chunks.forEach((chunk) => controller.enqueue(chunk));
-        controller.close();
-      },
-    });
-
-  const run = async (output: unknown) => {
+  const collect = async (respond: () => string[]) => {
+    const { ai, calls } = createFakeModelProvider(respond);
     const items: Array<v.InferOutput<typeof ItemSchema>> = [];
-    const ai = { run: vi.fn(async () => output) };
     await streamStructuredItems({
       ai,
-      model: "test",
+      model: "test-model",
       buildPrompt: () => ({ system: "s", prompt: "p" }),
-      schemaName: "T",
-      jsonSchema: {},
+      schemaName: "Items",
       itemSchema: ItemSchema,
+      reasoningEffort: "low",
       onItem: (item) => items.push(item),
     });
-    return { items, ai };
+    return { items, calls };
   };
 
-  const sse = (content: string) =>
-    `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`;
-
-  test("Stream を指定して呼び、行の途中で切れた応答も読む", async () => {
-    const text = sse('{"entries":[{"id":0},') + sse('{"id":1}]}') + "data: [DONE]\n\n";
-    const bytes = encoder.encode(text);
-
-    const { items, ai } = await run(bodyOf([bytes.slice(0, 20), bytes.slice(20)]));
+  test("要素の途中で切れて届いても、要素が閉じるたびに検証して渡す", async () => {
+    const { items, calls } = await collect(() => ['{"elements":[{"id":0},{"i', 'd":1}]}']);
 
     expect(items).toEqual([{ id: 0 }, { id: 1 }]);
-    expect(ai.run).toHaveBeenCalledWith(
-      "test",
-      expect.objectContaining({ stream: true }),
-      expect.anything(),
-    );
+    expect(calls[0]).toMatchObject({ schemaName: "Items", reasoningEffort: "low" });
   });
 
-  test("response で本文を返すモデルの Stream も読む", async () => {
-    const text = `data: ${JSON.stringify({ response: '{"entries":[{"id":0}]}' })}\n\n`;
+  test("スキーマに合わない要素は飛ばす", async () => {
+    const { items } = await collect(() => ['{"elements":[{"id":"x"},{"id":1}]}']);
 
-    expect((await run(bodyOf([encoder.encode(text)]))).items).toEqual([{ id: 0 }]);
+    expect(items).toEqual([{ id: 1 }]);
   });
 
-  test("読めない行とスキーマに合わない要素は飛ばす", async () => {
-    const text = `data: {broken\n\n: comment\n\n${sse('{"entries":[{"id":"x"},{"id":1}]}')}`;
-
-    expect((await run(bodyOf([encoder.encode(text)]))).items).toEqual([{ id: 1 }]);
-  });
-
-  test("Stream で応答しないモデルは全体から順に渡す", async () => {
-    const { items } = await run({ response: { entries: [{ id: 0 }, { id: 1 }] } });
-
-    expect(items).toEqual([{ id: 0 }, { id: 1 }]);
+  test("モデルの呼び出しが失敗したらエラーにする", async () => {
+    await expect(
+      collect(() => {
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
   });
 });

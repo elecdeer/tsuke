@@ -1,3 +1,4 @@
+import { createAI } from "agents/models/ai-sdk";
 import * as v from "valibot";
 import { defineHandler } from "void";
 import { db } from "void/db";
@@ -29,7 +30,7 @@ export const POST = defineHandler.withValidator({ body: ExtractBodySchema })(asy
   const { model, reasoningEffort } = READ_SETTINGS[body.quality];
   try {
     const { object, usage, timing } = await runExtractPayment({
-      ai: c.env.AI,
+      ai: createAI({ binding: c.env.AI }),
       model,
       reasoningEffort,
       input: { pageContent: body.pageContent, categories, accounts, places },

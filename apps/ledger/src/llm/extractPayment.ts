@@ -1,15 +1,16 @@
 /**
  * LLM によるページからの支払い情報の抽出。
- * Workers AI の呼び出しは structuredChat.ts にまとめている。
+ * AI SDK の呼び出しは structuredChat.ts にまとめている。
  */
-import { toJsonSchema } from "@valibot/to-json-schema";
+import type { LanguageModelUsage } from "ai";
 import * as v from "valibot";
 import type { CategoryWithGenres, PlaceWithUsage } from "../ledger/masters.ts";
 import {
   runStructuredChat,
   truncate,
-  type AiRunner,
+  type ModelProvider,
   type ExtractTiming,
+  type ReasoningEffort,
 } from "./structuredChat.ts";
 
 /** 拡張機能の content script が集めたページの内容 */
@@ -227,26 +228,22 @@ export const buildPrompt = (input: ExtractPaymentContext): { system: string; pro
   return { system, prompt };
 };
 
-/** `ExtractedPaymentSchema` を OpenAI 互換の JSON Schema に変換した結果 */
-export const EXTRACTED_PAYMENT_JSON_SCHEMA = toJsonSchema(ExtractedPaymentSchema);
-
 /**
- * Workers AI binding を使って支払い情報を抽出する。
+ * AI で支払い情報を抽出する。
  */
 export const runExtractPayment = (params: {
-  ai: AiRunner;
+  ai: ModelProvider;
   model: string;
   /** 推論量。受け付ける値はモデルごとに違うので、未指定ならモデルの既定に任せる */
-  reasoningEffort?: string;
+  reasoningEffort?: ReasoningEffort;
   input: ExtractPaymentContext;
   abortSignal?: AbortSignal;
-}): Promise<{ object: ExtractedPayment; usage: unknown; timing: ExtractTiming }> =>
+}): Promise<{ object: ExtractedPayment; usage: LanguageModelUsage; timing: ExtractTiming }> =>
   runStructuredChat({
     ai: params.ai,
     model: params.model,
     buildPrompt: () => buildPrompt(params.input),
     schemaName: "ExtractedPayment",
-    jsonSchema: EXTRACTED_PAYMENT_JSON_SCHEMA,
     schema: ExtractedPaymentSchema,
     reasoningEffort: params.reasoningEffort,
     abortSignal: params.abortSignal,

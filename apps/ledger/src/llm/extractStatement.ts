@@ -1,7 +1,7 @@
 /**
  * LLM によるカード明細ページからの利用行の抽出。
  */
-import { toJsonSchema } from "@valibot/to-json-schema";
+import type { LanguageModelUsage } from "ai";
 import * as v from "valibot";
 import {
   ACCOUNT_NOTES_RULE,
@@ -16,8 +16,9 @@ import {
 import {
   runStructuredChat,
   truncate,
-  type AiRunner,
+  type ModelProvider,
   type ExtractTiming,
+  type ReasoningEffort,
 } from "./structuredChat.ts";
 
 /** プロンプトに渡す、ページの内容と台帳の候補（支払いの抽出と同じ） */
@@ -107,9 +108,6 @@ export const buildStatementPrompt = (
   return { system, prompt };
 };
 
-/** `ExtractedStatementSchema` を OpenAI 互換の JSON Schema に変換した結果 */
-const EXTRACTED_STATEMENT_JSON_SCHEMA = toJsonSchema(ExtractedStatementSchema);
-
 /**
  * 明細の 1 行の店舗名を台帳の店舗の名前に直す。
  *
@@ -124,22 +122,21 @@ export const resolveStatementPlaceName = (
 };
 
 /**
- * Workers AI binding を使って明細ページから利用行を抽出する。
+ * AI で明細ページから利用行を抽出する。
  */
 export const runExtractStatement = (params: {
-  ai: AiRunner;
+  ai: ModelProvider;
   model: string;
-  reasoningEffort?: string;
+  reasoningEffort?: ReasoningEffort;
   input: ExtractStatementContext;
   abortSignal?: AbortSignal;
-}): Promise<{ object: ExtractedStatement; usage: unknown; timing: ExtractTiming }> =>
+}): Promise<{ object: ExtractedStatement; usage: LanguageModelUsage; timing: ExtractTiming }> =>
   runStructuredChat({
     ai: params.ai,
     model: params.model,
     reasoningEffort: params.reasoningEffort,
     buildPrompt: () => buildStatementPrompt(params.input),
     schemaName: "ExtractedStatement",
-    jsonSchema: EXTRACTED_STATEMENT_JSON_SCHEMA,
     schema: ExtractedStatementSchema,
     abortSignal: params.abortSignal,
   }).then((result) => ({

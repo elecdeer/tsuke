@@ -15,6 +15,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { createAI } from "agents/models/ai-sdk";
 import * as v from "valibot";
 import { compareExtraction, type ExpectedPayment, type FieldDiff } from "../src/llm/evaluation.ts";
 import {
@@ -22,8 +23,7 @@ import {
   runExtractPayment,
   type ExtractedPayment,
 } from "../src/llm/extractPayment.ts";
-import { createRestAiRunner } from "../src/llm/restAiRunner.ts";
-import type { AiRunner } from "../src/llm/structuredChat.ts";
+import type { ModelProvider } from "../src/llm/structuredChat.ts";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(SCRIPT_DIR, "eval-fixtures");
@@ -134,7 +134,7 @@ const loadFixtures = async (): Promise<Fixture[]> => {
 /**
  * 1 つの事例を 1 つのモデルで流し、期待する値と比べる。
  */
-const runCase = async (ai: AiRunner, model: string, fixture: Fixture): Promise<CaseResult> => {
+const runCase = async (ai: ModelProvider, model: string, fixture: Fixture): Promise<CaseResult> => {
   const started = performance.now();
   try {
     const { object, usage } = await runExtractPayment({ ai, model, input: fixture.input });
@@ -224,7 +224,7 @@ const fixtures = await loadFixtures();
 if (fixtures.length === 0) {
   console.log(`${FIXTURES_DIR} に事例がありません`);
 } else {
-  const ai = createRestAiRunner({
+  const ai = createAI({
     accountId: requireEnv("CLOUDFLARE_ACCOUNT_ID"),
     apiToken: requireEnv("CLOUDFLARE_API_TOKEN"),
   });
