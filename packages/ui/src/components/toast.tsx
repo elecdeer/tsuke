@@ -2,6 +2,7 @@ import { XIcon } from "lucide-react";
 import { Toast as ToastPrimitive } from "@base-ui/react/toast";
 import { Button } from "@tsuke/ui/components/button";
 import { cn } from "@tsuke/ui/lib/utils";
+import { popupSurfaceClassName } from "@tsuke/ui/lib/control";
 
 const ToastProvider = ToastPrimitive.Provider;
 const useToastManager = ToastPrimitive.useToastManager;
@@ -28,7 +29,8 @@ function ToastRoot({ className, ...props }: ToastPrimitive.Root.Props) {
     <ToastPrimitive.Root
       data-slot="toast"
       className={cn(
-        "absolute inset-x-0 bottom-0 z-(--toast-z-index) origin-bottom rounded-lg bg-popover p-3 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10 transition-all duration-200 [transform:translateY(calc(var(--toast-offset-y)*-1))_scale(calc(1_-_var(--toast-index)*0.05))] data-ending-style:translate-y-2 data-ending-style:opacity-0 data-starting-style:translate-y-2 data-starting-style:opacity-0 data-[type=error]:ring-destructive/50",
+        "absolute inset-x-0 bottom-0 z-(--toast-z-index) origin-bottom p-3 text-sm transition-all duration-200 [transform:translateY(calc(var(--toast-offset-y)*-1))_scale(calc(1_-_var(--toast-index)*0.05))] data-ending-style:translate-y-2 data-ending-style:opacity-0 data-starting-style:translate-y-2 data-starting-style:opacity-0 data-[type=error]:ring-destructive",
+        popupSurfaceClassName,
         className,
       )}
       style={{ "--toast-z-index": "calc(100 - var(--toast-index))" } as React.CSSProperties}
