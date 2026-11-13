@@ -1,33 +1,45 @@
 /**
- * Workers AI に JSON Schema を強制した chat を投げ、valibot で検証した結果を返す。
+ * AI SDK で出力スキーマを強制した chat を投げ、valibot で検証した結果を返す。
  *
- * Cloudflare Workers AI binding (`env.AI.run`) を直接叩く。`workers-ai-provider` を
- * 経由しないのは、同プロバイダが OpenAI 互換モデル（例: `openai/gpt-5.4-mini`）に対して
- * `response_format.json_schema.name` を埋めず OpenAI 側で `Missing required parameter`
- * エラーになるためで、ここでは valibot スキーマを `@valibot/to-json-schema` で
- * JSON Schema に変換したものを受け取り、`json_schema.name`/`strict` を明示して送る。
+ * モデルは `agents/models/ai-sdk` の `createAI` が作る。Workers AI binding（Worker の外では REST API）
+ * から AI Gateway のカタログのモデル（`google/...` など）を OpenAI 互換の形で呼び、
+ * `response_format.json_schema` に `name` と `strict` を付けて送ってくれる。
+ * `workers-ai-provider` を使わないのは、同パッケージが非推奨になり `createAI` へ移るよう案内しているため。
  */
+import { toJsonSchema } from "@valibot/to-json-schema";
+import {
+  generateText,
+  jsonSchema,
+  Output,
+  streamText,
+  type LanguageModel,
+  type LanguageModelUsage,
+  type Schema,
+  type UserContent,
+} from "ai";
 import * as v from "valibot";
 
 /** 各処理フェーズの所要時間（ms）。ボトルネック切り分け用にハンドラ側でログする */
 export type ExtractTiming = {
   /** プロンプト構築にかかった時間 */
   promptMs: number;
-  /** `env.AI.run` の往復時間。LLM 推論 + ネットワーク + ゲートウェイの合計 */
+  /** AI の往復時間。LLM 推論 + ネットワーク + ゲートウェイに、応答の JSON の解析と検証を含む */
   aiMs: number;
-  /** レスポンスから JSON を抜き出して JSON.parse する時間 */
-  parseMs: number;
-  /** 抽出結果を valibot で v.parse する時間 */
-  validateMs: number;
 };
 
-/** Workers AI の binding のうち、ここで使う部分 */
-export type AiRunner = {
-  run: (
-    model: string,
-    inputs: Record<string, unknown>,
-    options?: { signal?: AbortSignal },
-  ) => Promise<unknown>;
+/** 推論モデルの推論量。受け付ける値はモデルごとに違う */
+export type ReasoningEffort = "low" | "medium" | "high";
+
+/**
+ * モデル ID から AI SDK のモデルを作るもの。`createAI` の戻り値がこれを満たす。
+ *
+ * `createAI` の戻り値の型をそのまま使わないのは、テストで偽のモデルを返すものに差し替えるため。
+ */
+export type ModelProvider = {
+  languageModel: (
+    modelId: string,
+    options?: { reasoningEffort?: ReasoningEffort },
+  ) => LanguageModel;
 };
 
 /**
@@ -36,234 +48,131 @@ export type AiRunner = {
 export const truncate = (text: string, max: number): string =>
   text.length <= max ? text : `${text.slice(0, max)}\n…[truncated ${text.length - max} chars]`;
 
-type WorkersAiChatResponse = {
-  response?: unknown;
-  choices?: Array<{ message?: { content?: unknown } }>;
-  usage?: unknown;
-};
-
-/**
- * Workers AI の chat 系レスポンスから assistant メッセージ本体を取り出す。
- */
-const extractAssistantPayload = (output: WorkersAiChatResponse): unknown => {
-  const choiceContent = output.choices?.[0]?.message?.content;
-  if (choiceContent != null && choiceContent !== "") {
-    if (typeof choiceContent === "string") {
-      return JSON.parse(choiceContent);
-    }
-    return choiceContent;
-  }
-  if ("response" in output) {
-    const response = output.response;
-    if (typeof response === "string") return JSON.parse(response);
-    if (response !== null && response !== undefined) return response;
-  }
-  throw new Error(`Workers AI returned no usable content: ${JSON.stringify(output)}`);
-};
-
 /** LLM に渡すプロンプト。`images` は画像の data URL で、user メッセージの本文の後に添える */
 export type StructuredPrompt = { system: string; prompt: string; images?: string[] };
 
 /**
- * user メッセージの content を作る。画像がなければ文字列のまま、あれば OpenAI 互換の content parts にする。
+ * user メッセージの content を作る。画像がなければ文字列のまま、あれば本文と画像の parts にする。
  */
-export const buildUserContent = (
-  prompt: string,
-  images: string[] = [],
-): string | Array<Record<string, unknown>> =>
+export const buildUserContent = (prompt: string, images: string[] = []): UserContent =>
   images.length === 0
     ? prompt
     : [
         { type: "text", text: prompt },
-        ...images.map((url) => ({ type: "image_url", image_url: { url } })),
+        // 細かい種類（image/jpeg など）は AI SDK が data URL から読み取る
+        ...images.map((image) => ({
+          type: "file" as const,
+          mediaType: "image",
+          data: new URL(image),
+        })),
       ];
+
+/** 変換した出力スキーマ。同じスキーマを呼び出しのたびに JSON Schema へ変換しないよう持っておく */
+const outputSchemas = new WeakMap<v.GenericSchema, Schema<unknown>>();
+
+/**
+ * valibot のスキーマを、JSON Schema と検証を持つ AI SDK のスキーマにする。
+ *
+ * `@valibot/to-json-schema` の `toStandardJsonSchema` を渡さないのは、valibot の Standard Schema の検証結果が
+ * 失敗のときも `value` を持ち、AI SDK がそれを成功と見なして検証に通してしまうため。
+ */
+const toOutputSchema = <TSchema extends v.GenericSchema>(
+  schema: TSchema,
+): Schema<v.InferOutput<TSchema>> => {
+  const cached = outputSchemas.get(schema);
+  // 同じ schema から作ったものなので、出力の型は schema の型と一致する
+  if (cached !== undefined) return cached as Schema<v.InferOutput<TSchema>>;
+  const created = jsonSchema(toJsonSchema(schema), {
+    validate: (value) => {
+      const result = v.safeParse(schema, value);
+      return result.success
+        ? { success: true, value: result.output }
+        : { success: false, error: new v.ValiError(result.issues) };
+    },
+  });
+  outputSchemas.set(schema, created);
+  return created;
+};
+
+/** 出力スキーマを強制した chat の共通の引数 */
+type StructuredChatParams = {
+  ai: ModelProvider;
+  model: string;
+  buildPrompt: () => StructuredPrompt;
+  /** `response_format.json_schema.name` に入れる名前。OpenAI 互換のモデルは名前がないと受け付けない */
+  schemaName: string;
+  /** 未指定ならパラメータごと送らずモデルの既定に任せる */
+  reasoningEffort?: ReasoningEffort;
+  abortSignal?: AbortSignal;
+};
+
+/**
+ * プロンプトを AI SDK の system と messages にする。
+ */
+const toModelInput = ({ system, prompt, images }: StructuredPrompt) => ({
+  system,
+  messages: [{ role: "user" as const, content: buildUserContent(prompt, images) }],
+});
 
 /**
  * 出力スキーマを強制して chat を投げ、スキーマで検証した結果を返す。
  */
-export const runStructuredChat = async <TSchema extends v.GenericSchema>(params: {
-  ai: AiRunner;
-  model: string;
-  buildPrompt: () => StructuredPrompt;
-  schemaName: string;
-  /** `schema` を `toJsonSchema` で変換したもの。呼び出しごとに変換しないよう呼び出し側で持つ */
-  jsonSchema: unknown;
-  schema: TSchema;
-  /** 推論モデルの推論量。受け付ける値はモデルごとに違うので、未指定ならパラメータごと送らずモデルの既定に任せる */
-  reasoningEffort?: string;
-  abortSignal?: AbortSignal;
-}): Promise<{ object: v.InferOutput<TSchema>; usage: unknown; timing: ExtractTiming }> => {
+export const runStructuredChat = async <TSchema extends v.GenericSchema>(
+  params: StructuredChatParams & { schema: TSchema },
+): Promise<{
+  object: v.InferOutput<TSchema>;
+  usage: LanguageModelUsage;
+  timing: ExtractTiming;
+}> => {
   const tStart = performance.now();
-  const { system, prompt, images } = params.buildPrompt();
+  const input = toModelInput(params.buildPrompt());
   const tAfterPrompt = performance.now();
 
-  const inputs: Record<string, unknown> = {
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: buildUserContent(prompt, images) },
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: params.schemaName,
-        strict: true,
-        schema: params.jsonSchema,
-      },
-    },
-    ...(params.reasoningEffort === undefined ? {} : { reasoning_effort: params.reasoningEffort }),
-  };
-  // chat 系モデルは choices か response を持つオブジェクトを返す（取り出しは extractAssistantPayload が確かめる）
-  const output = (await params.ai.run(params.model, inputs, {
-    signal: params.abortSignal,
-  })) as WorkersAiChatResponse;
+  const { output, usage } = await generateText({
+    model: params.ai.languageModel(params.model, { reasoningEffort: params.reasoningEffort }),
+    ...input,
+    output: Output.object({ schema: toOutputSchema(params.schema), name: params.schemaName }),
+    abortSignal: params.abortSignal,
+  });
   const tAfterAi = performance.now();
 
-  const payload = extractAssistantPayload(output);
-  const tAfterParse = performance.now();
-
-  const object = v.parse(params.schema, payload);
-  const tAfterValidate = performance.now();
-
   return {
-    object,
-    usage: output.usage,
+    object: output,
+    usage,
     timing: {
       promptMs: Math.round(tAfterPrompt - tStart),
       aiMs: Math.round(tAfterAi - tAfterPrompt),
-      parseMs: Math.round(tAfterParse - tAfterAi),
-      validateMs: Math.round(tAfterValidate - tAfterParse),
     },
   };
-};
-
-/**
- * `{"entries":[{...},{...}]}` の形の JSON を少しずつ読み、配列の要素が閉じるたびにその文字列を渡す関数を作る。
- *
- * LLM の応答はトークンごとに届き、要素の途中で切れるので、文字列の中かどうかと括弧の深さを追う。
- */
-export const createArrayItemScanner = (onItem: (itemText: string) => void) => {
-  /** 最上位のオブジェクトと配列の中、つまり要素が始まる深さ */
-  const ITEM_DEPTH = 2;
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  let item = "";
-  return (text: string): void => {
-    for (const char of text) {
-      if (depth > ITEM_DEPTH) item += char;
-      else if (depth === ITEM_DEPTH && char === "{") item = char;
-
-      if (inString) {
-        if (escaped) escaped = false;
-        else if (char === "\\") escaped = true;
-        else if (char === '"') inString = false;
-      } else if (char === '"') {
-        inString = true;
-      } else if (char === "{" || char === "[") {
-        depth += 1;
-      } else if (char === "}" || char === "]") {
-        depth -= 1;
-        if (depth === ITEM_DEPTH && char === "}") onItem(item);
-      }
-    }
-  };
-};
-
-/** Stream の 1 つの出来事。OpenAI 互換のモデルは delta で、他の Workers AI のモデルは response で本文を返す */
-const StreamChunkSchema = v.looseObject({
-  choices: v.optional(
-    v.array(
-      v.looseObject({ delta: v.optional(v.looseObject({ content: v.nullish(v.string()) })) }),
-    ),
-  ),
-  response: v.nullish(v.string()),
-});
-
-/**
- * Server-Sent Events の本文を読み、届いた本文の文字列を順に渡す。読めない行は飛ばす。
- */
-const readStreamContent = async (
-  body: ReadableStream<Uint8Array>,
-  onContent: (content: string) => void,
-): Promise<void> => {
-  const decoder = new TextDecoder();
-  let buffer = "";
-  /**
-   * SSE の 1 行から本文を取り出して渡す。
-   */
-  const readLine = (line: string): void => {
-    if (!line.startsWith("data:")) return;
-    const data = line.slice("data:".length).trim();
-    if (data === "" || data === "[DONE]") return;
-    let json: unknown;
-    try {
-      json = JSON.parse(data);
-    } catch {
-      return;
-    }
-    const chunk = v.safeParse(StreamChunkSchema, json);
-    if (!chunk.success) return;
-    const content = chunk.output.choices?.[0]?.delta?.content ?? chunk.output.response;
-    if (content != null) onContent(content);
-  };
-  const reader = body.getReader();
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      lines.forEach(readLine);
-    }
-    readLine(buffer);
-  } finally {
-    reader.releaseLock();
-  }
 };
 
 /**
  * 出力スキーマを強制して chat を Stream で投げ、配列の要素が届くたびに検証して渡す。
  *
+ * 出力は `{"elements":[...]}` の形になる（AI SDK の `Output.array` が包む）。
  * 形式に合わない要素は飛ばすので、渡されなかった要素は呼び出し側で未処理として扱う。
  * Stream で応答しないモデルなら、全体が届いてから順に渡す。
  */
-export const streamStructuredItems = async <TSchema extends v.GenericSchema>(params: {
-  ai: AiRunner;
-  model: string;
-  buildPrompt: () => StructuredPrompt;
-  schemaName: string;
-  jsonSchema: unknown;
-  itemSchema: TSchema;
-  reasoningEffort?: string;
-  abortSignal?: AbortSignal;
-  onItem: (item: v.InferOutput<TSchema>) => void;
-}): Promise<void> => {
-  const { system, prompt, images } = params.buildPrompt();
-  const scan = createArrayItemScanner((itemText) => {
-    const item = v.safeParse(params.itemSchema, JSON.parse(itemText));
-    if (item.success) params.onItem(item.output);
-  });
-  const output = await params.ai.run(
-    params.model,
-    {
-      stream: true,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: buildUserContent(prompt, images) },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: { name: params.schemaName, strict: true, schema: params.jsonSchema },
-      },
-      ...(params.reasoningEffort === undefined ? {} : { reasoning_effort: params.reasoningEffort }),
+export const streamStructuredItems = async <TSchema extends v.GenericSchema>(
+  params: StructuredChatParams & {
+    itemSchema: TSchema;
+    onItem: (item: v.InferOutput<TSchema>) => void;
+  },
+): Promise<void> => {
+  // streamText は失敗を投げずに onError へ渡すので、受け取って最後に投げ直す
+  let streamError: unknown = undefined;
+  const result = streamText({
+    model: params.ai.languageModel(params.model, { reasoningEffort: params.reasoningEffort }),
+    ...toModelInput(params.buildPrompt()),
+    output: Output.array({
+      element: toOutputSchema(params.itemSchema),
+      name: params.schemaName,
+    }),
+    abortSignal: params.abortSignal,
+    onError: ({ error }) => {
+      streamError = error;
     },
-    { signal: params.abortSignal },
-  );
-  if (output instanceof ReadableStream) {
-    await readStreamContent(output, scan);
-    return;
-  }
-  // chat 系モデルは choices か response を持つオブジェクトを返す（取り出しは extractAssistantPayload が確かめる）
-  scan(JSON.stringify(extractAssistantPayload(output as WorkersAiChatResponse)));
+  });
+  for await (const item of result.elementStream) params.onItem(item);
+  if (streamError !== undefined) throw streamError;
 };

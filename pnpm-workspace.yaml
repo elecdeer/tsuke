@@ -34,6 +34,8 @@ catalog:
   maplibre-gl: ^6.16.0
   fake-indexeddb: ^6.2.6
   "@tanstack/charts": 1.4.0
+  agents: ^0.33.0
+  ai: ^7.0.170
 
 catalogMode: prefer
 overrides:
@@ -52,4 +54,5 @@ allowBuilds:
   sharp: true
   workerd: true
   spawn-sync: false
+  core-js-pure: false
   lefthook: set this to true or false

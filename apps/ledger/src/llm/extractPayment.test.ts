@@ -4,7 +4,8 @@
  * LLM の品質はモデル次第なので動作確認はできないが、プロンプト中に渡している
  * カテゴリ/口座/店舗の表現が崩れていないことを確認する。
  */
-import { describe, expect, test, vi } from "vite-plus/test";
+import { describe, expect, test } from "vite-plus/test";
+import { createFakeModelProvider } from "./fakeModelProvider.ts";
 import {
   ACCOUNT_NOTES_RULE,
   buildPrompt,
@@ -104,10 +105,19 @@ describe("buildPrompt", () => {
 });
 
 describe("runExtractPayment", () => {
-  test("推論量を指定すると、そのまま送る", async () => {
-    const ai = {
-      run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
-    };
+  test("ExtractedPayment のスキーマを強制し、検証した結果を返す", async () => {
+    const { ai, calls } = createFakeModelProvider(() => JSON.stringify(extracted));
+
+    const { object } = await runExtractPayment({ ai, model: "test-model", input: baseInput() });
+
+    expect(object).toEqual(extracted);
+    expect(calls).toEqual([
+      expect.objectContaining({ modelId: "test-model", schemaName: "ExtractedPayment" }),
+    ]);
+  });
+
+  test("推論量を指定すると、そのまま渡す", async () => {
+    const { ai, calls } = createFakeModelProvider(() => JSON.stringify(extracted));
 
     await runExtractPayment({
       ai,
@@ -116,56 +126,21 @@ describe("runExtractPayment", () => {
       input: baseInput(),
     });
 
-    expect(ai.run).toHaveBeenCalledWith(
-      "test-model",
-      expect.objectContaining({ reasoning_effort: "low" }),
-      { signal: undefined },
-    );
-  });
-
-  test("choices のメッセージの JSON を抽出結果として返す", async () => {
-    const ai = {
-      run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
-    };
-
-    const { object } = await runExtractPayment({ ai, model: "test-model", input: baseInput() });
-
-    expect(object).toEqual(extracted);
-    expect(ai.run).toHaveBeenCalledWith(
-      "test-model",
-      expect.objectContaining({
-        response_format: expect.objectContaining({
-          json_schema: expect.objectContaining({ name: "ExtractedPayment", strict: true }),
-        }),
-      }),
-      { signal: undefined },
-    );
+    expect(calls[0]?.reasoningEffort).toBe("low");
   });
 
   test("推論量は指定せずモデルの既定に任せる", async () => {
-    const ai = {
-      run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
-    };
+    const { ai, calls } = createFakeModelProvider(() => JSON.stringify(extracted));
 
     await runExtractPayment({ ai, model: "test-model", input: baseInput() });
 
-    expect(ai.run).toHaveBeenCalledWith(
-      "test-model",
-      expect.not.objectContaining({ reasoning_effort: expect.anything() }),
-      { signal: undefined },
-    );
-  });
-
-  test("response に入ったオブジェクトも受け取れる", async () => {
-    const ai = { run: vi.fn(async () => ({ response: extracted })) };
-
-    const { object } = await runExtractPayment({ ai, model: "test-model", input: baseInput() });
-
-    expect(object).toEqual(extracted);
+    expect(calls[0]?.reasoningEffort).toBeUndefined();
   });
 
   test("スキーマに合わない出力ならエラーにする", async () => {
-    const ai = { run: vi.fn(async () => ({ response: { ...extracted, confidence: "unknown" } })) };
+    const { ai } = createFakeModelProvider(() =>
+      JSON.stringify({ ...extracted, confidence: "unknown" }),
+    );
 
     await expect(
       runExtractPayment({ ai, model: "test-model", input: baseInput() }),

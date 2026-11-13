@@ -3,7 +3,7 @@
  *
  * 出力はページからの抽出（extractPayment.ts）と同じ形にして、確認フォームへの入れ方をそろえる。
  */
-import { toJsonSchema } from "@valibot/to-json-schema";
+import type { LanguageModelUsage } from "ai";
 import * as v from "valibot";
 import { normalizePhone } from "../ledger/placePhone.ts";
 import {
@@ -20,7 +20,7 @@ import {
 import { READ_SETTINGS, type ReadQuality } from "./readQuality.ts";
 import {
   runStructuredChat,
-  type AiRunner,
+  type ModelProvider,
   type ExtractTiming,
   type StructuredPrompt,
 } from "./structuredChat.ts";
@@ -69,9 +69,6 @@ export const ExtractedReceiptSchema = v.strictObject({
 });
 
 export type ExtractedReceipt = v.InferOutput<typeof ExtractedReceiptSchema>;
-
-/** `ExtractedReceiptSchema` を OpenAI 互換の JSON Schema に変換した結果 */
-const EXTRACTED_RECEIPT_JSON_SCHEMA = toJsonSchema(ExtractedReceiptSchema);
 
 /**
  * LLM へ渡す system / prompt / 画像を構築する。
@@ -157,20 +154,19 @@ export const resolveReceiptPlaceName = (
 };
 
 /**
- * Workers AI binding を使ってレシートの写真から支払い情報を抽出する。
+ * AI でレシートの写真から支払い情報を抽出する。
  */
 export const runExtractReceipt = (params: {
-  ai: AiRunner;
+  ai: ModelProvider;
   quality: ReadQuality;
   input: ExtractReceiptContext;
   abortSignal?: AbortSignal;
-}): Promise<{ object: ExtractedReceipt; usage: unknown; timing: ExtractTiming }> =>
+}): Promise<{ object: ExtractedReceipt; usage: LanguageModelUsage; timing: ExtractTiming }> =>
   runStructuredChat({
     ai: params.ai,
     model: READ_SETTINGS[params.quality].model,
     buildPrompt: () => buildReceiptPrompt(params.input),
     schemaName: "ExtractedReceipt",
-    jsonSchema: EXTRACTED_RECEIPT_JSON_SCHEMA,
     schema: ExtractedReceiptSchema,
     reasoningEffort: READ_SETTINGS[params.quality].reasoningEffort,
     abortSignal: params.abortSignal,

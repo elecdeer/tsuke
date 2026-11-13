@@ -4,7 +4,6 @@
  * 値の書き写しを LLM に任せず（src/import/statementCsv.ts を参照）、分類には同じ利用先を 1 度だけ渡すので、
  * 行数が多くても出力が膨らまない。
  */
-import { toJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import {
   applyColumnMapping,
@@ -42,7 +41,8 @@ import {
   runStructuredChat,
   streamStructuredItems,
   truncate,
-  type AiRunner,
+  type ModelProvider,
+  type ReasoningEffort,
 } from "./structuredChat.ts";
 
 /** 列の判定に渡す、先頭の行数。見出しの前の口座情報と利用の行の形がわかる長さ */
@@ -72,8 +72,6 @@ export const DetectedColumnsSchema = v.strictObject({
   accountId: v.nullable(v.number()),
   reasoning: v.string(),
 });
-
-const DETECTED_COLUMNS_JSON_SCHEMA = toJsonSchema(DetectedColumnsSchema);
 
 /**
  * 列の判定に渡す CSV の抜粋を、行番号付きで作る。行番号を付けるのは、AI に列と行を番号で答えさせるため。
@@ -123,7 +121,7 @@ export const buildDetectColumnsPrompt = (input: {
   ].join("\n"),
 });
 
-/** 分類の 1 件の出力スキーマ */
+/** 分類の 1 件の出力スキーマ。AI は `{"elements":[...]}` の配列で 1 件ずつ返す */
 const ClassifiedEntrySchema = v.strictObject({
   id: v.number(),
   mode: v.picklist(["payment", "income", "transfer"]),
@@ -132,13 +130,6 @@ const ClassifiedEntrySchema = v.strictObject({
   categoryId: v.nullable(v.number()),
   counterAccountId: v.nullable(v.number()),
 });
-
-/** 分類の出力スキーマ */
-export const ClassifiedEntriesSchema = v.strictObject({
-  entries: v.array(ClassifiedEntrySchema),
-});
-
-const CLASSIFIED_ENTRIES_JSON_SCHEMA = toJsonSchema(ClassifiedEntriesSchema);
 
 /** 分類に渡す利用先。同じ利用先と向きの行はまとめて 1 件にする */
 export type ClassifyTarget = Pick<StatementCsvRow, "description" | "direction">;
@@ -273,9 +264,9 @@ const recallClassification = (
  * 分類は後から画面で直せるので、失敗しても読み取り全体は失敗にせず、届かなかった利用先の行を未分類で渡す。
  */
 const classifyRows = async (params: {
-  ai: AiRunner;
+  ai: ModelProvider;
   model: string;
-  reasoningEffort?: string;
+  reasoningEffort?: ReasoningEffort;
   rows: StatementCsvRow[];
   context: ClassifyContext;
   abortSignal: AbortSignal;
@@ -305,7 +296,6 @@ const classifyRows = async (params: {
           buildPrompt: () =>
             buildClassifyPrompt({ ...params.context, targets: chunk, accountName }),
           schemaName: "ClassifiedEntries",
-          jsonSchema: CLASSIFIED_ENTRIES_JSON_SCHEMA,
           itemSchema: ClassifiedEntrySchema,
           reasoningEffort: params.reasoningEffort,
           abortSignal: params.abortSignal,
@@ -373,7 +363,9 @@ const createRowQueue = <T>(handle: (rows: T[]) => Promise<void>) => {
   return {
     push: (rows: T[]): void => {
       pending.push(...rows);
-      running ??= drain();
+      // 失敗した後や行がないときに drain を始めると、drain が同期的に終わって running を空にした後で
+      // 解決済みの Promise が running に入り、finish が終わらなくなる
+      if (running === null && failure === null && pending.length > 0) running = drain();
     },
     /** 溜まった行の処理を待ち、途中で失敗していれば投げる */
     finish: async (): Promise<void> => {
@@ -401,9 +393,9 @@ export type PrepareStatementCsvResult =
  * AI で CSV の列を判定する。使えない結果なら null を返す。
  */
 const detectColumns = async (params: {
-  ai: AiRunner;
+  ai: ModelProvider;
   model: string;
-  reasoningEffort?: string;
+  reasoningEffort?: ReasoningEffort;
   fileName: string;
   table: string[][];
   accounts: StatementCsvContext["accounts"];
@@ -415,7 +407,6 @@ const detectColumns = async (params: {
       model: params.model,
       buildPrompt: () => buildDetectColumnsPrompt(params),
       schemaName: "DetectedColumns",
-      jsonSchema: DETECTED_COLUMNS_JSON_SCHEMA,
       schema: DetectedColumnsSchema,
       reasoningEffort: params.reasoningEffort,
       abortSignal: params.abortSignal,
@@ -438,9 +429,9 @@ const detectColumns = async (params: {
  * 履歴 CSV の列を読み、利用の行にする。覚えていた形式の CSV なら AI を呼ばない。
  */
 export const prepareStatementCsv = async (params: {
-  ai: AiRunner;
+  ai: ModelProvider;
   model: string;
-  reasoningEffort?: string;
+  reasoningEffort?: ReasoningEffort;
   fileName: string;
   text: string;
   context: StatementCsvContext;
@@ -516,9 +507,9 @@ const toModeEntry = (row: StatementCsvRow & RowClassification): StatementModeEnt
  * 途中で通信が切れたら AI の呼び出しも止める。
  */
 export const streamStatementCsvClassification = (params: {
-  ai: AiRunner;
+  ai: ModelProvider;
   model: string;
-  reasoningEffort?: string;
+  reasoningEffort?: ReasoningEffort;
   prepared: Extract<PrepareStatementCsvResult, { ok: true }>;
   context: StatementCsvContext;
   memory: StatementCsvMemory;

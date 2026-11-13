@@ -1,7 +1,8 @@
 /**
  * buildStatementPrompt のフォーマット回帰テストと、明細抽出の Workers AI 呼び出しのテスト。
  */
-import { describe, expect, test, vi } from "vite-plus/test";
+import { describe, expect, test } from "vite-plus/test";
+import { createFakeModelProvider } from "./fakeModelProvider.ts";
 import { ACCOUNT_NOTES_RULE } from "./extractPayment.ts";
 import {
   buildStatementPrompt,
@@ -68,30 +69,35 @@ describe("口座のヒント", () => {
 
 describe("runExtractStatement", () => {
   test("ExtractedStatement のスキーマを強制し、検証した結果を返す", async () => {
-    const ai = {
-      run: vi.fn(async () => ({ choices: [{ message: { content: JSON.stringify(extracted) } }] })),
-    };
+    const { ai, calls } = createFakeModelProvider(() => JSON.stringify(extracted));
 
     const { object } = await runExtractStatement({ ai, model: "test-model", input: baseInput() });
 
     expect(object).toEqual(extracted);
-    expect(ai.run).toHaveBeenCalledWith(
-      "test-model",
-      expect.objectContaining({
-        response_format: expect.objectContaining({
-          json_schema: expect.objectContaining({ name: "ExtractedStatement", strict: true }),
-        }),
-      }),
-      { signal: undefined },
-    );
+    expect(calls).toEqual([
+      expect.objectContaining({ modelId: "test-model", schemaName: "ExtractedStatement" }),
+    ]);
   });
 
   test("スキーマに合わない出力ならエラーにする", async () => {
-    const ai = { run: vi.fn(async () => ({ response: { ...extracted, rows: "none" } })) };
+    const { ai } = createFakeModelProvider(() => JSON.stringify({ ...extracted, rows: "none" }));
 
     await expect(
       runExtractStatement({ ai, model: "test-model", input: baseInput() }),
-    ).rejects.toThrow("Invalid type");
+    ).rejects.toThrow();
+  });
+
+  test("推論量を指定したら渡す", async () => {
+    const { ai, calls } = createFakeModelProvider(() => JSON.stringify(extracted));
+
+    await runExtractStatement({
+      ai,
+      model: "test-model",
+      reasoningEffort: "low",
+      input: baseInput(),
+    });
+
+    expect(calls[0]?.reasoningEffort).toBe("low");
   });
 });
 
@@ -115,23 +121,5 @@ describe("resolveStatementPlaceName", () => {
   test("明細の表記も別名に一致しなければ null のままにする", () => {
     expect(resolveStatementPlaceName({ place: "知らない店", placeName: null }, places)).toBeNull();
     expect(resolveStatementPlaceName({ place: null, placeName: null }, places)).toBeNull();
-  });
-
-  test("推論量を指定したら送る", async () => {
-    const ai = {
-      run: vi.fn(async () => {
-        throw new Error("boom");
-      }),
-    };
-
-    await expect(
-      runExtractStatement({ ai, model: "test-model", reasoningEffort: "low", input: baseInput() }),
-    ).rejects.toThrow("boom");
-
-    expect(ai.run).toHaveBeenCalledWith(
-      "test-model",
-      expect.objectContaining({ reasoning_effort: "low" }),
-      { signal: undefined },
-    );
   });
 });
