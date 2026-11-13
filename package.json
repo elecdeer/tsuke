@@ -4,15 +4,22 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "ready": "vp run ledger#build:types && vp check && vp run -r test && vp run -r build",
+    "ready": "vp run ledger#build:types && vp check && vp run lint:css && vp run -r test && vp run -r build",
     "dev": "vp run --filter=ledger --filter=extension --parallel dev",
+    "lint:css": "eslint --max-warnings 0 \"**/*.css\"",
     "test": "vp test run",
     "test:browser": "docker compose -f docker-compose.vrt.yml run --build --rm vrt",
     "test:browser:update": "docker compose -f docker-compose.vrt.yml run --build --rm vrt vp run test:browser --update",
     "prepare": "node -e \"if(!process.env.CI)require('child_process').execSync('vp config',{stdio:'inherit'})\""
   },
   "devDependencies": {
+    "@eslint/css": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "eslint": "catalog:",
+    "eslint-plugin-css-cev": "catalog:",
+    "eslint-plugin-css-properties-order": "catalog:",
+    "jiti": "catalog:",
+    "tailwind-csstree": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:"
   },

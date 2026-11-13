@@ -52,9 +52,9 @@
  * 向きは data-month-slide（src/web/monthSlide.ts）で受け取る
  */
 :root[data-month-slide] main {
-  view-transition-name: month-page;
   /* 本文の写しは背景が透けると、重なった前後の月の文字が混ざって見えるので塗っておく */
   background-color: var(--background);
+  view-transition-name: month-page;
 }
 
 ::view-transition-group(month-page) {
@@ -81,15 +81,15 @@
 
 @keyframes month-slide-out-to-left {
   to {
-    transform: translateX(-30%);
     opacity: 0;
+    transform: translateX(-30%);
   }
 }
 
 @keyframes month-slide-in-from-left {
   from {
-    transform: translateX(-30%);
     opacity: 0;
+    transform: translateX(-30%);
   }
 }
 

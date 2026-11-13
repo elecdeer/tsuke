@@ -29,6 +29,8 @@ jobs:
       # 拡張機能が使う台帳 API クライアントの型宣言を出力する
       - run: vp run "ledger#build:types"
       - run: vp check
+      # CSS は oxlint が扱えないので ESLint（@eslint/css）で lint する
+      - run: vp run lint:css
       - run: vp run -r test
 
   build:
