@@ -15,6 +15,7 @@ import { useToastManager } from "@tsuke/ui/components/toast";
 import { formatAmount, formatYen } from "@tsuke/ui/lib/format";
 import { cn } from "@tsuke/ui/lib/utils";
 import { useMutation } from "../../../lib/useMutation.ts";
+import { accountGuessNote, type AccountGuess } from "../../../lib/accountGuessNote.ts";
 import { collectPageContent, findCategorySelectionByGenreId } from "../../../lib/extraction.ts";
 import { createServerClient, withErrorMessage } from "../../../lib/serverClient";
 import { categoriesQuery, placesQuery } from "../../../queries.ts";
@@ -176,6 +177,8 @@ export default function MainScreen({ serverUrl }: Props) {
   const [readModel, setReadModel] = useState<string | null>(null);
   // 自動入力で読み取った合計。品目の合計と比べて、読み違いに気づけるようにする
   const [readTotal, setReadTotal] = useState<number | null>(null);
+  // 自動入力で口座を選んだ根拠。推測で選んだ口座に注記を出すのに使う
+  const [accountGuess, setAccountGuess] = useState<AccountGuess | null>(null);
 
   const extractMutation = useMutation({
     mutationFn: async (quality: "fast" | "accurate") => {
@@ -196,6 +199,11 @@ export default function MainScreen({ serverUrl }: Props) {
       setAutofilled(true);
       setReadModel(extracted.model);
       setReadTotal(extracted.total);
+      setAccountGuess({
+        paymentMethod: extracted.paymentMethod,
+        accountId: extracted.accountId,
+        accountMatch: extracted.accountMatch,
+      });
       if (extracted.date !== null) setDate(extracted.date);
       if (extracted.accountId !== null) setAccountId(extracted.accountId);
       if (extracted.placeName !== null) setPlaceName(extracted.placeName);
@@ -246,6 +254,7 @@ export default function MainScreen({ serverUrl }: Props) {
       setAutofilled(false);
       setReadModel(null);
       setReadTotal(null);
+      setAccountGuess(null);
       setItems([newItem()]);
       setDate(localDateString());
       setAccountId(null);
@@ -352,7 +361,12 @@ export default function MainScreen({ serverUrl }: Props) {
 
       <div className={styles.Fields}>
         <DateField value={date} onChange={setDate} required />
-        <AccountCombobox serverUrl={serverUrl} value={accountId} onChange={setAccountId} />
+        <AccountCombobox
+          serverUrl={serverUrl}
+          value={accountId}
+          onChange={setAccountId}
+          note={accountGuess === null ? null : accountGuessNote(accountGuess, accountId)}
+        />
         <StoreCombobox serverUrl={serverUrl} value={placeName} onChange={setPlaceName} />
       </div>
 

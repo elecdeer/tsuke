@@ -337,7 +337,9 @@ describe("MainScreen", () => {
     const extracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
       model: "test-model",
       date: "2024-01-10",
+      paymentMethod: "VISA ****1234",
       accountId: 2,
+      accountMatch: "explicit",
       placeName: "はじめての店",
       items: [
         { name: "おにぎり", amount: 160, memo: "鮭", genreId: 1001 },
@@ -379,6 +381,39 @@ describe("MainScreen", () => {
       .element(page.getByRole("combobox", { name: "カテゴリ" }).nth(1))
       .toMatchTextContent("交通費 / 電車・バス");
     await expect.element(page.getByText("360")).toBeVisible();
+    await expect.element(page.getByText("からの推測です")).not.toBeInTheDocument();
+  });
+
+  test("自動入力で口座を推測で選んだら、読み取った支払い方法の表記とともに口座の下に知らせる", async ({
+    worker,
+  }) => {
+    const extracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
+      model: "test-model",
+      date: "2024-01-10",
+      paymentMethod: "クレジット",
+      accountId: 2,
+      accountMatch: "inferred",
+      placeName: "スーパーA",
+      items: [{ name: "牛乳", amount: 250, memo: null, genreId: 1001 }],
+      total: 250,
+      confidence: "high",
+      reasoning: "",
+    };
+    worker.use(
+      ...commonHandlers,
+      http.post(mockUrl("/api/transactions/extract"), () => HttpResponse.json(extracted)),
+    );
+
+    await render(<Default.Component />);
+
+    await page.getByRole("button", { name: "このページから自動入力" }).click();
+
+    await expect
+      .element(page.getByRole("combobox", { name: "口座" }))
+      .toMatchTextContent("クレジットカード");
+    await expect
+      .element(page.getByText("支払い方法の表記「クレジット」からの推測です"))
+      .toBeVisible();
   });
 
   test("自動入力に失敗したら状態コード付きのエラーを表示する", async ({ worker }) => {
@@ -412,7 +447,9 @@ describe("MainScreen", () => {
         const extracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
           model: "test-model",
           date: "2024-01-10",
+          paymentMethod: null,
           accountId: null,
+          accountMatch: null,
           placeName: null,
           items: [
             {
@@ -461,7 +498,9 @@ describe("MainScreen", () => {
         const extracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
           model: "test-model",
           date: "2024-01-10",
+          paymentMethod: null,
           accountId: null,
+          accountMatch: null,
           placeName: null,
           items: [{ name: "前の品名", amount: 100, memo: null, genreId: 1001 }],
           total: 100,
@@ -493,7 +532,9 @@ describe("MainScreen", () => {
       const extracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
         model: "test-model",
         date: "2026-06-13",
+        paymentMethod: "VISA ****1234",
         accountId: 2,
+        accountMatch: "explicit",
         placeName,
         items: [{ name: "牛乳", amount: 250, memo: null, genreId: 1001 }],
         total,

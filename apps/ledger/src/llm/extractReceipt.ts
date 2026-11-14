@@ -9,6 +9,7 @@ import { normalizePhone } from "../ledger/placePhone.ts";
 import {
   ACCOUNT_NOTES_RULE,
   ExtractedPaymentSchema,
+  PAYMENT_METHOD_RULE,
   findPlaceName,
   formatAccountsForPrompt,
   formatCategoriesForPrompt,
@@ -81,6 +82,7 @@ export const buildReceiptPrompt = (input: ExtractReceiptContext): StructuredProm
     "",
     "Rules:",
     `- \`accountId\` must be one of the provided account IDs; otherwise null. Infer it from the payment method printed on the receipt (cash, card brand, e-money, QR payment). ${ACCOUNT_NOTES_RULE}`,
+    PAYMENT_METHOD_RULE,
     '- `date`: "YYYY-MM-DD". Convert Japanese era years (令和8年 = 2026) and two-digit years; when the year is missing, use the year of "Today".',
     `- \`placeName\`: use a recent store name as is when it clearly fits, else the store name printed on the receipt (include the branch name). When writing a printed name, put one half-width space between the chain name and the branch name (e.g. \`ローソン 新宿西口店\`); use no space when there is no branch. ${PLACE_NOTES_RULE}`,
     TOTAL_RULE,
