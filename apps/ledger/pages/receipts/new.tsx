@@ -67,32 +67,31 @@ const DUPLICATE_CHECK_DELAY = 500;
 const ledgerApi = () => createLedgerClient(window.location.origin);
 
 /**
- * 品目ごとの重複の候補を、入力が止まってから台帳に問い合わせる。戻り値はフォームの品目と同じ順に並ぶ。
+ * 重複の候補を、入力が止まってから台帳に問い合わせる。
  */
 const useDuplicates = ({
   date,
+  placeName,
   items,
-}: Pick<TransactionDraft, "date" | "items">): DuplicateCandidate[][] => {
-  // 店舗や口座を変えても問い合わせ直さないよう、日付と品目だけから作る
-  const check = useMemo(() => duplicateCheckFromDraft({ date, items }), [date, items]);
+}: Pick<TransactionDraft, "date" | "placeName" | "items">): DuplicateCandidate[] => {
+  // 口座や品名を変えても問い合わせ直さないよう、日付・店舗・金額だけから作る
+  const check = useMemo(
+    () => duplicateCheckFromDraft({ date, placeName, items }),
+    [date, placeName, items],
+  );
   const key = JSON.stringify(check);
-  const [duplicates, setDuplicates] = useState<{ key: string; byItem: DuplicateCandidate[][] }>({
+  const [duplicates, setDuplicates] = useState<{ key: string; found: DuplicateCandidate[] }>({
     key: "",
-    byItem: [],
+    found: [],
   });
 
   useEffect(() => {
     if (check === null) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      void ledgerApi()("/api/transactions/duplicates", "POST", { body: check.input })
+      void ledgerApi()("/api/transactions/duplicates", "POST", { body: check })
         .then(({ duplicates: found }) => {
-          if (cancelled) return;
-          const byItem: DuplicateCandidate[][] = [];
-          check.indexes.forEach((itemIndex, i) => {
-            byItem[itemIndex] = found[i] ?? [];
-          });
-          setDuplicates({ key, byItem });
+          if (!cancelled) setDuplicates({ key, found });
         })
         // 重複の確かめは登録を助けるだけなので、失敗しても知らせない
         .catch(() => undefined);
@@ -104,23 +103,20 @@ const useDuplicates = ({
   }, [check, key]);
 
   // 入力を変えた後は、確かめ直すまで前の結果を出さない
-  return check !== null && duplicates.key === key ? duplicates.byItem : [];
+  return check !== null && duplicates.key === key ? duplicates.found : [];
 };
 
 /**
  * 重複の候補の警告。色だけに頼らず、アイコンと文言を付ける。
  */
-const DuplicateWarning = ({ byItem }: { byItem: DuplicateCandidate[][] }) => {
-  const candidates = [
-    ...new Map(byItem.flat().map((candidate) => [candidate.transactionId, candidate])).values(),
-  ];
+const DuplicateWarning = ({ candidates }: { candidates: DuplicateCandidate[] }) => {
   if (candidates.length === 0) return null;
   return (
     <div className={styles.DuplicateWarning}>
       <TriangleAlert className={styles.warningIcon} aria-hidden="true" />
       <div className={styles.warningBody}>
         <p>
-          同じ内訳・金額の支出が前後の日にすでにあります。二重に登録していないか確かめてください。
+          合計金額が同じ支出が前後の日にすでにあります。二重に登録していないか確かめてください。
         </p>
         <ul className={styles.candidates}>
           {candidates.map((candidate) => (
@@ -438,7 +434,7 @@ const ReceiptReview = ({
 
   const footer = (
     <div className={styles.Footer}>
-      {ready && <DuplicateWarning byItem={duplicates} />}
+      {ready && <DuplicateWarning candidates={duplicates} />}
       {error !== null && <ErrorMessage message={error} />}
       <div className={styles.footerRow}>
         {/* 広い画面では写真を隣に並べているので、見本は狭い画面だけに出す */}

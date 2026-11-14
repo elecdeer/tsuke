@@ -58,15 +58,9 @@ export const categoriesHandler = http.get(mockUrl("/api/categories"), () =>
   HttpResponse.json(mockCategories),
 );
 export const placesHandler = http.get(mockUrl("/api/places"), () => HttpResponse.json(mockPlaces));
-/** 品目ごとに重複の候補なしを返す */
-export const noDuplicatesHandler = http.post<
-  never,
-  LedgerInput<"/api/transactions/duplicates", "POST">["body"]
->(mockUrl("/api/transactions/duplicates"), async ({ request }) => {
-  const { items } = await request.json();
-  const response: LedgerOutput<"/api/transactions/duplicates", "POST"> = {
-    duplicates: items.map(() => []),
-  };
+/** 重複の候補なしを返す */
+export const noDuplicatesHandler = http.post(mockUrl("/api/transactions/duplicates"), () => {
+  const response: LedgerOutput<"/api/transactions/duplicates", "POST"> = { duplicates: [] };
   return HttpResponse.json(response);
 });
 
