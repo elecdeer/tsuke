@@ -23,7 +23,9 @@ const milk = { name: "牛乳", amount: 248, memo: null, genreId: 11 };
 
 const extracted: ExtractedPayment = {
   date: "2026-10-27",
+  paymentMethod: "VISA ****1234",
   accountId: 4,
+  accountMatch: "explicit",
   placeName: "ミドリマート",
   items: [milk, { name: "洗剤", amount: 328, memo: "詰め替え", genreId: 21 }],
   total: 576,

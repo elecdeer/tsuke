@@ -35,6 +35,7 @@ import {
   ItemsTotal,
   PlaceInput,
 } from "@/web/components/TransactionFields";
+import { accountGuessNote } from "@/web/accountGuessNote";
 import { formatDay, formatYen } from "@/web/format";
 import {
   draftFromExtracted,
@@ -338,6 +339,25 @@ const ConfidenceNote = ({ extracted }: { extracted: ExtractedPayment }) =>
   );
 
 /**
+ * AI が推測で選んだ支払元の知らせ。「クレジット」とだけ印字されたレシートなど、表記から口座を決めきれなかったときに出す。
+ */
+const AccountGuessNote = ({
+  extracted,
+  fromAccountId,
+}: {
+  extracted: ExtractedPayment;
+  fromAccountId: string;
+}) => {
+  const note = accountGuessNote(extracted, fromAccountId === "" ? null : Number(fromAccountId));
+  return note === null ? null : (
+    <p className={styles.Note}>
+      <Info className={styles.noteIcon} aria-hidden="true" />
+      {note}
+    </p>
+  );
+};
+
+/**
  * 登録に失敗したときに画面に出す文言。台帳が `{ error: string }` を返していればそれを使う。
  */
 const registerErrorMessage = (error: unknown): string => {
@@ -505,6 +525,12 @@ const ReceiptReview = ({
                     invalid={draft.fromAccountId === ""}
                     onChange={(fromAccountId) => update({ fromAccountId })}
                   />
+                  {entry.extracted !== null && (
+                    <AccountGuessNote
+                      extracted={entry.extracted}
+                      fromAccountId={draft.fromAccountId}
+                    />
+                  )}
                 </FormField>
                 <FormField label="店舗" htmlFor={ids.place} className={styles.placeField}>
                   <PlaceInput

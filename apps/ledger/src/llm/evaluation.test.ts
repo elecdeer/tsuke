@@ -4,7 +4,9 @@ import type { ExtractedPayment } from "./extractPayment.ts";
 
 const actual: ExtractedPayment = {
   date: "2026-05-29",
+  paymentMethod: "クレジットカード",
   accountId: 1,
+  accountMatch: "inferred",
   placeName: "Amazon.co.jp",
   items: [
     { name: "洗剤", amount: 2299, memo: null, genreId: 10 },

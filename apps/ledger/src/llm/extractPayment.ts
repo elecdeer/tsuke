@@ -70,7 +70,14 @@ const ExtractedPaymentItemSchema = v.strictObject({
  */
 export const ExtractedPaymentSchema = v.strictObject({
   date: v.nullable(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
+  /** 表示・印字された支払い方法の文字（「クレジット」「VISA ****1234」など）。口座を選ぶ根拠を画面に出すために読ませる */
+  paymentMethod: v.nullable(v.string()),
   accountId: v.nullable(v.number()),
+  /**
+   * 口座を支払い方法の表記から決めきれたか。`explicit` は表記（と口座のヒント）で 1 つに決まったとき、
+   * `inferred` は「クレジット」のように表記だけでは決まらず推測したとき。口座を選ばなかったときは null
+   */
+  accountMatch: v.nullable(v.picklist(["explicit", "inferred"])),
   placeName: v.nullable(v.string()),
   items: v.array(ExtractedPaymentItemSchema),
   /** 印字・表示された支払いの合計。品目の合計と比べて読み違いに気づくために読ませる */
@@ -97,6 +104,16 @@ export const ACCOUNT_NOTES_RULE =
  */
 export const TAX_ITEM_RULE =
   "- Tax: when prices are tax-exclusive (外税, 税抜) and the tax is shown separately, keep each item's `amount` as shown (before tax) and add the tax as its own item: one item per tax line as shown (e.g. `外税 10%`, `消費税`), with that line's amount, `memo` null, and the `genreId` of the largest item. Do not add tax to the items' amounts. When prices already include tax (内税, 税込, `内消費税`), the tax lines are only a breakdown; do NOT make items from them. Either way, the items must sum to the total paid.";
+
+/**
+ * 支払い方法の表記と、口座の決め方の確かさの読み方。レシートとページからの抽出で共通に使う。
+ *
+ * 「クレジット」とだけ書かれた支払いに口座を当てたときに、推測だと画面で分かるようにするため
+ */
+export const PAYMENT_METHOD_RULE = [
+  "- `paymentMethod`: the payment method as shown (e.g. `クレジット`, `VISA ****1234`, `PayPay`, `現金`), copied as is; null when it is not shown.",
+  "- `accountMatch`: how the chosen `accountId` was determined. `explicit` when the shown payment method alone (or with the account's `hint:`) points to exactly that account, e.g. a card brand or last digits, or an e-money / QR service that only one account fits. `inferred` when the method is generic (e.g. only `クレジット` or `カード`), fits several accounts, or is not shown, and you chose the account by guess. null when `accountId` is null.",
+].join("\n");
 
 /** 合計の読み方。レシートとページからの抽出で共通に使う */
 export const TOTAL_RULE =
@@ -199,7 +216,8 @@ export const buildPrompt = (input: ExtractPaymentContext): { system: string; pro
     "Extract payment info from a web page accessibility snapshot (receipt, order confirmation, invoice, transaction history, etc.) for a household ledger.",
     "",
     "Rules:",
-    `- \`accountId\` must be one of the provided account IDs; otherwise null. ${ACCOUNT_NOTES_RULE}`,
+    `- \`accountId\` must be one of the provided account IDs; otherwise null. Infer it from the payment method shown on the page. ${ACCOUNT_NOTES_RULE}`,
+    PAYMENT_METHOD_RULE,
     '- `date`: "YYYY-MM-DD"; prefer the order/purchase date when several exist.',
     `- \`placeName\`: use a recent store name as is when it clearly fits, else extract the merchant name from the page. ${PLACE_NOTES_RULE}`,
     TOTAL_RULE,

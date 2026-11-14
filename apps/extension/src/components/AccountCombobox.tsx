@@ -1,4 +1,4 @@
-import { XIcon } from "lucide-react";
+import { InfoIcon, XIcon } from "lucide-react";
 import { Suspense, useId } from "react";
 import { Button } from "@tsuke/ui/components/button";
 import {
@@ -19,6 +19,7 @@ import { useSuspenseQuery } from "@/lib/query";
 import { accountsQuery, type AccountsResponse } from "../queries";
 import { FormField } from "@tsuke/ui/patterns/FormField";
 import { FieldError, FieldLoading } from "@/components/FieldStatus";
+import styles from "./AccountCombobox.module.css";
 
 type Account = AccountsResponse["accounts"][number];
 
@@ -26,6 +27,8 @@ interface Props {
   serverUrl: string;
   value: number | null;
   onChange: (value: number | null) => void;
+  /** 欄の下に添える知らせ（AI が推測で選んだ口座であることなど） */
+  note?: string | null;
 }
 
 const LABEL = "口座";
@@ -34,7 +37,7 @@ const LABEL = "口座";
  * 口座選択の combobox コンポーネント。
  * 台帳が返す順（アーカイブしていない口座を並び順で）に表示する。
  */
-export const AccountCombobox = ({ serverUrl, value, onChange }: Props) => {
+export const AccountCombobox = ({ serverUrl, value, onChange, note = null }: Props) => {
   const id = useId();
   if (!serverUrl) return null;
 
@@ -45,6 +48,12 @@ export const AccountCombobox = ({ serverUrl, value, onChange }: Props) => {
           <AccountComboboxContent id={id} serverUrl={serverUrl} value={value} onChange={onChange} />
         </Suspense>
       </ErrorBoundary>
+      {note !== null && (
+        <p className={styles.Note}>
+          <InfoIcon className={styles.icon} aria-hidden="true" />
+          {note}
+        </p>
+      )}
     </FormField>
   );
 };
