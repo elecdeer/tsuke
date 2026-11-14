@@ -87,6 +87,15 @@ export const PLACE_NOTES_RULE =
 export const ACCOUNT_NOTES_RULE =
   "An account line may add `hint:` (the user's note on how to recognize or when to choose the account; follow it).";
 
+/**
+ * 外税の税の行の扱い。レシートとページからの抽出で共通に使う。
+ *
+ * 税を品目の金額に配分させないのは、税は税率ごとの小計にかけて端数を処理するので、
+ * 品目ごとに税を足すと合計がずれるうえ、配分を落とすと税の分だけ合計が少なくなるため
+ */
+export const TAX_ITEM_RULE =
+  "- Tax: when prices are tax-exclusive (外税, 税抜) and the tax is shown separately, keep each item's `amount` as shown (before tax) and add the tax as its own item: one item per tax line as shown (e.g. `外税 10%`, `消費税`), with that line's amount, `memo` null, and the `genreId` of the largest item. Do not add tax to the items' amounts. When prices already include tax (内税, 税込, `内消費税`), the tax lines are only a breakdown; do NOT make items from them. Either way, the items must sum to the total paid.";
+
 const ARIA_SNAPSHOT_MAX_CHARS = 16000;
 const RECENT_PLACES_LIMIT = 20;
 
@@ -193,6 +202,7 @@ export const buildPrompt = (input: ExtractPaymentContext): { system: string; pro
     "`items` (one per line item):",
     "- Split itemized receipts/orders into one entry per product; single payments → one item.",
     "- `amount` is the per-item subtotal in JPY (integer); items should sum to the page total when shown. Discounts are separate items with negative amounts.",
+    TAX_ITEM_RULE,
     "- `name` is the product/service name; `memo` is a short note (e.g. quantity, variant) only when helpful.",
     "- `genreId` is the per-item genre. Must be one of the provided genre IDs; otherwise null.",
     "  Pick the genre by its parent category context — the listing shows `categoryId=name: genreId=name, ...` so you can see which genres belong to which category.",

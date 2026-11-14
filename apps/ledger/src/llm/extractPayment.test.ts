@@ -13,6 +13,7 @@ import {
   formatRecentPlacesForPrompt,
   resolvePlaceAlias,
   runExtractPayment,
+  TAX_ITEM_RULE,
   type ExtractPaymentContext,
   type PlaceForPrompt,
 } from "./extractPayment.ts";
@@ -101,6 +102,11 @@ describe("buildPrompt", () => {
   test("値引きは値引きの対象と同じ内訳にするよう指示する", () => {
     const { system } = buildPrompt(baseInput());
     expect(system).toContain("A discount item takes the same `genreId` as the item it discounts.");
+  });
+
+  test("外税の税は品目に配分せず、税の品目として出すよう指示する", () => {
+    const { system } = buildPrompt(baseInput());
+    expect(system).toContain(TAX_ITEM_RULE);
   });
 });
 

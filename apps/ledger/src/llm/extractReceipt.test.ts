@@ -4,7 +4,7 @@
 import * as v from "valibot";
 import { describe, expect, test } from "vite-plus/test";
 import { createFakeModelProvider } from "./fakeModelProvider.ts";
-import { ACCOUNT_NOTES_RULE } from "./extractPayment.ts";
+import { ACCOUNT_NOTES_RULE, TAX_ITEM_RULE } from "./extractPayment.ts";
 import {
   buildReceiptPrompt,
   ReceiptImageSchema,
@@ -83,7 +83,13 @@ describe("buildReceiptPrompt", () => {
 
   test("合計・お預り・お釣りの行を品目にしないよう指示する", () => {
     const { system } = buildReceiptPrompt(baseInput());
-    expect(system).toContain("Do NOT make items from subtotal, total, tax, tendered");
+    expect(system).toContain("Do NOT make items from subtotal, total, tendered");
+  });
+
+  test("外税の税は品目に配分せず、税の品目として出すよう指示する", () => {
+    const { system } = buildReceiptPrompt(baseInput());
+    expect(system).toContain(TAX_ITEM_RULE);
+    expect(system).not.toContain("add the tax so the items sum");
   });
 
   test("読み取った店舗名はチェーン名と支店名を空白で区切るよう指示する", () => {
