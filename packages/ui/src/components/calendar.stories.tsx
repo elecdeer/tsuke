@@ -20,7 +20,7 @@ const ControlledCalendar = () => {
       selected={selected}
       defaultMonth={selected}
       onSelect={setSelected}
-      className="border"
+      style={{ borderWidth: 1 }}
     />
   );
 };

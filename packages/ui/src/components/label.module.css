@@ -1,0 +1,12 @@
+@layer ui-primitive {
+  .Label {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}

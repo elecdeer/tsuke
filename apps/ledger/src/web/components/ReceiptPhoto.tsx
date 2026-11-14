@@ -9,6 +9,7 @@ import {
   DialogTrigger,
 } from "@tsuke/ui/components/dialog";
 import { cn } from "@tsuke/ui/lib/utils";
+import styles from "./ReceiptPhoto.module.css";
 import { cropLayout, type ReceiptCrop } from "@/web/receiptCrop";
 
 /**
@@ -33,14 +34,14 @@ export const ReceiptPhoto = ({
   const layout = cropped && natural !== null ? cropLayout(crop, natural) : null;
 
   return (
-    <div className="relative">
+    <div className={styles.ReceiptPhoto}>
       {crop !== null && (
         <Button
           type="button"
           variant="outline"
           size="sm"
-          // レシートの上に重ねるので、下の文字に紛れないよう背景で塗る
-          className="absolute top-1 right-1 z-10 bg-background hover:bg-muted"
+          // レシートの上に重ねるので、下の文字に紛れないよう背景で塗る（outline のボタンは背景を塗る）
+          className={styles.toggle}
           onClick={() => setShowsWhole(!showsWhole)}
         >
           {showsWhole ? <Crop /> : <Maximize />}
@@ -48,7 +49,7 @@ export const ReceiptPhoto = ({
         </Button>
       )}
       <div
-        className="relative overflow-hidden border"
+        className={styles.frame}
         style={layout === null ? undefined : { aspectRatio: layout.aspectRatio }}
       >
         <img
@@ -60,13 +61,9 @@ export const ReceiptPhoto = ({
               height: event.currentTarget.naturalHeight,
             })
           }
-          // 細かい文字を読めるよう幅いっぱいに出す。長いレシートはスクロールして見る
-          className={
-            cropped
-              ? // 大きさが分かるまでは位置を決められないので、一瞬でも全体が見えないよう隠す
-                `absolute max-w-none ${layout === null ? "invisible" : ""}`
-              : "block h-auto w-full"
-          }
+          className={styles.image}
+          data-cropped={cropped || undefined}
+          data-pending={(cropped && layout === null) || undefined}
           style={layout?.image}
         />
       </div>
@@ -87,25 +84,20 @@ export const ReceiptPhotoThumbnail = ({
 }: {
   src: string;
   crop: ReceiptCrop | null;
+  /** 並べる側が、見本を出す画面の幅（狭い画面だけなど）を決めるときに使う */
   className?: string;
 }) => (
   <Dialog>
-    <DialogTrigger
-      aria-label="レシートの写真を開く"
-      className={cn(
-        "relative block h-12 w-9 shrink-0 overflow-hidden border bg-muted outline-offset-2",
-        className,
-      )}
-    >
+    <DialogTrigger aria-label="レシートの写真を開く" className={cn(styles.Thumbnail, className)}>
       {/* 小さな見本では切り取らない。どのレシートか分かれば足りる */}
-      <img src={src} alt="" className="size-full object-cover" />
+      <img src={src} alt="" className={styles.thumbnailImage} />
     </DialogTrigger>
-    <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-3 sm:max-w-lg">
+    <DialogContent size="lg" layout="column" gap="tight">
       <DialogHeader>
         <DialogTitle>レシートの写真</DialogTitle>
       </DialogHeader>
       {/* 閉じるボタンと写真の切り替えが重ならないよう、写真は見出しの下でスクロールさせる */}
-      <div className="-mx-4 -mb-4 min-h-0 overflow-y-auto overscroll-contain px-4 pb-4">
+      <div className={styles.DialogBody}>
         <ReceiptPhoto src={src} crop={crop} alt="確かめているレシート" />
       </div>
     </DialogContent>

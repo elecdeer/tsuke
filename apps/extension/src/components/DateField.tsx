@@ -1,10 +1,11 @@
 import { CalendarDaysIcon } from "lucide-react";
 import { useId, useState } from "react";
-import { buttonVariants } from "@tsuke/ui/components/button";
+import { buttonStyleProps } from "@tsuke/ui/components/button";
 import { Calendar } from "@tsuke/ui/components/calendar";
 import { Input } from "@tsuke/ui/components/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@tsuke/ui/components/popover";
 import { FormField } from "@tsuke/ui/patterns/FormField";
+import styles from "./DateField.module.css";
 
 interface Props {
   /** ISO date string `YYYY-MM-DD` */
@@ -50,10 +51,10 @@ export const DateField = ({ value, onChange, required }: Props) => {
 
   return (
     <FormField label="日付" htmlFor={id}>
-      <div className="flex min-w-0 items-center gap-0.5">
+      <div className={styles.DateField}>
         <Input
           id={id}
-          className="min-w-0 flex-1 tabular-nums"
+          className={styles.input}
           type="text"
           inputMode="numeric"
           pattern="\d{4}-\d{2}-\d{2}"
@@ -64,12 +65,12 @@ export const DateField = ({ value, onChange, required }: Props) => {
         />
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger
-            className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+            {...buttonStyleProps({ variant: "ghost", size: "icon-sm", tone: "muted" })}
             aria-label="カレンダーを開く"
           >
-            <CalendarDaysIcon className="text-muted-foreground" aria-hidden="true" />
+            <CalendarDaysIcon aria-hidden="true" />
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="end" sideOffset={4}>
+          <PopoverContent variant="bare" align="end" sideOffset={4}>
             <Calendar
               mode="single"
               selected={selectedDate}

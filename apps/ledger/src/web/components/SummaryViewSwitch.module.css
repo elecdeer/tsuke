@@ -1,0 +1,26 @@
+/* 月・年の切り替え。今の単位はヘッダーのナビと同じ赤の下線で示す */
+.SummaryViewSwitch {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+
+  > .link {
+    padding-bottom: 0.125rem;
+    color: var(--muted-foreground);
+    border-color: transparent;
+    border-bottom-width: 2px;
+
+    @media (hover: hover) {
+      &:hover {
+        color: var(--foreground);
+      }
+    }
+
+    &[aria-current="page"] {
+      font-weight: 500;
+      color: var(--foreground);
+      border-color: var(--primary);
+    }
+  }
+}

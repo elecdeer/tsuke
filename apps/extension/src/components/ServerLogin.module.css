@@ -1,0 +1,49 @@
+/*
+ * 台帳の設定の画面（apps/ledger/pages/settings/index.tsx）のアカウントの行にそろえ、
+ * 箱で囲まず、見出しの下の黒の線から行を始める
+ */
+.ServerLogin {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  > .title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.25rem;
+  }
+
+  > .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 1rem;
+    align-items: center;
+    padding-block: 0.625rem;
+    border-top: 1px solid var(--foreground);
+    border-bottom-width: 1px;
+
+    > .status {
+      display: flex;
+      flex-direction: column;
+      gap: 0.125rem;
+      min-width: 0;
+
+      > .statusLabel {
+        font-size: 0.75rem;
+        line-height: 1rem;
+        color: var(--muted-foreground);
+      }
+
+      > .email {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    > .actions {
+      display: flex;
+      gap: 0.25rem;
+    }
+  }
+}

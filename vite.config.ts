@@ -55,7 +55,7 @@ export default defineConfig({
         plugins: ["react", "react-perf", "jsx-a11y", "vitest"],
       },
       {
-        // shadcn/ui が自動生成するコンポーネントは関数宣言スタイルなのでルールを緩める
+        // shadcn/ui から取り込んだコンポーネントは関数宣言スタイルなのでルールを緩める
         files: ["packages/ui/src/components/**/*.{ts,tsx}"],
         plugins: ["react", "react-perf", "jsx-a11y", "vitest"],
         rules: {

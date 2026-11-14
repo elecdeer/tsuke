@@ -8,7 +8,7 @@ import { SettingsOverlay } from "./SettingsOverlay.tsx";
 const ControlledWrapper = () => {
   const [open, setOpen] = useState(true);
   return (
-    <div className="p-4">
+    <div style={{ padding: "1rem" }}>
       <Button type="button" variant="outline" onClick={() => setOpen(true)}>
         設定を開く
       </Button>

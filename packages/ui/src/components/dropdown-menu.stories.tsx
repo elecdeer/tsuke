@@ -23,7 +23,7 @@ const meta = preview.meta({
       >
         <Ellipsis />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-auto">
+      <DropdownMenuContent align="start" width="auto">
         <DropdownMenuItem disabled>
           <ArrowUp />
           上へ

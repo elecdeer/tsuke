@@ -2,7 +2,7 @@ import { Link, useRouter } from "@void/react";
 import { type TransitionEvent, useEffect, useState } from "react";
 import { submitAction } from "void/pages-client";
 import { Maximize2, Plus, RotateCcw, TriangleAlert, X } from "lucide-react";
-import { buttonVariants } from "@tsuke/ui/components/button";
+import { buttonStyleProps } from "@tsuke/ui/components/button";
 import {
   Select,
   SelectContent,
@@ -17,7 +17,6 @@ import type {
 } from "@/ledger/transactions";
 import { advanceStatusOf, unreceivedAmountOf } from "@/ledger/advance";
 import { shiftMonth } from "@/ledger/dates";
-import { cn } from "@tsuke/ui/lib/utils";
 import { categoryLabels, categoryValueOf, parseCategoryValue } from "@/web/categoryValue";
 import { Section } from "@tsuke/ui/patterns/Section";
 import { FavoriteButton } from "@/web/components/FavoriteButton";
@@ -33,6 +32,8 @@ import { titleOf } from "@/web/transactionTitle";
 import { createMonthPageCache } from "@/web/monthPageCache";
 import { isFiltered, transactionsHref } from "@/web/transactionsHref";
 import type { Props } from "./index.server";
+import { PageTitle } from "@tsuke/ui/patterns/PageTitle";
+import styles from "./index.module.css";
 
 /** 立替の絞り込みの選択肢 */
 const ADVANCE_FILTER_LABELS = { any: "立替あり", unreceived: "未入金" } as const;
@@ -75,7 +76,7 @@ const Filters = ({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+    <div className={styles.Filters}>
       <Select
         items={modeItems}
         value={filter.mode ?? ""}
@@ -173,15 +174,15 @@ const Filters = ({
         </Select>
       )}
       {filter.placeId !== undefined && (
-        <span className="flex h-7 items-center gap-1 border-b border-foreground text-sm">
+        <span className={styles.placeChip}>
           {placeName ?? "（削除された店舗）"}
           <button
             type="button"
             aria-label="店舗の絞り込みを外す"
-            className="p-0.5 text-muted-foreground hover:text-foreground"
+            className={styles.chipRemove}
             onClick={() => visit({ placeId: undefined })}
           >
-            <X className="size-3.5" />
+            <X className={styles.chipRemoveIcon} />
           </button>
         </span>
       )}
@@ -189,9 +190,9 @@ const Filters = ({
         <Link
           href={transactionsHref({ month: filter.month })}
           preserveScroll
-          className="flex h-7 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          className={styles.reset}
         >
-          <RotateCcw className="size-3.5" aria-hidden="true" />
+          <RotateCcw className={styles.resetIcon} aria-hidden="true" />
           リセット
         </Link>
       )}
@@ -212,24 +213,24 @@ const ListTotals = ({ transactions }: { transactions: TransactionListItem[] }) =
     0,
   );
   return (
-    <dl className="flex flex-wrap gap-x-5 text-xs text-muted-foreground">
-      <div className="flex gap-1.5">
+    <dl className={styles.Totals}>
+      <div className={styles.total}>
         <dt>件数</dt>
-        <dd className="text-foreground tabular-nums">{transactions.length}</dd>
+        <dd className={styles.totalValue}>{transactions.length}</dd>
       </div>
-      <div className="flex gap-1.5">
+      <div className={styles.total}>
         <dt>支出</dt>
-        <dd className="text-foreground tabular-nums">{formatAmount(sumOf("payment"))}</dd>
+        <dd className={styles.totalValue}>{formatAmount(sumOf("payment"))}</dd>
       </div>
       {advanceTotal > 0 && (
-        <div className="flex gap-1.5">
+        <div className={styles.total}>
           <dt>うち立替</dt>
-          <dd className="text-foreground tabular-nums">{formatAmount(advanceTotal)}</dd>
+          <dd className={styles.totalValue}>{formatAmount(advanceTotal)}</dd>
         </div>
       )}
-      <div className="flex gap-1.5">
+      <div className={styles.total}>
         <dt>収入</dt>
-        <dd className="text-foreground tabular-nums">{formatAmount(sumOf("income"))}</dd>
+        <dd className={styles.totalValue}>{formatAmount(sumOf("income"))}</dd>
       </div>
     </dl>
   );
@@ -313,7 +314,7 @@ const TransactionRow = ({
   const isMove = transaction.mode === "transfer" || transaction.mode === "adjustment";
   const advanceSummary = advanceSummaryOf(transaction);
   return (
-    <li className="border-b">
+    <li className={styles.TransactionRow}>
       <Link
         // JavaScript が動く前や狭い画面では、取引の画面へ移る
         href={`/transactions/${transaction.id}`}
@@ -323,49 +324,38 @@ const TransactionRow = ({
           event.preventDefault();
           void router.visit(transactionsHref(filter, transaction.id), { preserveScroll: true });
         }}
-        className={cn(
-          "grid grid-cols-[minmax(0,1fr)_6rem] items-baseline gap-x-4 py-2.5 hover:bg-muted/60 sm:grid-cols-[minmax(0,1fr)_9rem_6rem]",
-          isMove && "text-muted-foreground",
-          selected && "bg-muted",
-        )}
+        className={styles.rowLink}
+        data-move={isMove || undefined}
       >
-        <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate">
+        <span className={styles.main}>
+          <span className={styles.title}>
             {transaction.mode !== "payment" && (
-              <span className="mr-2 text-xs text-muted-foreground">
-                {MODE_LABELS[transaction.mode]}
-              </span>
+              <span className={styles.mode}>{MODE_LABELS[transaction.mode]}</span>
             )}
             {titleOf(transaction)}
           </span>
           {(details.length > 0 || accountName !== null) && (
-            <span className="truncate text-xs text-muted-foreground">
+            <span className={styles.details}>
               {details.join("・")}
               {/* 狭い画面では口座の列を出さないので、ここに続けて書く */}
               {accountName !== null && (
-                <span className="sm:hidden">
+                <span className={styles.detailsAccount}>
                   {details.length > 0 && "・"}
                   {accountName}
                 </span>
               )}
             </span>
           )}
-          {advanceSummary !== null && (
-            <span className="truncate text-xs text-muted-foreground tabular-nums">
-              {advanceSummary}
-            </span>
-          )}
+          {advanceSummary !== null && <span className={styles.advance}>{advanceSummary}</span>}
           {transaction.aggregation !== "always" && (
-            <span className="flex items-center gap-1 text-xs text-destructive">
-              <TriangleAlert className="size-3.5" aria-hidden="true" />
+            <span className={styles.aggregation}>
+              <TriangleAlert className={styles.aggregationIcon} aria-hidden="true" />
               {transaction.aggregation === "never" ? "集計に含めない" : "年の集計にのみ含める"}
             </span>
           )}
         </span>
-        <span className="hidden truncate text-xs text-muted-foreground sm:block">
-          {accountName}
-        </span>
-        <span className="text-right tabular-nums">{amountOf(transaction)}</span>
+        <span className={styles.account}>{accountName}</span>
+        <span className={styles.amount}>{amountOf(transaction)}</span>
       </Link>
     </li>
   );
@@ -401,13 +391,11 @@ const SidePanel = ({
     <aside
       aria-label="取引の編集"
       inert={closing}
-      className={cn(
-        "ml-8 flex max-h-[calc(100dvh-var(--header-height)-2rem)] w-md shrink-0 flex-col gap-4 overflow-y-auto overscroll-contain border-l pl-6 transition-opacity duration-300 animate-in fade-in motion-reduce:transition-none motion-reduce:animate-none",
-        closing && "opacity-0",
-      )}
+      className={styles.SidePanel}
+      data-closing={closing || undefined}
     >
-      <div className="flex items-center gap-1">
-        <div className="mr-auto">
+      <div className={styles.panelHeader}>
+        <div className={styles.favorite}>
           <FavoriteButton
             favorite={selected.isFavorite}
             label="よく使う取引"
@@ -424,17 +412,17 @@ const SidePanel = ({
         <Link
           href={`/transactions/${transaction.id}`}
           aria-label="取引の画面で開く"
-          className="p-1 text-muted-foreground hover:text-foreground"
+          className={styles.panelLink}
         >
-          <Maximize2 className="size-4" aria-hidden="true" />
+          <Maximize2 className={styles.panelIcon} aria-hidden="true" />
         </Link>
         <Link
           href={transactionsHref(filter)}
           preserveScroll
           aria-label="パネルを閉じる"
-          className="p-1 text-muted-foreground hover:text-foreground"
+          className={styles.panelLink}
         >
-          <X className="size-4" aria-hidden="true" />
+          <X className={styles.panelIcon} aria-hidden="true" />
         </Link>
       </div>
       {/* 保存すると loader の値が変わるので、key を変えて入力中の値を保存した内容で作り直す */}
@@ -485,39 +473,35 @@ const TransactionList = ({
 }) => {
   const unreceivedOnly = filter.advance === "unreceived";
   return (
-    <div className="flex flex-col gap-8">
-      <Section label="" className="gap-y-0">
+    <div className={styles.TransactionList}>
+      <Section label="" gap="none">
         <ListTotals transactions={transactions} />
       </Section>
       {transactions.length === 0 ? (
         <Section label="">
-          <p className="border-t border-foreground py-2.5 text-sm text-muted-foreground">
-            条件に合う取引はありません
-          </p>
+          <p className={styles.Empty}>条件に合う取引はありません</p>
         </Section>
       ) : (
         <div>
           {groupByDate(transactions).map((group, index) => (
             <Section
               key={group.date}
-              className="gap-y-0"
+              gap="none"
               // スクロールしても今見ている日付がわかるよう、日付をヘッダーの下に貼り付ける。
-              // 月のバーが出ているときはその下に並べる（未入金の一覧には月のバーがない）。
-              // 狭い画面では日付が行の上に積まれ、行と重なるので背景で隠す
-              labelClassName={cn(
-                "sticky z-10 self-start bg-background",
+              // 月のバーが出ているときはその下に並べる（未入金の一覧には月のバーがない）
+              stickyTop={
                 unreceivedOnly
-                  ? "top-(--header-height)"
-                  : "top-[calc(var(--header-height)+var(--month-bar-height))]",
-              )}
+                  ? "var(--header-height)"
+                  : "calc(var(--header-height) + var(--month-bar-height))"
+              }
               label={
-                <span className="block pt-2.5 text-xs font-normal text-muted-foreground tabular-nums">
+                <span className={styles.DayLabel}>
                   {unreceivedOnly ? formatFullDay(group.date) : formatDayOfMonth(group.date)}
                 </span>
               }
             >
               {/* 一覧の始まりにだけ黒の線を引く */}
-              <ul className={cn(index === 0 && "border-t border-foreground")}>
+              <ul className={styles.DayList} data-first={index === 0 || undefined}>
                 {group.items.map((transaction) => (
                   <TransactionRow
                     key={transaction.id}
@@ -551,14 +535,14 @@ const NeighborList = ({ href, filter }: { href: string; filter: TransactionFilte
  * 日ごとのまとまりは数が月ごとに変わるので、まるごと棒にする。
  */
 const TransactionListSkeleton = () => (
-  <div className="flex flex-col gap-8">
-    <Section label="" className="gap-y-0">
-      <dl className="flex flex-wrap gap-x-5 text-xs text-muted-foreground">
+  <div className={styles.TransactionList}>
+    <Section label="" gap="none">
+      <dl className={styles.Totals}>
         {["件数", "支出", "収入"].map((label) => (
-          <div key={label} className="flex gap-1.5">
+          <div key={label} className={styles.total}>
             <dt>{label}</dt>
             <dd>
-              <SkeletonText className={label === "件数" ? "w-4" : "w-12"} />
+              <SkeletonText width={label === "件数" ? "xs" : "sm"} />
             </dd>
           </div>
         ))}
@@ -616,53 +600,44 @@ const TransactionsPage = ({
 
   return (
     <div
-      // パネルの列は閉じていても 0 幅で置いておき、開け閉めで列の幅を動かす。
-      // 一覧の幅も同時にレイアウトの最大幅のトランジションで広がるので、同じ長さにそろえる
-      className={cn(
-        "grid xl:grid-cols-[minmax(0,1fr)_0rem] xl:items-start xl:transition-[grid-template-columns] xl:duration-300 xl:ease-out motion-reduce:transition-none",
-        selected !== null && "xl:grid-cols-[minmax(0,1fr)_30rem]",
-      )}
+      className={styles.TransactionsPage}
+      data-panel-open={selected !== null || undefined}
       onTransitionEnd={onTransitionEnd}
     >
-      <div className="flex min-w-0 flex-col gap-8">
+      <div className={styles.main}>
         {!unreceivedOnly && (
           <StickyMonthBar month={filter.month} hrefOf={monthHref} shown={monthHeadingHidden} />
         )}
-        <div className="grid gap-x-4 gap-y-6 md:grid-cols-12 md:items-end">
-          <div className="md:col-span-3">
+        <div className={styles.header}>
+          <div className={styles.headingColumn}>
             {unreceivedOnly ? (
-              <h1 className="text-2xl font-semibold">未入金の立替</h1>
+              <PageTitle>未入金の立替</PageTitle>
             ) : (
               <MonthHeading month={filter.month} hrefOf={monthHref} headingRef={headingRef} />
             )}
           </div>
-          <div className="flex flex-col gap-3 md:col-span-9">
-            {/* 狭い画面ではボタンを上の行に出し、フィルタに全幅を使わせて横に折り返す */}
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-x-5">
-              <div className="min-w-0 md:flex-1">
-                <Filters
-                  filter={filter}
-                  accounts={accounts}
-                  categories={categories}
-                  placeName={placeName}
-                  chainNames={chainNames}
-                />
-              </div>
-              <div className="order-first flex shrink-0 items-center justify-end gap-3 md:order-last">
-                <Link
-                  href="/statements/import"
-                  className="text-xs text-muted-foreground underline hover:text-foreground"
-                >
-                  CSV の取り込み
-                </Link>
-                <Link
-                  href="/transactions/new"
-                  className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-                >
-                  <Plus aria-hidden="true" />
-                  追加
-                </Link>
-              </div>
+          {/* 狭い画面ではボタンを上の行に出し、フィルタに全幅を使わせて横に折り返す */}
+          <div className={styles.controls}>
+            <div className={styles.filtersColumn}>
+              <Filters
+                filter={filter}
+                accounts={accounts}
+                categories={categories}
+                placeName={placeName}
+                chainNames={chainNames}
+              />
+            </div>
+            <div className={styles.actions}>
+              <Link href="/statements/import" className={styles.importLink}>
+                CSV の取り込み
+              </Link>
+              <Link
+                href="/transactions/new"
+                {...buttonStyleProps({ variant: "outline", size: "sm" })}
+              >
+                <Plus aria-hidden="true" />
+                追加
+              </Link>
             </div>
           </div>
         </div>
@@ -682,11 +657,7 @@ const TransactionsPage = ({
           </PeriodPager>
         )}
       </div>
-      {/*
-       * 列の幅に合わせて中身を切り取り、右に寄せておくことで、パネルが右から滑り込んで見えるようにする。
-       * overflow: hidden だとスクロールの箱になって sticky が効かなくなるので clip にする
-       */}
-      <div className="hidden xl:sticky xl:top-[calc(var(--header-height)+1rem)] xl:flex xl:justify-end xl:overflow-clip">
+      <div className={styles.panelColumn}>
         {shown !== null && (
           <SidePanel
             filter={filter}

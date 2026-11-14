@@ -1,0 +1,117 @@
+.TransactionNewPage {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.Form {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.ModeField {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--foreground);
+}
+
+/* 取引の種類を選ぶボタンの列 */
+.ModePicker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.TemplatesEmpty {
+  padding-top: 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+  border-top: 1px solid var(--foreground);
+
+  > .starIcon {
+    display: inline;
+    width: 0.875rem;
+    height: 0.875rem;
+    margin-inline: 0.25rem;
+    vertical-align: text-bottom;
+  }
+}
+
+.Templates {
+  border-top: 1px solid var(--foreground);
+
+  > .template {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    border-bottom-width: 1px;
+
+    > .templateButton {
+      display: grid;
+      flex: 1;
+      grid-template-columns: minmax(0, 1fr) 6rem;
+      column-gap: 1rem;
+      align-items: baseline;
+      min-width: 0;
+      padding-block: 0.625rem;
+      text-align: left;
+
+      @media (hover: hover) {
+        &:hover {
+          background-color: color-mix(in oklab, var(--muted) 60%, transparent);
+        }
+      }
+
+      > .templateText {
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+        min-width: 0;
+
+        > .templateTitle {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+
+          > .templateMode {
+            margin-right: 0.5rem;
+            font-size: 0.75rem;
+            line-height: 1rem;
+            color: var(--muted-foreground);
+          }
+        }
+
+        > .templateDetails {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          font-size: 0.75rem;
+          line-height: 1rem;
+          color: var(--muted-foreground);
+          white-space: nowrap;
+        }
+      }
+
+      > .templateAmount {
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+    }
+  }
+}
+
+.Footer {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+
+  /* スマホでは幅いっぱいにして親指で押しやすくする（レシートの登録と同じ） */
+  > .submit {
+    width: 100%;
+
+    @media (width >= 40rem) {
+      align-self: flex-start;
+      width: auto;
+    }
+  }
+}

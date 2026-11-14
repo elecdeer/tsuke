@@ -29,7 +29,8 @@ import {
   type LngLat,
   type Poi,
 } from "@/web/openPoi";
-import { poiKindColor, PoiKindIcon } from "@/web/components/PoiKindIcon";
+import { poiColorProps, poiKindColor, PoiKindIcon } from "@/web/components/PoiKindIcon";
+import styles from "./PlaceMapDialog.module.css";
 import { adjustMapStyle, MAP_STYLE_URL } from "@/web/mapStyle";
 import { cn } from "@tsuke/ui/lib/utils";
 
@@ -43,9 +44,6 @@ const SEARCH_DELAY = 300;
 
 const INITIAL_ZOOM = 16;
 
-const MARKER_LABEL_CLASS =
-  "pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 rounded-md bg-popover px-1.5 py-0.5 text-xs whitespace-nowrap text-popover-foreground shadow-sm";
-
 /**
  * 地図に置く印の土台を作る。
  */
@@ -53,7 +51,7 @@ const createMarkerRoot = (name: string) => {
   const element = document.createElement("button");
   element.type = "button";
   element.ariaLabel = name;
-  element.className = "group hover:z-10 focus-visible:z-10";
+  element.className = styles.Marker;
   return element;
 };
 
@@ -63,7 +61,7 @@ const createMarkerRoot = (name: string) => {
 const createCurrentMarkerElement = () => {
   const element = createMarkerRoot("現在地");
   const dot = document.createElement("span");
-  dot.className = "block size-3 rounded-full border-[3px] border-white bg-blue-600 shadow-sm";
+  dot.className = styles.currentDot;
   element.appendChild(dot);
   return element;
 };
@@ -71,31 +69,23 @@ const createCurrentMarkerElement = () => {
 /**
  * 施設のピン。先が下を向いたしずく形で、中に種類のアイコンを出す。選ぶと大きくなり、縁が付いて名前が出る。
  */
-const PoiPin = ({ poi, selected }: { poi: Poi; selected: boolean }) => (
-  <>
-    <span
-      className={cn(
-        // しずくの先は四角を回したぶん箱の外へ出るので、その分を余白で取り、先を土台の下端に合わせる
-        "flex -rotate-45 items-center justify-center rounded-[50%_50%_50%_0] border border-white shadow-md",
-        poiKindColor(poi.kind).pin,
-        selected ? "mb-2 size-9 ring-2 ring-neutral-900" : "mb-[5px] size-6",
-      )}
-    >
-      <PoiKindIcon
-        kind={poi.kind}
-        className={cn("rotate-45 text-white", selected ? "size-5" : "size-3.5")}
-      />
-    </span>
-    <span
-      className={cn(
-        MARKER_LABEL_CLASS,
-        !selected && "hidden group-hover:block group-focus-visible:block",
-      )}
-    >
-      {poi.name}
-    </span>
-  </>
-);
+const PoiPin = ({ poi, selected }: { poi: Poi; selected: boolean }) => {
+  const { className: colorClassName, ...colorProps } = poiColorProps(poi.kind);
+  return (
+    <>
+      <span
+        className={cn(styles.pin, colorClassName)}
+        data-selected={selected || undefined}
+        {...colorProps}
+      >
+        <PoiKindIcon kind={poi.kind} className={styles.pinIcon} />
+      </span>
+      <span className={styles.label} data-selected={selected || undefined}>
+        {poi.name}
+      </span>
+    </>
+  );
+};
 
 const formatDistance = (meters: number) =>
   meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`;
@@ -403,12 +393,9 @@ const PlaceMap = ({ onSelect }: { onSelect: (poi: Poi) => void }) => {
       {pinRoots.map(({ poi, element }) =>
         createPortal(<PoiPin poi={poi} selected={poi === selected} />, element, poiKey(poi)),
       )}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 md:grid md:grid-cols-[minmax(0,1fr)_22rem] md:grid-rows-[auto_minmax(0,1fr)]">
-        <form
-          className="flex flex-col gap-1.5 md:col-start-2 md:row-start-1"
-          onSubmit={submitKeyword}
-        >
-          <div className="flex gap-1.5">
+      <div className={styles.PlaceMap}>
+        <form className={styles.search} onSubmit={submitKeyword}>
+          <div className={styles.searchRow}>
             <Input
               type="search"
               aria-label="キーワード"
@@ -431,7 +418,7 @@ const PlaceMap = ({ onSelect }: { onSelect: (poi: Poi) => void }) => {
               <LocateFixed />
             </Button>
           </div>
-          <div className="flex gap-1">
+          <div className={styles.scopes}>
             {SEARCH_SCOPES.map(({ value, label }) => (
               <Button
                 key={value}
@@ -446,19 +433,16 @@ const PlaceMap = ({ onSelect }: { onSelect: (poi: Poi) => void }) => {
             ))}
           </div>
         </form>
-        <div
-          ref={containerRef}
-          className="isolate min-h-0 w-full flex-3 rounded-md border md:col-start-1 md:row-span-2 md:row-start-1"
-        />
-        <div className="flex min-h-0 flex-2 flex-col gap-2 md:col-start-2 md:row-start-2">
-          <div aria-live="polite" className="text-xs text-muted-foreground">
+        <div ref={containerRef} className={styles.map} />
+        <div className={styles.results}>
+          <div aria-live="polite" className={styles.status}>
             {busy ? (
-              <span className="flex items-center gap-1.5">
-                <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+              <span className={styles.busy}>
+                <LoaderCircle className={styles.spinner} aria-hidden="true" />
                 {status.type === "locating" ? "現在地を調べています" : "探しています"}
               </span>
             ) : status.type === "error" ? (
-              <span role="alert" className="text-destructive">
+              <span role="alert" className={styles.error}>
                 {status.message}
               </span>
             ) : (
@@ -469,30 +453,25 @@ const PlaceMap = ({ onSelect }: { onSelect: (poi: Poi) => void }) => {
             )}
           </div>
           {result.pois.length > 0 && (
-            <ul ref={listRef} className="-mx-1 min-h-0 flex-1 overflow-y-auto">
+            <ul ref={listRef} className={styles.list}>
               {result.pois.map((poi, index) => (
-                <li key={poiKey(poi)}>
+                <li key={poiKey(poi)} className={styles.item}>
                   <button
                     type="button"
                     data-poi-index={index}
                     aria-pressed={poi === selected}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left hover:bg-muted",
-                      poi === selected && "bg-muted",
-                    )}
+                    className={cn(styles.itemButton, poiColorProps(poi.kind).className)}
+                    data-poi-color={poiKindColor(poi.kind)}
                     onClick={() => setSelected(poi)}
                   >
-                    <PoiKindIcon
-                      kind={poi.kind}
-                      className={cn("size-4 shrink-0", poiKindColor(poi.kind).text)}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{poi.name}</span>
-                      <span className="block truncate text-xs text-muted-foreground">
+                    <PoiKindIcon kind={poi.kind} className={styles.kindIcon} />
+                    <span className={styles.itemText}>
+                      <span className={styles.itemName}>{poi.name}</span>
+                      <span className={styles.itemNote}>
                         {[poi.kind, poi.address].filter((text) => text !== "").join("・")}
                       </span>
                     </span>
-                    <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                    <span className={styles.distance}>
                       {formatDistance(distance(result.origin, poi.position))}
                     </span>
                   </button>
@@ -502,10 +481,10 @@ const PlaceMap = ({ onSelect }: { onSelect: (poi: Poi) => void }) => {
           )}
         </div>
       </div>
-      <div className="-mx-4 -mb-4 flex items-center gap-2 rounded-b-xl border-t bg-muted/50 p-4">
-        <span className="min-w-0 flex-1 truncate">
+      <div className={styles.Footer}>
+        <span className={styles.selected}>
           {selected === null ? (
-            <span className="text-muted-foreground">選んでいません</span>
+            <span className={styles.placeholder}>選んでいません</span>
           ) : (
             selected.name
           )}
@@ -530,10 +509,10 @@ export const PlaceMapDialog = ({ onSelect }: { onSelect: (poi: Poi) => void }) =
       >
         <MapPin />
       </DialogTrigger>
-      <DialogContent className="flex h-[calc(100dvh-2rem)] flex-col sm:max-w-[min(calc(100%-2rem),72rem)] md:max-h-200">
+      <DialogContent size="xl" layout="column">
         <DialogHeader>
           <DialogTitle>地図から店舗を選ぶ</DialogTitle>
-          <DialogDescription className="sr-only">
+          <DialogDescription visuallyHidden>
             地図に出ている範囲の店舗を地図と一覧に出します
           </DialogDescription>
         </DialogHeader>

@@ -1,0 +1,15 @@
+@layer ui {
+  /* 画面の見出し。その画面が何かを一番大きな文字で示す */
+  .PageTitle {
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 2rem;
+
+    /* 見出しのほかに大きな数字を置かない画面（設定など）では、さらに大きく出す */
+    &[data-size="lg"] {
+      font-size: 1.875rem;
+      line-height: 2.25rem;
+      letter-spacing: -0.025em;
+    }
+  }
+}

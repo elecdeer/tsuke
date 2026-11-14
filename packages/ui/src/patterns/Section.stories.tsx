@@ -11,9 +11,17 @@ const meta = preview.meta({
   args: {
     label: "アカウント",
     children: (
-      <dl className="border-t border-foreground">
-        <div className="flex flex-col gap-0.5 border-b py-2.5">
-          <dt className="text-xs text-muted-foreground">ログイン中</dt>
+      <dl style={{ borderTop: "1px solid var(--foreground)" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.125rem",
+            borderBottomWidth: 1,
+            paddingBlock: "0.625rem",
+          }}
+        >
+          <dt style={{ color: "var(--muted-foreground)", fontSize: "0.75rem" }}>ログイン中</dt>
           <dd>user@example.com</dd>
         </div>
       </dl>
@@ -22,7 +30,7 @@ const meta = preview.meta({
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
-      <div className="p-4">
+      <div style={{ padding: "1rem" }}>
         <Story />
       </div>
     ),

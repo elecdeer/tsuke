@@ -3,6 +3,8 @@ import { Toast as ToastPrimitive } from "@base-ui/react/toast";
 import { Button } from "@tsuke/ui/components/button";
 import { cn } from "@tsuke/ui/lib/utils";
 import { popupSurfaceClassName } from "@tsuke/ui/lib/control";
+import { visuallyHiddenClassName } from "@tsuke/ui/lib/a11y";
+import styles from "./toast.module.css";
 
 const ToastProvider = ToastPrimitive.Provider;
 const useToastManager = ToastPrimitive.useToastManager;
@@ -12,12 +14,7 @@ function ToastViewport({ className, ...props }: ToastPrimitive.Viewport.Props) {
     <ToastPrimitive.Portal>
       <ToastPrimitive.Viewport
         data-slot="toast-viewport"
-        // justify-self は fixed 要素にも効き、幅が中身（absolute のトーストなので 0）に縮むため使わない。
-        // 左右の inset と mx-auto + max-w で中央寄せする
-        className={cn(
-          "fixed inset-x-4 bottom-4 z-50 mx-auto flex h-(--toast-frontmost-height) w-auto max-w-72 outline-hidden",
-          className,
-        )}
+        className={cn(styles.Viewport, className)}
         {...props}
       />
     </ToastPrimitive.Portal>
@@ -28,11 +25,7 @@ function ToastRoot({ className, ...props }: ToastPrimitive.Root.Props) {
   return (
     <ToastPrimitive.Root
       data-slot="toast"
-      className={cn(
-        "absolute inset-x-0 bottom-0 z-(--toast-z-index) origin-bottom p-3 text-sm transition-all duration-200 [transform:translateY(calc(var(--toast-offset-y)*-1))_scale(calc(1_-_var(--toast-index)*0.05))] data-ending-style:translate-y-2 data-ending-style:opacity-0 data-starting-style:translate-y-2 data-starting-style:opacity-0 data-[type=error]:ring-destructive",
-        popupSurfaceClassName,
-        className,
-      )}
+      className={cn(styles.Toast, popupSurfaceClassName, className)}
       style={{ "--toast-z-index": "calc(100 - var(--toast-index))" } as React.CSSProperties}
       {...props}
     />
@@ -43,7 +36,7 @@ function ToastContent({ className, ...props }: ToastPrimitive.Content.Props) {
   return (
     <ToastPrimitive.Content
       data-slot="toast-content"
-      className={cn("flex items-start gap-2 overflow-hidden", className)}
+      className={cn(styles.Content, className)}
       {...props}
     />
   );
@@ -53,7 +46,7 @@ function ToastTitle({ className, ...props }: ToastPrimitive.Title.Props) {
   return (
     <ToastPrimitive.Title
       data-slot="toast-title"
-      className={cn("font-medium leading-none", className)}
+      className={cn(styles.Title, className)}
       {...props}
     />
   );
@@ -63,7 +56,7 @@ function ToastDescription({ className, ...props }: ToastPrimitive.Description.Pr
   return (
     <ToastPrimitive.Description
       data-slot="toast-description"
-      className={cn("text-muted-foreground", className)}
+      className={cn(styles.Description, className)}
       {...props}
     />
   );
@@ -73,11 +66,11 @@ function ToastClose({ className, ...props }: ToastPrimitive.Close.Props) {
   return (
     <ToastPrimitive.Close
       data-slot="toast-close"
-      render={<Button variant="ghost" size="icon-sm" className={cn("-m-1 shrink-0", className)} />}
+      render={<Button variant="ghost" size="icon-sm" className={cn(styles.close, className)} />}
       {...props}
     >
       <XIcon />
-      <span className="sr-only">閉じる</span>
+      <span className={visuallyHiddenClassName}>閉じる</span>
     </ToastPrimitive.Close>
   );
 }
@@ -94,7 +87,7 @@ function Toaster() {
       {toasts.map((toast) => (
         <ToastRoot key={toast.id} toast={toast} role={toast.type === "error" ? "alert" : "status"}>
           <ToastContent>
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <div className={styles.text}>
               {toast.title && <ToastTitle>{toast.title}</ToastTitle>}
               {toast.description && <ToastDescription>{toast.description}</ToastDescription>}
             </div>

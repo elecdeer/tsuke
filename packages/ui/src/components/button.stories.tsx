@@ -36,7 +36,7 @@ export const Outline = meta.story({
 export const Ghost = meta.story({
   args: {
     variant: "ghost",
-    className: "text-muted-foreground",
+    tone: "muted",
     children: (
       <>
         <PlusIcon />
@@ -54,7 +54,7 @@ export const Disabled = meta.story({
 /** 大きさの違い */
 export const Sizes = meta.story({
   render: () => (
-    <div className="flex items-end gap-2">
+    <div style={{ display: "flex", alignItems: "flex-end", gap: "0.5rem" }}>
       <Button size="sm" variant="outline">
         sm
       </Button>

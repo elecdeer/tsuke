@@ -1,0 +1,13 @@
+/* 一つ上の画面へ戻るリンク。目立たせず、本文の上に小さく置く */
+.BackLink {
+  width: fit-content;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+
+  @media (hover: hover) {
+    &:hover {
+      color: var(--foreground);
+    }
+  }
+}

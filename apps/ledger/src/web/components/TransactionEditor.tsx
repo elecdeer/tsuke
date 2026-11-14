@@ -28,6 +28,8 @@ import {
   updateFromDraft,
   type TransactionDraft,
 } from "@/web/transactionDraft";
+import { PageTitle } from "@tsuke/ui/patterns/PageTitle";
+import styles from "./TransactionEditor.module.css";
 
 type Transaction = NonNullable<Awaited<ReturnType<typeof getTransaction>>>;
 
@@ -52,7 +54,7 @@ const DeleteButton = ({ onDelete }: { onDelete: () => Promise<EditorActionResult
 
   return (
     <Dialog>
-      <DialogTrigger render={<Button variant="ghost" className="text-destructive" />}>
+      <DialogTrigger render={<Button variant="ghost" tone="destructive" />}>
         <Trash2 />
         削除
       </DialogTrigger>
@@ -146,7 +148,7 @@ export const TransactionEditor = ({
 
   return (
     <form
-      className="flex flex-col gap-10"
+      className={styles.TransactionEditor}
       onSubmit={(event) => {
         event.preventDefault();
         void save();
@@ -154,7 +156,7 @@ export const TransactionEditor = ({
     >
       <TransactionDraftFields
         mode={mode}
-        heading={<h1 className="text-2xl font-semibold">{MODE_LABELS[mode]}</h1>}
+        heading={<PageTitle>{MODE_LABELS[mode]}</PageTitle>}
         draft={draft}
         accounts={accounts}
         categories={categories}
@@ -166,11 +168,7 @@ export const TransactionEditor = ({
 
       {(mode === "payment" || mode === "income") && !advanceOpen && (
         <Section label="">
-          <Button
-            variant="ghost"
-            className="-ml-2.5 text-muted-foreground"
-            onClick={() => setAdvanceOpen(true)}
-          >
+          <Button variant="ghost" tone="muted" flush onClick={() => setAdvanceOpen(true)}>
             <Plus />
             {mode === "payment" ? "立替を入力" : "立替の入金を紐付ける"}
           </Button>
@@ -203,39 +201,39 @@ export const TransactionEditor = ({
             href={`/api/transactions/${transaction.id}/receipt-image`}
             target="_blank"
             rel="noreferrer"
-            className="block w-fit"
+            className={styles.ReceiptLink}
           >
             <img
               src={`/api/transactions/${transaction.id}/receipt-image`}
               alt="この取引のレシート"
               loading="lazy"
-              className="max-h-96 border object-contain"
+              className={styles.receiptImage}
             />
           </a>
         </Section>
       )}
 
       <Section label="">
-        <div className="flex flex-col gap-4">
+        <div className={styles.Footer}>
           {transaction.source === "zaim_csv" && (
-            <p className="flex gap-1.5 text-xs text-muted-foreground">
-              <Info className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+            <p className={styles.note}>
+              <Info className={styles.noteIcon} aria-hidden="true" />
               Zaim
               から取り込んだ取引です。拡張機能を台帳に切り替える前に直すと、切り替えのときの再取り込みで元に戻ります。
             </p>
           )}
           {error !== null && <ErrorMessage message={error} />}
-          <div className="flex items-center gap-4">
+          <div className={styles.actions}>
             <Button type="submit" size="lg" disabled={pending}>
               保存
             </Button>
             {saved && (
-              <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                <Check className="size-4" aria-hidden="true" />
+              <span className={styles.saved}>
+                <Check className={styles.savedIcon} aria-hidden="true" />
                 保存しました
               </span>
             )}
-            <div className="ml-auto">
+            <div className={styles.delete}>
               <DeleteButton onDelete={onDelete} />
             </div>
           </div>

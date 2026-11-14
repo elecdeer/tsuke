@@ -58,7 +58,7 @@ vp run dev
 
 新しい店舗を入れると、入力欄の下に登録済みの似た店舗と OpenPOI の候補を出す。候補は押したときだけ反映し、押さなければ入れた名前のまま登録する。OpenPOI には施設の ID がなく、同じチェーンでも表記が揺れるので、自動ではまとめない。店舗は支店ごとに持ち、`places.chain` で支店をまとめて見る（取引の一覧をチェーンで絞り込める）。登録済みの店舗の整理と、拡張機能からの登録は対象外。
 
-- UI 部品・色や書体のトークン・画面に共通の型は、拡張機能と共有のパッケージ `packages/ui`（`@tsuke/ui`）に置く。shadcn（base-ui 版）と Tailwind CSS。部品を足すときは `packages/ui` で `pnpm exec shadcn add <名前>` を実行すると `src/components/` に入る。shadcn の CLI が `cn` パッケージを入れて `from "cn"` と書くので、`@tsuke/ui/lib/utils` に直して `cn` パッケージは外す。見た目の方針は [design.md](packages/ui/docs/design.md)、見本は `pnpm --filter @tsuke/ui run storybook` で開く Storybook
+- UI 部品・色や書体のトークン・画面に共通の型は、拡張機能と共有のパッケージ `packages/ui`（`@tsuke/ui`）に置く。base-ui の部品に CSS Modules で見た目を付けている。クラスの名前は CEV（Component / Element / Variant）にそろえ、見た目の違いは className ではなく部品のバリアントとして用意する。見た目の方針は [design.md](packages/ui/docs/design.md)、見本は `pnpm --filter @tsuke/ui run storybook` で開く Storybook
 - 表示するデータはページの `loader`、変更はページの `actions` で扱い、`/api/*`（拡張機能のための API）には足さない
 - ローカルの D1 に本物の記録を取り込んでいる場合は、架空のデータで画面を確かめられる。`LEDGER_PERSIST_TO` に別の場所を指定して開発サーバーを起動すると、ローカルの D1 などがそこに作られる（マイグレーションも適用される）。そこに `scripts/sample-data.sql` を入れる
 

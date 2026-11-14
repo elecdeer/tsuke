@@ -17,6 +17,7 @@ import {
   ComboboxClear,
   ComboboxContent,
   ComboboxEmpty,
+  ComboboxField,
   ComboboxItem,
   ComboboxList,
   useComboboxAnchor,
@@ -37,12 +38,14 @@ import {
   DropdownMenuTrigger,
 } from "@tsuke/ui/components/dropdown-menu";
 import { Input } from "@tsuke/ui/components/input";
+import { AmountInput } from "@tsuke/ui/patterns/AmountInput";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  selectTriggerClassName,
+  SelectTriggerText,
+  selectTriggerStyleProps,
   SelectValue,
 } from "@tsuke/ui/components/select";
 import { Textarea } from "@tsuke/ui/components/textarea";
@@ -68,26 +71,9 @@ import {
 import { cn } from "@tsuke/ui/lib/utils";
 import { FormField } from "@tsuke/ui/patterns/FormField";
 import { TotalAmount } from "@tsuke/ui/patterns/TotalAmount";
-import { YenUnit } from "@tsuke/ui/patterns/YenUnit";
+import styles from "./TransactionFields.module.css";
 
 export type AccountOption = { id: number; name: string };
-
-/**
- * 品目の列。列の名前は表の見出しに 1 度だけ出す。
- *
- * 狭いところでは内訳を小さく上に添え、その下に品目名と金額を並べ、メモはさらに下に置く。
- * 広いところでは品目を 1 行に並べる。
- * 取引の一覧のサイドパネルのような狭い場所にも置くので、画面の幅ではなく Section の幅（コンテナクエリ）で切り替える。
- * 支出は並べ替え・削除のメニューの列を持ち、振替・残高調整はカテゴリの列を持たない。
- */
-const ITEM_COLUMNS: Record<TransactionMode, string> = {
-  payment:
-    "grid-cols-[minmax(0,1fr)_7rem_1.75rem] @xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_7rem_1.75rem]",
-  income:
-    "grid-cols-[minmax(0,1fr)_7rem] @xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_7rem]",
-  transfer: "grid-cols-[minmax(0,1fr)_7rem] @xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]",
-  adjustment: "grid-cols-[minmax(0,1fr)_7rem] @xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]",
-};
 
 /**
  * 口座の選択。選んでいる口座が一覧にない（アーカイブした）ときも、その値を選択肢に残す。
@@ -113,7 +99,7 @@ export const AccountSelect = ({
   };
   return (
     <Select items={items} value={value} onValueChange={(next) => onChange(next ?? "")}>
-      <SelectTrigger id={id} className="w-full">
+      <SelectTrigger id={id} width="full">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -165,7 +151,7 @@ export const PlaceInput = ({
   const masters = { placeNames, chainNames };
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
+    <div className={styles.PlaceInput}>
       <Combobox
         items={placeOptions(placeNames, query)}
         value={selected}
@@ -188,7 +174,7 @@ export const PlaceInput = ({
         // 追加の候補は入力した名前そのものなので、絞り込みに関わらず常に出す
         filter={(option: PlaceOption, q: string) => option.isNew || contains(option.name, q)}
       >
-        <div ref={anchor} className="flex min-w-0 items-center gap-0.5">
+        <ComboboxField ref={anchor}>
           <ComboboxPrimitive.Input id={id} placeholder="なし" render={<Input />} />
           {value !== "" && (
             <ComboboxClear
@@ -198,24 +184,16 @@ export const PlaceInput = ({
           <PlaceMapDialog
             onSelect={(poi) => onChange(poi.name, placeDetailFor(poi.name, masters, poi))}
           />
-        </div>
+        </ComboboxField>
         <ComboboxContent
-          // 欄の右のボタンまで含めた幅で、欄のすぐ下に出す
+          // 欄の右のボタンまで含めた幅で、欄のすぐ下に出す。箱ではなく欄の続きに見せる（packages/ui/docs/design.md）
           anchor={anchor}
-          sideOffset={0}
-          // 箱ではなく欄の続きに見せたいので、影・角丸・枠をやめ、下の端だけ黒の線で閉じる（packages/ui/docs/design.md）
-          className="rounded-none border-b border-foreground bg-background shadow-none ring-0"
+          variant="inline"
         >
-          <ComboboxEmpty className="justify-start py-2 text-left">
-            過去の店舗はありません
-          </ComboboxEmpty>
-          <ComboboxList className="p-0">
+          <ComboboxEmpty>過去の店舗はありません</ComboboxEmpty>
+          <ComboboxList>
             {(option: PlaceOption) => (
-              <ComboboxItem
-                key={`${option.isNew}:${option.name}`}
-                value={option}
-                className="rounded-none border-b py-2 pl-0 last:border-b-0 data-highlighted:bg-muted"
-              >
+              <ComboboxItem key={`${option.isNew}:${option.name}`} value={option}>
                 {option.isNew ? (
                   <>
                     <Plus aria-hidden="true" />「{option.name}」を追加
@@ -256,15 +234,14 @@ const ItemTextButton = ({
   <button
     type="button"
     id={id}
-    data-size="default"
     title={value === "" ? undefined : value}
-    className={cn(selectTriggerClassName, "w-full")}
+    {...selectTriggerStyleProps({ width: "full" })}
     onClick={onClick}
   >
     {value === "" && placeholder !== undefined ? (
-      <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{placeholder}</span>
+      <SelectTriggerText placeholder>{placeholder}</SelectTriggerText>
     ) : (
-      <span className="min-w-0 flex-1 truncate text-left">{value}</span>
+      <SelectTriggerText>{value}</SelectTriggerText>
     )}
   </button>
 );
@@ -304,10 +281,7 @@ const ItemTextDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        initialFocus={initialFocus === "name" ? nameRef : memoRef}
-        className="sm:max-w-lg"
-      >
+      <DialogContent initialFocus={initialFocus === "name" ? nameRef : memoRef} size="lg">
         <DialogHeader>
           <DialogTitle>品目を編集</DialogTitle>
         </DialogHeader>
@@ -383,21 +357,13 @@ const ItemFields = ({
     );
 
   return (
-    <div
-      className={cn(
-        // 広い画面では入力欄の下線が行の区切りを兼ねるので、行の罫線は狭い画面（欄を積むとき）だけに引く。
-        // 欄の下線（foreground/40）より薄いと品目の区切りと欄の下線を取り違えるので、下線より濃くする
-        "grid items-end gap-x-4 gap-y-0 border-b border-foreground/60 py-2 @xl:gap-y-2 @xl:border-b-0",
-        ITEM_COLUMNS[mode],
-      )}
-    >
+    <div className={`${styles.ItemGrid} ${styles.ItemRow}`} data-mode={mode}>
       {hasCategory && (
         <FormField
           label={mode === "payment" ? "内訳" : "カテゴリ"}
           htmlFor={ids.category}
           hideLabel
-          // 品目名の上に小さく添える。品目名と金額を同じ段に並べ、欄の高さをそろえるため
-          className="order-1 col-span-full @xl:order-none @xl:col-span-1"
+          className={styles.categoryField}
         >
           <Select
             items={{
@@ -411,8 +377,8 @@ const ItemFields = ({
             <SelectTrigger
               id={ids.category}
               // 狭いところでは品目名に添える見出しのように、低く小さく薄く出す
-              // 下線も消し、下の品目名の欄と取り違えないようにする
-              className="w-fit max-w-full border-transparent text-xs text-muted-foreground data-[size=default]:h-6 @xl:w-full @xl:border-foreground/40 @xl:text-sm @xl:text-foreground @xl:data-[size=default]:h-8"
+              variant="caption-on-narrow"
+              width="full"
             >
               <SelectValue />
             </SelectTrigger>
@@ -433,7 +399,7 @@ const ItemFields = ({
           </Select>
         </FormField>
       )}
-      <FormField label="品目名" htmlFor={ids.name} hideLabel className="order-2 @xl:order-none">
+      <FormField label="品目名" htmlFor={ids.name} hideLabel className={styles.nameField}>
         <ItemTextButton
           id={ids.name}
           value={item.name}
@@ -445,10 +411,7 @@ const ItemFields = ({
         label="メモ"
         htmlFor={ids.memo}
         hideLabel
-        className={cn(
-          "order-5 col-span-full @xl:order-none @xl:col-span-1",
-          memoCollapsed && "hidden @xl:flex",
-        )}
+        className={cn(styles.memoField, memoCollapsed && styles.collapsed)}
       >
         <ItemTextButton
           id={ids.memo}
@@ -457,37 +420,26 @@ const ItemFields = ({
           onClick={() => setEditing("memo")}
         />
       </FormField>
-      <FormField label="金額" htmlFor={ids.amount} hideLabel className="order-3 @xl:order-none">
-        <div className="relative">
-          <Input
-            id={ids.amount}
-            inputMode="numeric"
-            className="pr-4 text-right tabular-nums"
-            value={item.amount}
-            onChange={(event) => onChange({ amount: event.target.value })}
-          />
-          {/* 入力欄の文字と同じ大きさの行に置き、小さくした「円」の下端を数字にそろえる */}
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 right-0 py-1 text-sm"
-          >
-            <YenUnit />
-          </span>
-        </div>
+      <FormField label="金額" htmlFor={ids.amount} hideLabel className={styles.amountField}>
+        <AmountInput
+          id={ids.amount}
+          inputMode="numeric"
+          value={item.amount}
+          onChange={(event) => onChange({ amount: event.target.value })}
+        />
       </FormField>
       {mode === "payment" && (
-        // ボタン（h-7）は欄（h-8）より低く、下端でそろえると欄の文字より下に寄るので、欄と同じ高さの中で縦の中央に置く
-        <div className="order-4 flex h-8 items-center justify-end @xl:order-none">
+        <div className={styles.menu}>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={<Button variant="ghost" size="icon-sm" aria-label="品目の操作" />}
             >
               <Ellipsis />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-auto">
+            <DropdownMenuContent align="end" width="auto">
               {memoCollapsed && (
                 // 広いところではメモの欄がいつも見えているので、追加の項目は要らない
-                <DropdownMenuItem className="@xl:hidden" onClick={() => setEditing("memo")}>
+                <DropdownMenuItem onClick={() => setEditing("memo")}>
                   <MessageSquarePlus />
                   メモを追加
                 </DropdownMenuItem>
@@ -525,9 +477,17 @@ const ItemFields = ({
 /**
  * 品目の合計。一番大事な数字なので大きく出す。
  */
-export const ItemsTotal = ({ items, className }: { items: ItemDraft[]; className?: string }) => (
-  <TotalAmount amount={itemsTotal(items)} className={className} />
-);
+export const ItemsTotal = ({
+  items,
+  ruled = false,
+  className,
+}: {
+  items: ItemDraft[];
+  /** まとまりの始まりとして、上に黒の線を引く */
+  ruled?: boolean;
+  /** 並べる側が、合計の置き場所（余白・幅）を決めるときに使う */
+  className?: string;
+}) => <TotalAmount amount={itemsTotal(items)} ruled={ruled} className={className} />;
 
 /**
  * 品目の表。支出では品目を足す・並べ替える・消すこともできる。合計は置き場所が画面ごとに違うので、`ItemsTotal` で別に出す。
@@ -552,21 +512,18 @@ export const ItemsFields = ({
     <>
       <div
         aria-hidden="true"
-        className={cn(
-          // 狭いところでは欄に「品目名」「円」が出ていて何の欄か分かるので、見出しの行は広いところだけに出す
-          "hidden gap-x-4 border-b border-foreground pb-1.5 text-xs text-muted-foreground @xl:grid",
-          ITEM_COLUMNS[mode],
-        )}
+        className={`${styles.ItemGrid} ${styles.ItemHeader}`}
+        data-mode={mode}
       >
         {(mode === "payment" || mode === "income") && (
           <span>{mode === "payment" ? "内訳" : "カテゴリ"}</span>
         )}
         <span>品目名</span>
         <span>メモ</span>
-        <span className="text-right">金額</span>
+        <span className={styles.headerAmount}>金額</span>
       </div>
       {/* 狭いところでは見出しの行を出さないので、表の始まりの線をここで引く */}
-      <div className="border-t border-foreground @xl:border-t-0">
+      <div className={styles.ItemList}>
         {items.map((item, index) => (
           <ItemFields
             key={item.key}
@@ -584,7 +541,9 @@ export const ItemsFields = ({
       {mode === "payment" && (
         <Button
           variant="ghost"
-          className="mt-1 -ml-2.5 text-muted-foreground"
+          tone="muted"
+          flush
+          className={styles.AddItem}
           onClick={() =>
             onChange([...items, emptyItem(Math.max(-1, ...items.map((item) => item.key)) + 1)])
           }
@@ -634,7 +593,7 @@ const AdjustmentFields = ({
           value={increases ? "increase" : "decrease"}
           onValueChange={(value) => setAdjustment(value === "increase", account)}
         >
-          <SelectTrigger id={directionId} className="w-full">
+          <SelectTrigger id={directionId} width="full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -733,7 +692,7 @@ export const TransactionDraftFields = ({
   return (
     <>
       <Section label={heading}>
-        <div className="grid gap-x-6 gap-y-4 border-t border-foreground pt-3 @md:grid-cols-2">
+        <div className={styles.Fields}>
           <FormField label="日付" htmlFor={ids.date}>
             <Input
               id={ids.date}
@@ -756,7 +715,7 @@ export const TransactionDraftFields = ({
                 if (aggregation !== undefined) update({ aggregation });
               }}
             >
-              <SelectTrigger id={ids.aggregation} className="w-full">
+              <SelectTrigger id={ids.aggregation} width="full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -791,7 +750,7 @@ export const TransactionDraftFields = ({
           categories={mode === "income" ? categories.income : categories.payment}
           onChange={onItemsChange}
         />
-        <ItemsTotal items={draft.items} className="mt-3 border-t border-foreground pt-2" />
+        <ItemsTotal items={draft.items} ruled className={styles.Total} />
       </Section>
     </>
   );

@@ -1,0 +1,98 @@
+/* マスタの管理の画面（口座・カテゴリ・店舗）で共有する見た目 */
+.Page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* 見出しと、追加のボタン */
+.Header {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 一覧。始まりに黒の線を引く */
+.List {
+  border-top: 1px solid var(--foreground);
+}
+
+.Empty {
+  padding-block: 1.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--muted-foreground);
+  border-top: 1px solid var(--foreground);
+}
+
+/* 一覧の行の名前と、アーカイブ済みの印 */
+.RowTitle {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+
+  > .rowName {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  > .badge {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+  }
+}
+
+/* 一覧の行に添える、薄い 1 行の説明 */
+.RowNote {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+/* 編集のダイアログの入力欄 */
+.EditorForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+
+  > .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+
+  > .note {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+  }
+
+  > .actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+  }
+}
+
+/* 編集のダイアログの下に、線で区切って置く操作（アーカイブ・削除など） */
+.EditorSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-top: 1rem;
+  border-top-width: 1px;
+
+  > .note {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+  }
+}

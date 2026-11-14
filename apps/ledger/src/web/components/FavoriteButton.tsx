@@ -3,7 +3,7 @@ import { useState } from "react";
 import { actionErrorMessage } from "@/web/actionError";
 import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
 import type { EditorActionResult } from "@/web/components/TransactionEditor";
-import { cn } from "@tsuke/ui/lib/utils";
+import styles from "./FavoriteButton.module.css";
 
 /**
  * よく使う取引の印を付け外しするボタン。印の有無は色だけに頼らず、星を塗るかどうかでも示す。
@@ -35,19 +35,16 @@ export const FavoriteButton = ({
   };
 
   return (
-    <span className="flex items-center gap-2">
+    <span className={styles.FavoriteButton}>
       <button
         type="button"
         aria-pressed={favorite}
         aria-label={label}
         disabled={pending}
         onClick={() => void toggle()}
-        className={cn(
-          "flex items-center gap-1 p-2 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50",
-          favorite && "text-foreground",
-        )}
+        className={styles.button}
       >
-        <Star className={cn("size-4", favorite && "fill-current")} aria-hidden="true" />
+        <Star className={styles.star} aria-hidden="true" />
         {showLabel && "よく使う"}
       </button>
       {error !== null && <ErrorMessage message={error} />}

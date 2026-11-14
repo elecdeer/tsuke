@@ -1,0 +1,52 @@
+@layer ui {
+  .Positioner {
+    z-index: 50;
+    outline-style: none;
+    isolation: isolate;
+  }
+
+  .Content {
+    z-index: 50;
+    width: var(--anchor-width);
+    min-width: 8rem;
+    max-height: var(--available-height);
+    padding: 0.3125rem;
+    overflow: hidden auto;
+    outline-style: none;
+
+    &[data-closed] {
+      overflow: hidden;
+    }
+
+    /* 開いたボタンの幅に合わせず、中身の幅で出す */
+    &[data-width="auto"] {
+      width: auto;
+    }
+  }
+
+  .Item {
+    &[data-inset] {
+      padding-left: 2.125rem;
+    }
+
+    &[data-variant="destructive"] {
+      color: var(--destructive);
+
+      & :global(svg) {
+        color: var(--destructive);
+      }
+
+      &[data-highlighted] {
+        color: var(--destructive);
+        background-color: color-mix(in oklab, var(--destructive) 10%, transparent);
+        box-shadow: inset 0 0 0 1px var(--destructive);
+      }
+    }
+  }
+
+  .Label {
+    &[data-inset] {
+      padding-left: 2.125rem;
+    }
+  }
+}

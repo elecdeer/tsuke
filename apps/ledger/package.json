@@ -28,17 +28,13 @@
     "maplibre-gl": "catalog:",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "tw-animate-css": "catalog:",
     "valibot": "catalog:"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "catalog:",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@void/react": "catalog:",
     "fake-indexeddb": "catalog:",
-    "shadcn": "catalog:",
-    "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",

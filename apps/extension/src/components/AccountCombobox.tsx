@@ -6,18 +6,19 @@ import {
   ComboboxClear,
   ComboboxContent,
   ComboboxEmpty,
+  ComboboxField,
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
   ComboboxTrigger,
   ComboboxValue,
 } from "@tsuke/ui/components/combobox";
-import { selectTriggerClassName } from "@tsuke/ui/components/select";
+import { SelectTriggerText, selectTriggerStyleProps } from "@tsuke/ui/components/select";
 import { ErrorBoundary } from "@/lib/ErrorBoundary";
 import { useSuspenseQuery } from "@/lib/query";
-import { cn } from "@tsuke/ui/lib/utils";
 import { accountsQuery, type AccountsResponse } from "../queries";
 import { FormField } from "@tsuke/ui/patterns/FormField";
+import { FieldError, FieldLoading } from "@/components/FieldStatus";
 
 type Account = AccountsResponse["accounts"][number];
 
@@ -39,17 +40,8 @@ export const AccountCombobox = ({ serverUrl, value, onChange }: Props) => {
 
   return (
     <FormField label={LABEL} htmlFor={id}>
-      <ErrorBoundary
-        fallback={<p className="py-1.5 text-sm text-destructive">口座の取得に失敗しました</p>}
-      >
-        <Suspense
-          fallback={
-            <output
-              className="block h-8 animate-pulse border-b border-foreground/40 bg-muted"
-              aria-label="口座を読み込み中"
-            />
-          }
-        >
+      <ErrorBoundary fallback={<FieldError message="口座の取得に失敗しました" />}>
+        <Suspense fallback={<FieldLoading label="口座を読み込み中" />}>
           <AccountComboboxContent id={id} serverUrl={serverUrl} value={value} onChange={onChange} />
         </Suspense>
       </ErrorBoundary>
@@ -69,7 +61,7 @@ const AccountComboboxContent = ({
   const selectedAccount = accounts.find((a) => a.id === value) ?? null;
 
   return (
-    <div className="flex min-w-0 items-center gap-0.5">
+    <ComboboxField>
       <Combobox
         items={accounts}
         value={selectedAccount}
@@ -86,16 +78,13 @@ const AccountComboboxContent = ({
             <button
               type="button"
               aria-label={LABEL}
-              data-size="default"
-              className={cn(selectTriggerClassName, "w-full flex-1")}
+              {...selectTriggerStyleProps({ width: "full" })}
             />
           }
         >
           <ComboboxValue>
             {(v: Account | null) => (
-              <span className={cn("truncate", !v && "text-muted-foreground")}>
-                {v?.name ?? "なし"}
-              </span>
+              <SelectTriggerText placeholder={!v}>{v?.name ?? "なし"}</SelectTriggerText>
             )}
           </ComboboxValue>
         </ComboboxTrigger>
@@ -105,7 +94,7 @@ const AccountComboboxContent = ({
           <XIcon />
         </ComboboxClear>
         <ComboboxContent>
-          <ComboboxInput showTrigger={false} placeholder="口座を検索" />
+          <ComboboxInput placeholder="口座を検索" />
           <ComboboxEmpty>口座が見つかりません</ComboboxEmpty>
           <ComboboxList>
             {(item: Account) => (
@@ -116,6 +105,6 @@ const AccountComboboxContent = ({
           </ComboboxList>
         </ComboboxContent>
       </Combobox>
-    </div>
+    </ComboboxField>
   );
 };

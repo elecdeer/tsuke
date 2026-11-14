@@ -1,6 +1,8 @@
 import { Link, useShared } from "@void/react";
-import { buttonVariants } from "@tsuke/ui/components/button";
+import { buttonStyleProps } from "@tsuke/ui/components/button";
+import { PageTitle } from "@tsuke/ui/patterns/PageTitle";
 import { Section } from "@tsuke/ui/patterns/Section";
+import styles from "./index.module.css";
 
 /**
  * 設定の画面。ログイン中のアカウントと、マスタの管理の画面への入口を置く。
@@ -8,49 +10,40 @@ import { Section } from "@tsuke/ui/patterns/Section";
 const SettingsPage = () => {
   const { email } = useShared();
   return (
-    <div className="flex flex-col gap-12">
-      <h1 className="text-3xl font-semibold tracking-tight">設定</h1>
+    <div className={styles.SettingsPage}>
+      <PageTitle size="lg">設定</PageTitle>
       <Section label="アカウント">
-        <dl className="border-t border-foreground">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 border-b py-2.5">
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <dt className="text-xs text-muted-foreground">ログイン中</dt>
-              <dd className="truncate">{email}</dd>
+        <dl className={styles.List}>
+          <div className={`${styles.item} ${styles.Account}`}>
+            <div className={styles.accountText}>
+              <dt className={styles.accountLabel}>ログイン中</dt>
+              <dd className={styles.accountEmail}>{email}</dd>
             </div>
             {/* Cloudflare Access のログアウトへリダイレクトするので、画面の中の移動（Link）にはしない */}
-            <a href="/logout" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <a href="/logout" {...buttonStyleProps({ variant: "outline", size: "sm" })}>
               ログアウト
             </a>
           </div>
         </dl>
       </Section>
       <Section label="マスタ">
-        <ul className="border-t border-foreground">
-          <li className="border-b">
-            <Link
-              href="/settings/accounts"
-              className="grid grid-cols-[minmax(0,1fr)_1rem] items-baseline gap-x-4 py-2.5 hover:bg-muted/60"
-            >
+        <ul className={styles.List}>
+          <li className={styles.item}>
+            <Link href="/settings/accounts" className={styles.MasterLink}>
               <span>口座</span>
-              <span className="text-xs text-muted-foreground">→</span>
+              <span className={styles.arrow}>→</span>
             </Link>
           </li>
-          <li className="border-b">
-            <Link
-              href="/settings/categories"
-              className="grid grid-cols-[minmax(0,1fr)_1rem] items-baseline gap-x-4 py-2.5 hover:bg-muted/60"
-            >
+          <li className={styles.item}>
+            <Link href="/settings/categories" className={styles.MasterLink}>
               <span>カテゴリ</span>
-              <span className="text-xs text-muted-foreground">→</span>
+              <span className={styles.arrow}>→</span>
             </Link>
           </li>
-          <li className="border-b">
-            <Link
-              href="/settings/places"
-              className="grid grid-cols-[minmax(0,1fr)_1rem] items-baseline gap-x-4 py-2.5 hover:bg-muted/60"
-            >
+          <li className={styles.item}>
+            <Link href="/settings/places" className={styles.MasterLink}>
               <span>店舗</span>
-              <span className="text-xs text-muted-foreground">→</span>
+              <span className={styles.arrow}>→</span>
             </Link>
           </li>
         </ul>

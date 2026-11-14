@@ -22,19 +22,31 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { createElement } from "react";
+import styles from "./PoiKindIcon.module.css";
 
-/** 色の組。ピンの地の色と、一覧のアイコンの色。一覧は暗いテーマでも読めるよう少し明るくする */
-type KindColor = { pin: string; text: string };
+/**
+ * 色のまとまり。ピンの地の色と一覧のアイコンの色は、PoiKindIcon.module.css でまとまりごとに決める
+ */
+type KindColor =
+  | "food"
+  | "shopping"
+  | "lodging"
+  | "tourism"
+  | "medical"
+  | "education"
+  | "finance"
+  | "transit"
+  | "other";
 
-const FOOD: KindColor = { pin: "bg-orange-600", text: "text-orange-500" };
-const SHOPPING: KindColor = { pin: "bg-blue-600", text: "text-blue-500" };
-const LODGING: KindColor = { pin: "bg-fuchsia-600", text: "text-fuchsia-500" };
-const TOURISM: KindColor = { pin: "bg-teal-600", text: "text-teal-500" };
-const MEDICAL: KindColor = { pin: "bg-red-600", text: "text-red-500" };
-const EDUCATION: KindColor = { pin: "bg-violet-600", text: "text-violet-500" };
-const FINANCE: KindColor = { pin: "bg-emerald-700", text: "text-emerald-500" };
-const TRANSIT: KindColor = { pin: "bg-indigo-600", text: "text-indigo-500" };
-const OTHER: KindColor = { pin: "bg-slate-600", text: "text-slate-500" };
+const FOOD: KindColor = "food";
+const SHOPPING: KindColor = "shopping";
+const LODGING: KindColor = "lodging";
+const TOURISM: KindColor = "tourism";
+const MEDICAL: KindColor = "medical";
+const EDUCATION: KindColor = "education";
+const FINANCE: KindColor = "finance";
+const TRANSIT: KindColor = "transit";
+const OTHER: KindColor = "other";
 
 /**
  * 種類ごとの見た目。色はアイコンより遠くから見分けられるので、飲食・買い物のような大きなまとまりで分ける
@@ -70,9 +82,17 @@ const poiKindOf = (kind: string) =>
 export const poiKindIcon = (kind: string): LucideIcon => poiKindOf(kind).icon;
 
 /**
- * 施設の種類に合う色（ピンの地の色と、一覧のアイコンの色の Tailwind のクラス）を返す。
+ * 施設の種類に合う色のまとまりを返す。
  */
 export const poiKindColor = (kind: string): KindColor => poiKindOf(kind).color;
+
+/**
+ * 施設の種類の色を、要素の中で CSS の変数（--poi-pin・--poi-text）として使えるようにする props。
+ */
+export const poiColorProps = (kind: string) => ({
+  className: styles.PoiColor,
+  "data-poi-color": poiKindColor(kind),
+});
 
 /**
  * 施設の種類のアイコンを描く。

@@ -1,0 +1,219 @@
+.Layout {
+  min-height: 100dvh;
+  background-color: var(--background);
+
+  /* 画面の上に固定するヘッダー。高さは --header-height（src/styles.css） */
+  > .header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    height: var(--header-height);
+    background-color: var(--background);
+    border-bottom-width: 1px;
+
+    /* 画面の移動中にヘッダーの上端を左から右へ流れる進行バー */
+    > .progress {
+      position: absolute;
+      top: 0;
+      right: 0;
+      left: 0;
+      height: 0.125rem;
+      overflow: hidden;
+
+      /* すぐ終わる移動でちらつかないよう、少し待ってから出す */
+      > .progressBar {
+        width: 33.333333%;
+        height: 100%;
+        background-color: var(--foreground);
+        animation: nav-progress 1s ease-in-out 150ms infinite backwards;
+
+        /* 動きを減らす設定なら流さず、全幅の線を出すだけにする */
+        @media (prefers-reduced-motion: reduce) {
+          width: 100%;
+          animation: none;
+        }
+      }
+    }
+
+    /* ヘッダーも本文と同じ 12 列のグリッドに載せ、ナビを本文の中身の列（右の 9 列）にそろえる */
+    > .headerInner {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      column-gap: 1rem;
+      align-items: end;
+      max-width: 64rem;
+      height: 100%;
+      padding-inline: 1rem;
+      margin-inline: auto;
+      transition: max-width 300ms cubic-bezier(0, 0, 0.2, 1);
+
+      @media (prefers-reduced-motion: reduce) {
+        transition: none;
+      }
+
+      @media (width >= 48rem) {
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+      }
+
+      &[data-wide] {
+        @media (width >= 80rem) {
+          max-width: 80rem;
+        }
+      }
+
+      > .brand {
+        padding-bottom: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        line-height: 1.25rem;
+
+        @media (width >= 48rem) {
+          grid-column: span 3 / span 3;
+        }
+      }
+
+      > .headerNav {
+        display: flex;
+        gap: 1.5rem;
+        align-items: flex-end;
+
+        @media (width >= 48rem) {
+          grid-column: span 9 / span 9;
+        }
+
+        /* 狭い画面ではナビをヘッダーから外し、画面の下に固定する（BottomNav） */
+        > .nav {
+          display: none;
+          gap: 1.5rem;
+
+          @media (width >= 48rem) {
+            display: flex;
+          }
+
+          /* 今いる画面は赤の下線で示す。ヘッダーの下の罫線に下線を重ねるので、1px 下へずらす */
+          > .navLink {
+            padding-bottom: 0.5rem;
+            margin-bottom: -1px;
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+            color: var(--muted-foreground);
+            border-color: transparent;
+            border-bottom-width: 2px;
+
+            @media (hover: hover) {
+              &:hover {
+                color: var(--foreground);
+              }
+            }
+
+            &[aria-current="page"] {
+              font-weight: 500;
+              color: var(--foreground);
+              border-color: var(--primary);
+            }
+          }
+        }
+
+        > .settings {
+          padding: 0.25rem;
+          margin-bottom: 0.25rem;
+          margin-left: auto;
+          color: var(--muted-foreground);
+
+          @media (hover: hover) {
+            &:hover {
+              color: var(--foreground);
+            }
+          }
+
+          &[aria-current="page"] {
+            color: var(--foreground);
+          }
+
+          > .settingsIcon {
+            width: 1rem;
+            height: 1rem;
+          }
+        }
+      }
+    }
+  }
+
+  /* 狭い画面では下のナビに本文の最後が隠れないよう、ナビの高さ分の余白を足す */
+  > .main {
+    max-width: 64rem;
+    padding: 2rem 1rem calc(5.5rem + env(safe-area-inset-bottom));
+    margin-inline: auto;
+    transition: max-width 300ms cubic-bezier(0, 0, 0.2, 1);
+
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+    }
+
+    @media (width >= 48rem) {
+      padding-bottom: 2rem;
+    }
+
+    &[data-wide] {
+      @media (width >= 80rem) {
+        max-width: 80rem;
+      }
+    }
+  }
+}
+
+/*
+ * 狭い画面で画面の下に固定するナビゲーション。スマホのアプリのタブバーのように、親指の届く位置に置く。
+ * 今いる画面は、広い画面のナビの下線と同じ赤の線を項目の上端に引いて示す。
+ */
+.BottomNav {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding-bottom: env(safe-area-inset-bottom);
+  background-color: var(--background);
+  border-top-width: 1px;
+
+  @media (width >= 48rem) {
+    display: none;
+  }
+
+  > .item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    align-items: center;
+    justify-content: center;
+    height: var(--bottom-nav-height);
+    margin-top: -1px;
+    font-size: 0.6875rem;
+    color: var(--muted-foreground);
+    border-color: transparent;
+    border-top-width: 2px;
+
+    &[aria-current="page"] {
+      font-weight: 500;
+      color: var(--foreground);
+      border-color: var(--primary);
+    }
+
+    > .icon {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+  }
+}
+
+@keyframes nav-progress {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(300%);
+  }
+}

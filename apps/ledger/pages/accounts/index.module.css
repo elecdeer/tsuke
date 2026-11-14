@@ -1,0 +1,139 @@
+.AccountsPage {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+.Header {
+  display: grid;
+  gap: 1.5rem 1rem;
+
+  @media (width >= 48rem) {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  > .titleColumn {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+
+    @media (width >= 48rem) {
+      grid-column: span 3 / span 3;
+    }
+
+    > .dateField {
+      max-width: 10rem;
+    }
+  }
+
+  /* 合計はこの画面で一番見てほしい数字なので、アクセントの色で出す */
+  > .total {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding-top: 0.375rem;
+    color: var(--primary);
+    border-top: 1px solid var(--primary);
+
+    @media (width >= 48rem) {
+      grid-column: span 9 / span 9;
+    }
+
+    > .totalLabel {
+      font-size: 0.75rem;
+      line-height: 1rem;
+    }
+
+    > .totalValue {
+      font-size: 1.875rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      line-height: 2.25rem;
+      letter-spacing: -0.025em;
+    }
+  }
+}
+
+/* 口座の一覧。始まりに黒の線を引く */
+.BalanceList {
+  border-top: 1px solid var(--foreground);
+
+  > .row {
+    border-bottom-width: 1px;
+
+    > .rowLink {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 8rem 1rem;
+      column-gap: 1rem;
+      align-items: baseline;
+      padding-block: 0.625rem;
+
+      @media (hover: hover) {
+        &:hover {
+          background-color: color-mix(in oklab, var(--muted) 60%, transparent);
+        }
+      }
+
+      > .name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      > .balance {
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+
+      > .arrow {
+        font-size: 0.75rem;
+        line-height: 1rem;
+        color: var(--muted-foreground);
+      }
+    }
+  }
+}
+
+/* 使っていない口座。ふだんは畳んでおく */
+.Dormant {
+  > .toggle {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+    padding-block: 0.25rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        color: var(--foreground);
+      }
+    }
+
+    > .chevron {
+      width: 0.875rem;
+      height: 0.875rem;
+      transition: rotate 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  }
+
+  &[open] {
+    > .toggle {
+      > .chevron {
+        rotate: 90deg;
+      }
+    }
+  }
+
+  > .dormantList {
+    margin-top: 0.5rem;
+  }
+}

@@ -1,0 +1,21 @@
+@layer ui {
+  .AmountInput {
+    position: relative;
+
+    > .input {
+      padding-right: 1rem;
+    }
+
+    /* 入力欄の文字と同じ大きさの行に置き、小さくした「円」の下端を数字にそろえる */
+    > .unit {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      padding-block: 0.25rem;
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+      pointer-events: none;
+    }
+  }
+}

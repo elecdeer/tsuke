@@ -1,0 +1,123 @@
+/* 集計や取引の一覧が扱う期間（月・年）の見出し。期間を大きく出し、前後の期間へのリンクを添える */
+.PeriodHeading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+
+  > .links {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+
+    > .link {
+      @media (hover: hover) {
+        &:hover {
+          color: var(--foreground);
+        }
+      }
+    }
+  }
+
+  > .title {
+    display: flex;
+    flex-direction: column;
+
+    > .caption {
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+    }
+
+    > .number {
+      font-size: 3.75rem;
+      font-weight: 600;
+      line-height: 1;
+      letter-spacing: -0.05em;
+    }
+  }
+}
+
+/*
+ * スクロールで月の見出しが隠れたら、ヘッダーの下に貼り付ける細い帯。
+ * 親の flex の gap の分だけ引き戻して、高さ 0 の箱が間隔を増やさないようにする
+ */
+.StickyMonthBar {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 20;
+  height: 0;
+  margin-bottom: -2rem;
+
+  > .bar {
+    position: absolute;
+    top: 0;
+    right: -1rem;
+    left: -1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--month-bar-height);
+    padding-inline: 1rem;
+    background-color: var(--background);
+    border-bottom: 1px solid var(--foreground);
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+    transition-property: opacity, translate;
+
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+    }
+
+    &[data-hidden] {
+      pointer-events: none;
+      opacity: 0;
+      translate: 0 -0.25rem;
+    }
+
+    /* 大きい見出しをそのまま縮めた形にし、同じ月だと見てわかるようにする */
+    > .month {
+      display: flex;
+      gap: 0.375rem;
+      align-items: baseline;
+
+      > .number {
+        font-size: 1.5rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+
+      > .year {
+        font-size: 0.75rem;
+        font-variant-numeric: tabular-nums;
+        line-height: 1rem;
+        color: var(--muted-foreground);
+      }
+    }
+
+    /* 帯を細く保つため、前後の月は文字ではなく矢印だけにする */
+    > .arrows {
+      display: flex;
+      margin-right: -0.375rem;
+      color: var(--muted-foreground);
+
+      > .arrow {
+        padding: 0.375rem;
+
+        @media (hover: hover) {
+          &:hover {
+            color: var(--foreground);
+          }
+        }
+
+        > .arrowIcon {
+          width: 1.25rem;
+          height: 1.25rem;
+        }
+      }
+    }
+  }
+}

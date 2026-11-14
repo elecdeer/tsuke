@@ -1,0 +1,330 @@
+.Checkbox {
+  flex-shrink: 0;
+  align-self: center;
+  width: 0.875rem;
+  height: 0.875rem;
+  accent-color: var(--foreground);
+}
+
+/* 支出の立替の欄 */
+.PaymentAdvance {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--foreground);
+
+  > .amountRow {
+    display: grid;
+    gap: 0.25rem 1.5rem;
+
+    @container (width >= 28rem) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: end;
+    }
+
+    > .stats {
+      display: flex;
+      flex-wrap: wrap;
+      column-gap: 1.25rem;
+      padding-bottom: 0.375rem;
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+
+      > .status {
+        color: var(--foreground);
+      }
+
+      > .stat {
+        display: flex;
+        gap: 0.375rem;
+
+        > .statValue {
+          font-variant-numeric: tabular-nums;
+          color: var(--foreground);
+        }
+      }
+    }
+  }
+
+  > .targets {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    > .targetsLegend {
+      padding-bottom: 0.25rem;
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+    }
+
+    > .target {
+      display: flex;
+      gap: 0.5rem;
+      align-items: baseline;
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+
+      > .targetName {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      > .targetAmount {
+        font-variant-numeric: tabular-nums;
+      }
+    }
+  }
+
+  > .linked {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    > .linkedCaption {
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+    }
+
+    > .linkedList {
+      border-top-width: 1px;
+
+      > .linkedItem {
+        border-bottom-width: 1px;
+
+        > .linkedLink {
+          display: flex;
+          gap: 1rem;
+          align-items: baseline;
+          justify-content: space-between;
+          padding-block: 0.375rem;
+          font-size: 0.875rem;
+          line-height: 1.25rem;
+
+          @media (hover: hover) {
+            &:hover {
+              background-color: color-mix(in oklab, var(--muted) 60%, transparent);
+            }
+          }
+
+          > .linkedName {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          > .linkedAmount {
+            font-variant-numeric: tabular-nums;
+          }
+        }
+      }
+    }
+
+    > .settle {
+      align-self: flex-start;
+    }
+  }
+}
+
+/* 紐付ける支出の候補 */
+.Candidates {
+  max-height: 20rem;
+  overflow-y: auto;
+  border-top-width: 1px;
+
+  > .candidateEmpty {
+    padding-block: 0.625rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--muted-foreground);
+  }
+
+  > .candidate {
+    border-bottom-width: 1px;
+
+    > .candidateButton {
+      display: flex;
+      gap: 1rem;
+      align-items: baseline;
+      justify-content: space-between;
+      width: 100%;
+      padding-block: 0.5rem;
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+      text-align: left;
+
+      @media (hover: hover) {
+        &:hover {
+          background-color: color-mix(in oklab, var(--muted) 60%, transparent);
+        }
+      }
+
+      > .candidateText {
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+        min-width: 0;
+
+        > .candidateTitle {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        > .candidateNote {
+          font-size: 0.75rem;
+          font-variant-numeric: tabular-nums;
+          line-height: 1rem;
+          color: var(--muted-foreground);
+        }
+      }
+
+      > .candidateTotal {
+        font-variant-numeric: tabular-nums;
+      }
+    }
+  }
+}
+
+/* 紐付けた支出 1 件の行 */
+.ReimbursementRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-block: 0.625rem;
+  border-bottom-width: 1px;
+
+  > .rowHeader {
+    display: flex;
+    gap: 1rem;
+    align-items: baseline;
+    justify-content: space-between;
+
+    > .rowLink {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+      white-space: nowrap;
+
+      @media (hover: hover) {
+        &:hover {
+          text-decoration-line: underline;
+        }
+      }
+    }
+
+    > .remove {
+      padding: 0.125rem;
+      color: var(--muted-foreground);
+
+      @media (hover: hover) {
+        &:hover {
+          color: var(--foreground);
+        }
+      }
+
+      > .removeIcon {
+        width: 0.875rem;
+        height: 0.875rem;
+      }
+    }
+  }
+
+  > .rowNote {
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+  }
+
+  > .rowInputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    align-items: center;
+    justify-content: space-between;
+
+    > .expectMore {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      font-size: 0.75rem;
+      line-height: 1rem;
+    }
+
+    > .rowAmount {
+      width: 7rem;
+    }
+  }
+}
+
+/* 収入に紐付ける支出の欄 */
+.IncomeReimbursement {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-top: 1px solid var(--foreground);
+
+  > .summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    > .allocated {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+
+      > .allocatedValue {
+        font-variant-numeric: tabular-nums;
+        color: var(--foreground);
+      }
+    }
+
+    > .mismatch {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: var(--destructive);
+
+      > .mismatchText {
+        display: flex;
+        gap: 0.25rem;
+        align-items: center;
+
+        > .mismatchIcon {
+          width: 0.875rem;
+          height: 0.875rem;
+        }
+      }
+    }
+
+    > .summaryNote {
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+    }
+  }
+
+  > .picker {
+    &[data-spaced] {
+      padding-top: 0.25rem;
+    }
+  }
+}

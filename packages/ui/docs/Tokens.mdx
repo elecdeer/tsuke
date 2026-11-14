@@ -51,14 +51,23 @@ import { ColorItem, ColorPalette, Meta, Typeset } from "@storybook/addon-docs/bl
 
 ## 線と角と影
 
-- まとまりの始まりは黒の細線（`border-t border-foreground`）、行の境目は薄い細線（`border-b`）
-- 角丸は使わない（`--radius: 0`）
+- まとまりの始まりは黒の細線（`border-top: 1px solid var(--foreground)`）、行の境目は薄い細線（`var(--border)`）
+- 角丸は使わない
 - 入力欄・選択欄は枠で囲まず、下線だけを引く
-- 影は浮く面にだけ付ける（メニュー・ポップアップ・トーストは `shadow-popup`、ダイアログは `shadow-dialog`）
+- 影は浮く面にだけ付ける（メニュー・ポップアップ・トーストは `--popup-shadow`、ダイアログは `--dialog-shadow`）
 
-<div style={{ display: "grid", gap: 16, maxWidth: 360 }}>
-  <div className="border-t border-foreground pt-2 text-sm">まとまりの始まり</div>
-  <div className="border-b py-2 text-sm">行の境目</div>
-  <div className="border-b border-foreground/40 py-1 text-sm">入力欄の下線</div>
-  <div className="p-3 text-sm shadow-popup ring-1 ring-input">浮く面（shadow-popup）</div>
+<div style={{ display: "grid", gap: 16, maxWidth: 360, fontSize: 14 }}>
+  <div style={{ paddingTop: 8, borderTop: "1px solid var(--foreground)" }}>まとまりの始まり</div>
+  <div style={{ paddingBlock: 8, borderBottom: "1px solid var(--border)" }}>行の境目</div>
+  <div
+    style={{
+      paddingBlock: 4,
+      borderBottom: "1px solid color-mix(in oklab, var(--foreground) 40%, transparent)",
+    }}
+  >
+    入力欄の下線
+  </div>
+  <div style={{ padding: 12, boxShadow: "0 0 0 1px var(--input), var(--popup-shadow)" }}>
+    浮く面（--popup-shadow）
+  </div>
 </div>

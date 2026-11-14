@@ -1,0 +1,137 @@
+/* カテゴリ別の合計の一覧。まとまりの始まりに黒の線を引く */
+.CategoryList {
+  border-top: 1px solid var(--foreground);
+}
+
+/* 記録がないときの知らせ */
+.CategoryEmpty {
+  padding-block: 0.625rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--muted-foreground);
+  border-top: 1px solid var(--foreground);
+}
+
+/* 名前・割合・金額の 3 列。カテゴリの行と内訳の行で列をそろえる */
+.CategoryDetails {
+  border-bottom-width: 1px;
+
+  > .summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 4rem 7rem;
+    column-gap: 1rem;
+    align-items: baseline;
+    padding-block: 0.625rem;
+    cursor: pointer;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        background-color: color-mix(in oklab, var(--muted) 60%, transparent);
+      }
+    }
+
+    > .name {
+      display: flex;
+      gap: 0.375rem;
+      align-items: center;
+      min-width: 0;
+
+      > .chevron {
+        flex-shrink: 0;
+        width: 0.875rem;
+        height: 0.875rem;
+        color: var(--muted-foreground);
+        transition: rotate 150ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      > .nameText {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    > .percent {
+      font-size: 0.75rem;
+      font-variant-numeric: tabular-nums;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+      text-align: right;
+    }
+
+    > .amount {
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    /* 合計に対する割合。幅だけで比べられるよう、地の線は引かない */
+    > .ratio {
+      grid-column: span 3 / span 3;
+      height: 0.125rem;
+      margin-top: 0.375rem;
+
+      > .ratioBar {
+        display: block;
+        height: 100%;
+        background-color: var(--foreground);
+      }
+    }
+  }
+
+  &[open] {
+    > .summary {
+      > .name {
+        > .chevron {
+          rotate: 90deg;
+        }
+      }
+    }
+  }
+}
+
+/* 内訳 1 つ分の行 */
+.GenreRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4rem 7rem;
+  column-gap: 1rem;
+  align-items: baseline;
+  padding-block: 0.375rem;
+
+  &[data-link] {
+    @media (hover: hover) {
+      &:hover {
+        background-color: color-mix(in oklab, var(--muted) 60%, transparent);
+      }
+    }
+  }
+
+  > .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &[data-indent] {
+    > .name {
+      padding-left: 1.25rem;
+    }
+  }
+
+  > .percent {
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+    text-align: right;
+  }
+
+  > .amount {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+}

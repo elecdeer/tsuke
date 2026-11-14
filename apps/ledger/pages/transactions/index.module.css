@@ -1,0 +1,388 @@
+/* 絞り込み。狭い画面では横に折り返す */
+.Filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  align-items: center;
+
+  /* 店舗で絞り込んでいるときの印と、外すボタン */
+  > .placeChip {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+    height: 1.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    border-bottom: 1px solid var(--foreground);
+
+    > .chipRemove {
+      padding: 0.125rem;
+      color: var(--muted-foreground);
+
+      @media (hover: hover) {
+        &:hover {
+          color: var(--foreground);
+        }
+      }
+
+      > .chipRemoveIcon {
+        width: 0.875rem;
+        height: 0.875rem;
+      }
+    }
+  }
+
+  > .reset {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+    height: 1.75rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+
+    @media (hover: hover) {
+      &:hover {
+        color: var(--foreground);
+      }
+    }
+
+    > .resetIcon {
+      width: 0.875rem;
+      height: 0.875rem;
+    }
+  }
+}
+
+/* 件数と合計 */
+.Totals {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1.25rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+
+  > .total {
+    display: flex;
+    gap: 0.375rem;
+
+    > .totalValue {
+      font-variant-numeric: tabular-nums;
+      color: var(--foreground);
+    }
+  }
+}
+
+/*
+ * 取引 1 件の行。振替と残高調整はお金の出入りではないので、行全体を薄くして支出・収入と見分ける。
+ * 狭い画面では口座の列を出さず、内訳の後ろに続けて書く
+ */
+.TransactionRow {
+  border-bottom-width: 1px;
+
+  > .rowLink {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 6rem;
+    column-gap: 1rem;
+    align-items: baseline;
+    padding-block: 0.625rem;
+
+    @media (width >= 40rem) {
+      grid-template-columns: minmax(0, 1fr) 9rem 6rem;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        background-color: color-mix(in oklab, var(--muted) 60%, transparent);
+      }
+    }
+
+    &[data-move] {
+      color: var(--muted-foreground);
+    }
+
+    &[aria-current="true"] {
+      background-color: var(--muted);
+    }
+
+    > .main {
+      display: flex;
+      flex-direction: column;
+      gap: 0.125rem;
+      min-width: 0;
+
+      > .title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+
+        > .mode {
+          margin-right: 0.5rem;
+          font-size: 0.75rem;
+          line-height: 1rem;
+          color: var(--muted-foreground);
+        }
+      }
+
+      > .details {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.75rem;
+        line-height: 1rem;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+
+        > .detailsAccount {
+          @media (width >= 40rem) {
+            display: none;
+          }
+        }
+      }
+
+      > .advance {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.75rem;
+        font-variant-numeric: tabular-nums;
+        line-height: 1rem;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+      }
+
+      > .aggregation {
+        display: flex;
+        gap: 0.25rem;
+        align-items: center;
+        font-size: 0.75rem;
+        line-height: 1rem;
+        color: var(--destructive);
+
+        > .aggregationIcon {
+          width: 0.875rem;
+          height: 0.875rem;
+        }
+      }
+    }
+
+    > .account {
+      display: none;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+      white-space: nowrap;
+
+      @media (width >= 40rem) {
+        display: block;
+      }
+    }
+
+    > .amount {
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+  }
+}
+
+/* 広い画面で一覧の横に出す、取引の編集のパネル */
+.SidePanel {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 1rem;
+  width: 28rem;
+  max-height: calc(100dvh - var(--header-height) - 2rem);
+  padding-left: 1.5rem;
+  margin-left: 2rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-left-width: 1px;
+  transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  animation: panel-in 300ms ease;
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+    animation: none;
+  }
+
+  &[data-closing] {
+    opacity: 0;
+  }
+
+  > .panelHeader {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+
+    > .favorite {
+      margin-right: auto;
+    }
+
+    > .panelLink {
+      padding: 0.25rem;
+      color: var(--muted-foreground);
+
+      @media (hover: hover) {
+        &:hover {
+          color: var(--foreground);
+        }
+      }
+
+      > .panelIcon {
+        width: 1rem;
+        height: 1rem;
+      }
+    }
+  }
+}
+
+/* 件数と合計、日ごとの取引の一覧 */
+.TransactionList {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.Empty {
+  padding-block: 0.625rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--muted-foreground);
+  border-top: 1px solid var(--foreground);
+}
+
+/* 日付。狭い画面では行の上に積まれ、行と重なるので、Section が背景で隠す */
+.DayLabel {
+  display: block;
+  padding-top: 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+}
+
+/* 一覧の始まりにだけ黒の線を引く */
+.DayList {
+  &[data-first] {
+    border-top: 1px solid var(--foreground);
+  }
+}
+
+/*
+ * 取引の一覧の画面。パネルの列は閉じていても 0 幅で置いておき、開け閉めで列の幅を動かす。
+ * 一覧の幅も同時にレイアウトの最大幅のトランジションで広がるので、同じ長さにそろえる
+ */
+.TransactionsPage {
+  display: grid;
+
+  @media (width >= 80rem) {
+    grid-template-columns: minmax(0, 1fr) 0rem;
+    align-items: start;
+    transition: grid-template-columns 300ms cubic-bezier(0, 0, 0.2, 1);
+
+    &[data-panel-open] {
+      grid-template-columns: minmax(0, 1fr) 30rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+
+  > .main {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    min-width: 0;
+
+    > .header {
+      display: grid;
+      gap: 1.5rem 1rem;
+
+      @media (width >= 48rem) {
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        align-items: end;
+      }
+
+      > .headingColumn {
+        @media (width >= 48rem) {
+          grid-column: span 3 / span 3;
+        }
+      }
+
+      /* 狭い画面ではボタンを上の行に出し、フィルタに全幅を使わせて横に折り返す */
+      > .controls {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+
+        @media (width >= 48rem) {
+          flex-direction: row;
+          grid-column: span 9 / span 9;
+          column-gap: 1.25rem;
+          align-items: flex-start;
+          justify-content: space-between;
+        }
+
+        > .filtersColumn {
+          min-width: 0;
+
+          @media (width >= 48rem) {
+            flex: 1;
+          }
+        }
+
+        > .actions {
+          display: flex;
+          flex-shrink: 0;
+          gap: 0.75rem;
+          align-items: center;
+          justify-content: flex-end;
+          order: -9999;
+
+          @media (width >= 48rem) {
+            order: 9999;
+          }
+
+          > .importLink {
+            font-size: 0.75rem;
+            line-height: 1rem;
+            color: var(--muted-foreground);
+            text-decoration-line: underline;
+
+            @media (hover: hover) {
+              &:hover {
+                color: var(--foreground);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /*
+   * 列の幅に合わせて中身を切り取り、右に寄せておくことで、パネルが右から滑り込んで見えるようにする。
+   * overflow: hidden だとスクロールの箱になって sticky が効かなくなるので clip にする
+   */
+  > .panelColumn {
+    display: none;
+
+    @media (width >= 80rem) {
+      position: sticky;
+      top: calc(var(--header-height) + 1rem);
+      display: flex;
+      justify-content: flex-end;
+      overflow: clip;
+    }
+  }
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+  }
+}

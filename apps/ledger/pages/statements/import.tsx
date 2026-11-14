@@ -1,7 +1,9 @@
 import { Link, useRouter } from "@void/react";
 import { ChevronRight, CircleCheck, FileUp, LoaderCircle, TriangleAlert } from "lucide-react";
 import { memo, useCallback, useId, useState, type ChangeEvent } from "react";
-import { Button, buttonVariants } from "@tsuke/ui/components/button";
+import { Button, buttonStyleProps } from "@tsuke/ui/components/button";
+import { visuallyHiddenClassName } from "@tsuke/ui/lib/a11y";
+import { PageTitle } from "@tsuke/ui/patterns/PageTitle";
 import { Input } from "@tsuke/ui/components/input";
 import {
   Table,
@@ -42,6 +44,7 @@ import {
   type StatementCsvDraft,
 } from "@/web/statementCsvDraft";
 import type { Props } from "./import.server";
+import styles from "./import.module.css";
 
 const ledgerApi = () => createLedgerClient(window.location.origin);
 
@@ -98,19 +101,16 @@ const readErrorMessage = async (response: Response): Promise<string> => {
  */
 const idFromValue = (value: string): number | null => (value === "" ? null : Number(value));
 
-const DETAIL_HEAD_CLASS = "h-7 px-2 text-xs";
-const DETAIL_CELL_CLASS = "whitespace-normal px-2 py-1";
-
 /**
  * 読み取りの所要時間と列の読み取りの結果。普段は見なくてよいので折りたたんでおく。
  */
 const ReadDetails = ({ summary }: { summary: ReadSummary }) => (
-  <details className="group text-xs text-muted-foreground">
-    <summary className="flex w-fit cursor-pointer list-none items-center gap-1 hover:text-foreground [&::-webkit-details-marker]:hidden">
-      <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
+  <details className={styles.ReadDetails}>
+    <summary className={styles.toggle}>
+      <ChevronRight className={styles.chevron} />
       読み取りの詳細
     </summary>
-    <div className="flex flex-col gap-2 pt-2">
+    <div className={styles.body}>
       <p>
         読み取りにかかった時間:{" "}
         {summary.readMs === null ? (
@@ -127,26 +127,22 @@ const ReadDetails = ({ summary }: { summary: ReadSummary }) => (
         列の読み取り: {summary.formatKnown ? "覚えていた形式" : "AI の判定"}・
         {summary.columns.mapping.firstDataRow + 1} 行目から
       </p>
-      <Table className="w-auto text-xs">
+      <Table size="sm">
         <TableHeader>
           <TableRow>
-            <TableHead className={DETAIL_HEAD_CLASS}>項目</TableHead>
-            <TableHead className={DETAIL_HEAD_CLASS}>列</TableHead>
-            <TableHead className={DETAIL_HEAD_CLASS}>見出し</TableHead>
-            <TableHead className={DETAIL_HEAD_CLASS}>最初の行の値</TableHead>
+            <TableHead>項目</TableHead>
+            <TableHead>列</TableHead>
+            <TableHead>見出し</TableHead>
+            <TableHead>最初の行の値</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {describeColumns(summary.columns).map(({ role, columnNumber, columnName, sample }) => (
             <TableRow key={`${role}:${columnNumber}`}>
-              <TableCell className={DETAIL_CELL_CLASS}>{role}</TableCell>
-              <TableCell className={cn(DETAIL_CELL_CLASS, "tabular-nums")}>
-                {columnNumber}
-              </TableCell>
-              <TableCell className={cn(DETAIL_CELL_CLASS, "break-all")}>
-                {columnName || "—"}
-              </TableCell>
-              <TableCell className={cn(DETAIL_CELL_CLASS, "break-all")}>{sample}</TableCell>
+              <TableCell>{role}</TableCell>
+              <TableCell numeric>{columnNumber}</TableCell>
+              <TableCell wrap>{columnName || "—"}</TableCell>
+              <TableCell wrap>{sample}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -154,8 +150,6 @@ const ReadDetails = ({ summary }: { summary: ReadSummary }) => (
     </div>
   </details>
 );
-
-const SELECT_CLASS = "col-start-2 w-full @2xl:col-start-auto";
 
 /**
  * 前回の取り込みを 1 行の文にする。次にどの日付からの CSV を出せばよいか分かるよう、明細の最後の日付を添える。
@@ -173,25 +167,22 @@ const describeLastImport = (lastImport: Props["lastImports"][number]): string =>
  * 口座ごとの前回の取り込み。次に出す CSV の期間を決めるのに使う。
  */
 const LastImports = ({ lastImports }: { lastImports: Props["lastImports"] }) => (
-  <div className="flex flex-col gap-1">
-    <h2 className="text-xs text-muted-foreground">前回の取り込み</h2>
-    {lastImports.length === 0 ? (
-      <p className="text-sm text-muted-foreground">まだ取り込んでいません</p>
-    ) : (
-      <dl className="border-t">
-        {lastImports.map((lastImport) => (
-          <div
-            key={lastImport.accountId}
-            className="flex flex-col gap-0.5 border-b py-2 @md:flex-row @md:items-baseline @md:gap-4"
-          >
-            <dt className="shrink-0 text-sm @md:w-32 @md:truncate">{lastImport.accountName}</dt>
-            <dd className="min-w-0 text-xs text-muted-foreground tabular-nums break-all">
-              {describeLastImport(lastImport)}
-            </dd>
-          </div>
-        ))}
-      </dl>
-    )}
+  <div className={styles.LastImports}>
+    <div className={styles.lastImportsInner}>
+      <h2 className={styles.caption}>前回の取り込み</h2>
+      {lastImports.length === 0 ? (
+        <p className={styles.none}>まだ取り込んでいません</p>
+      ) : (
+        <dl className={styles.list}>
+          {lastImports.map((lastImport) => (
+            <div key={lastImport.accountId} className={styles.entry}>
+              <dt className={styles.account}>{lastImport.accountName}</dt>
+              <dd className={styles.description}>{describeLastImport(lastImport)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
   </div>
 );
 
@@ -223,63 +214,59 @@ const DraftRow = memo(function DraftRow({
 }) {
   const onChange = (next: StatementCsvDraft) => onDraftChange(index, next);
   return (
-    <li
-      className={cn(
-        "grid grid-cols-[1.25rem_minmax(0,1fr)] gap-x-3 gap-y-2 border-b py-3 @2xl:grid-cols-[1.25rem_minmax(0,1fr)_6rem_7rem_minmax(0,1fr)]",
-        !draft.selected && "text-muted-foreground",
-      )}
-    >
+    <li className={styles.DraftRow} data-unselected={!draft.selected || undefined}>
       <input
         type="checkbox"
         aria-label={`${formatDay(draft.date)} ${draft.description} を登録する`}
-        className="mt-1 size-4 accent-primary"
+        className={styles.checkbox}
         checked={draft.selected}
         disabled={disabled}
         onChange={(event) => onChange({ ...draft, selected: event.target.checked })}
       />
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="flex items-baseline justify-between gap-3">
-          <span className="truncate" title={draft.description}>
+      <div className={styles.main}>
+        <span className={styles.headline}>
+          <span className={styles.description} title={draft.description}>
             {draft.description || "（利用先なし）"}
           </span>
-          <span className="tabular-nums font-medium @2xl:hidden">
+          <span className={styles.inlineAmount}>
             {draft.direction === "in" ? "+" : ""}
             {formatYen(draft.amount)}
           </span>
         </span>
-        <span className="text-xs text-muted-foreground">
+        <span className={styles.meta}>
           {formatDay(draft.date)}・{draft.line} 行目
         </span>
         {draft.registered !== null && (
           <Link
             href={`/transactions/${draft.registered.transactionId}`}
-            className="flex w-fit items-center gap-1 text-xs underline"
+            className={styles.registered}
           >
-            <CircleCheck className="size-3" aria-hidden="true" />
+            <CircleCheck className={styles.statusIcon} aria-hidden="true" />
             登録済みかもしれません（{formatDay(draft.registered.date)}
             {draft.registered.placeName === null ? "" : `・${draft.registered.placeName}`}）
           </Link>
         )}
         {draft.pending && (
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <LoaderCircle className="size-3 animate-spin" aria-hidden="true" />
+          <span className={styles.status}>
+            <LoaderCircle className={styles.statusIcon} data-spinning="" aria-hidden="true" />
             分類中…
           </span>
         )}
         {draft.selected && problem !== null && (
-          <span className="flex items-center gap-1 text-xs text-destructive">
-            <TriangleAlert className="size-3" aria-hidden="true" />
+          <span className={styles.status} data-problem="">
+            <TriangleAlert className={styles.statusIcon} aria-hidden="true" />
             {problem}
           </span>
         )}
       </div>
-      <span className="hidden text-right tabular-nums font-medium @2xl:block">
+      <span className={styles.amount}>
         {draft.direction === "in" ? "+" : ""}
         {formatYen(draft.amount)}
       </span>
       <NativeSelect
         size="sm"
-        className={cn(SELECT_CLASS, "self-start")}
+        width="full"
+        className={styles.modeSelect}
         aria-label="種類"
         value={draft.mode}
         disabled={disabled}
@@ -298,11 +285,11 @@ const DraftRow = memo(function DraftRow({
         )}
         <NativeSelectOption value="transfer">{MODE_LABELS.transfer}</NativeSelectOption>
       </NativeSelect>
-      <div className="col-start-2 flex min-w-0 flex-col gap-2 @2xl:col-start-auto">
+      <div className={styles.targets}>
         {draft.mode === "payment" && (
           <NativeSelect
             size="sm"
-            className={SELECT_CLASS}
+            width="full"
             aria-label="内訳"
             aria-invalid={draft.selected && !draft.pending && draft.genreId === null}
             value={draft.genreId ?? ""}
@@ -324,7 +311,7 @@ const DraftRow = memo(function DraftRow({
         {draft.mode === "income" && (
           <NativeSelect
             size="sm"
-            className={SELECT_CLASS}
+            width="full"
             aria-label="カテゴリ"
             value={draft.categoryId ?? ""}
             disabled={disabled}
@@ -343,7 +330,7 @@ const DraftRow = memo(function DraftRow({
         {draft.mode === "transfer" ? (
           <NativeSelect
             size="sm"
-            className={SELECT_CLASS}
+            width="full"
             aria-label={draft.direction === "out" ? "振替先の口座" : "振替元の口座"}
             aria-invalid={draft.selected && !draft.pending && draft.counterAccountId === null}
             value={draft.counterAccountId ?? ""}
@@ -366,7 +353,7 @@ const DraftRow = memo(function DraftRow({
             aria-label="店舗"
             placeholder="店舗（なければ品名に残します）"
             list={placeListId}
-            className="h-7 text-sm"
+            size="sm"
             value={draft.place}
             disabled={disabled}
             onChange={(event) => onChange({ ...draft, place: event.target.value })}
@@ -549,10 +536,10 @@ const StatementImportPage = ({
     .reduce((sum, draft) => sum + draft.amount, 0);
 
   return (
-    <div className="flex flex-col gap-10">
-      <Section label={<h1 className="text-2xl font-semibold">CSV の取り込み</h1>}>
-        <div className="flex flex-col gap-3 border-t border-foreground pt-3">
-          <p className="text-sm text-muted-foreground">
+    <div className={styles.StatementImportPage}>
+      <Section label={<PageTitle>CSV の取り込み</PageTitle>}>
+        <div className={styles.Intro}>
+          <p className={styles.lead}>
             銀行やクレジットカードの履歴 CSV
             を選ぶと、列を読み取って店舗とカテゴリを分類します。登録した形式と利用先は覚えていて、次からは新しいものだけを
             AI が判定します。
@@ -560,15 +547,13 @@ const StatementImportPage = ({
           <div>
             <label
               htmlFor={fileInputId}
-              className={cn(
-                buttonVariants({ variant: "outline" }),
-                "cursor-pointer has-disabled:pointer-events-none has-disabled:opacity-50",
-              )}
+              {...buttonStyleProps({ variant: "outline" })}
+              className={cn(buttonStyleProps().className, styles.FilePick)}
             >
               {reading ? (
-                <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+                <LoaderCircle className={styles.filePickIcon} data-spinning="" aria-hidden="true" />
               ) : (
-                <FileUp className="size-4" aria-hidden="true" />
+                <FileUp className={styles.filePickIcon} aria-hidden="true" />
               )}
               {rereading
                 ? "読み直し中…"
@@ -581,7 +566,7 @@ const StatementImportPage = ({
                 id={fileInputId}
                 type="file"
                 accept=".csv,text/csv"
-                className="sr-only"
+                className={visuallyHiddenClassName}
                 disabled={busy}
                 onChange={onFileChange}
               />
@@ -589,26 +574,25 @@ const StatementImportPage = ({
           </div>
           {error !== null && <ErrorMessage message={error} />}
           {registeredCount !== null && (
-            <output className="flex items-center gap-1.5 text-sm">
-              <CircleCheck className="size-4" aria-hidden="true" />
+            <output className={styles.Registered}>
+              <CircleCheck className={styles.registeredIcon} aria-hidden="true" />
               {registeredCount} 件登録しました。
-              <Link href="/transactions" className="underline">
+              <Link href="/transactions" className={styles.registeredLink}>
                 取引を見る
               </Link>
             </output>
           )}
-          <div className="@container">
-            <LastImports lastImports={lastImports} />
-          </div>
+          <LastImports lastImports={lastImports} />
         </div>
       </Section>
 
       {summary !== null && (
         <>
           <Section label="取り込む口座">
-            <div className="flex flex-col gap-2 border-t border-foreground pt-3">
+            <div className={styles.Account}>
               <NativeSelect
-                className="w-full max-w-sm"
+                width="full"
+                className={styles.accountSelect}
                 aria-label="取り込む口座"
                 aria-invalid={accountId === null}
                 value={accountId ?? ""}
@@ -623,11 +607,11 @@ const StatementImportPage = ({
                 ))}
               </NativeSelect>
               {lastImportOfAccount !== undefined && (
-                <p className="text-xs text-muted-foreground">
+                <p className={styles.note}>
                   この口座の前回の取り込み：{describeLastImport(lastImportOfAccount)}
                 </p>
               )}
-              <output className="text-xs text-muted-foreground">
+              <output className={styles.note}>
                 {summary.file.name}：{drafts.length} 行を読み取りました
                 {pendingCount > 0 && `。${pendingCount} 行を分類しています`}
                 {summary.recalledCount > 0 &&
@@ -637,12 +621,12 @@ const StatementImportPage = ({
                 {summary.unclassifiedCount > 0 &&
                   `。${summary.unclassifiedCount} 行は分類できなかったので、手で選んでください`}
               </output>
-              <p className="text-xs text-muted-foreground">
+              <p className={styles.note}>
                 {summary.formatKnown && "覚えていた列の形式で読み取りました。"}
                 読み取りが違うときは
                 <button
                   type="button"
-                  className="underline hover:text-foreground disabled:opacity-50"
+                  className={styles.reread}
                   disabled={busy}
                   onClick={() => rereadAccurately(summary.file)}
                 >
@@ -659,7 +643,7 @@ const StatementImportPage = ({
                 <option key={name} value={name} aria-label={name} />
               ))}
             </datalist>
-            <ul className="@container border-t border-foreground" aria-label="明細">
+            <ul className={styles.Drafts} aria-label="明細">
               {drafts.map((draft, index) => (
                 <DraftRow
                   key={draft.line}
@@ -678,12 +662,12 @@ const StatementImportPage = ({
           </Section>
 
           <Section label="">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <p className="text-sm tabular-nums">
+            <div className={styles.Submit}>
+              <p className={styles.totals}>
                 {selected.length} 件・出金 {formatYen(outTotal)}・入金 {formatYen(inTotal)}
                 {problemCount > 0 && (
-                  <span className="ml-2 inline-flex items-center gap-1 text-destructive">
-                    <TriangleAlert className="size-3.5" aria-hidden="true" />
+                  <span className={styles.problems}>
+                    <TriangleAlert className={styles.problemsIcon} aria-hidden="true" />
                     未選択の項目が {problemCount} 件あります
                   </span>
                 )}

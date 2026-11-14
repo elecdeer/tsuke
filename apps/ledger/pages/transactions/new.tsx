@@ -1,4 +1,4 @@
-import { action, Link } from "@void/react";
+import { action } from "@void/react";
 import { Star } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@tsuke/ui/components/button";
@@ -20,6 +20,9 @@ import {
 } from "@/web/transactionDraft";
 import { titleOf } from "@/web/transactionTitle";
 import type { Props } from "./new.server";
+import { BackLink } from "@/web/components/BackLink";
+import { PageTitle } from "@tsuke/ui/patterns/PageTitle";
+import styles from "./new.module.css";
 
 /**
  * 取引の種類を選ぶボタンの列。よく切り替えるので、開かずに一度の操作で選べるようボタンを並べる。
@@ -31,7 +34,7 @@ const ModePicker = ({
   mode: TransactionMode;
   onChange: (mode: TransactionMode) => void;
 }) => (
-  <div role="group" aria-label="種類" className="grid grid-cols-4 gap-2">
+  <div role="group" aria-label="種類" className={styles.ModePicker}>
     {TRANSACTION_MODES.map((candidate) => (
       <Button
         key={candidate}
@@ -59,15 +62,15 @@ const TemplateList = ({
 }) => {
   if (templates.length === 0) {
     return (
-      <p className="border-t border-foreground pt-3 text-xs text-muted-foreground">
+      <p className={styles.TemplatesEmpty}>
         取引の編集画面で
-        <Star className="mx-1 inline size-3.5 align-text-bottom" aria-hidden="true" />
+        <Star className={styles.starIcon} aria-hidden="true" />
         よく使うを押すと、ここから同じ内容で入力できます
       </p>
     );
   }
   return (
-    <ul className="border-t border-foreground">
+    <ul className={styles.Templates}>
       {templates.map((template) => {
         const title = titleOf(template);
         const total = template.items.reduce((sum, item) => sum + item.amount, 0);
@@ -80,29 +83,25 @@ const TemplateList = ({
           ),
         ];
         return (
-          <li key={template.id} className="flex items-center gap-2 border-b">
+          <li key={template.id} className={styles.template}>
             <button
               type="button"
-              className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_6rem] items-baseline gap-x-4 py-2.5 text-left hover:bg-muted/60"
+              className={styles.templateButton}
               onClick={() => onSelect(template)}
             >
-              <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="truncate">
+              <span className={styles.templateText}>
+                <span className={styles.templateTitle}>
                   {/* 店舗も品目もない取引は見出しが種類の名前になるので、重ねて出さない */}
                   {template.mode !== "payment" && title !== MODE_LABELS[template.mode] && (
-                    <span className="mr-2 text-xs text-muted-foreground">
-                      {MODE_LABELS[template.mode]}
-                    </span>
+                    <span className={styles.templateMode}>{MODE_LABELS[template.mode]}</span>
                   )}
                   {title}
                 </span>
                 {details.length > 0 && (
-                  <span className="truncate text-xs text-muted-foreground">
-                    {details.join("・")}
-                  </span>
+                  <span className={styles.templateDetails}>{details.join("・")}</span>
                 )}
               </span>
-              <span className="text-right tabular-nums">
+              <span className={styles.templateAmount}>
                 {template.mode === "income" && "+"}
                 {formatAmount(total)}
               </span>
@@ -178,22 +177,17 @@ const TransactionNewPage = ({
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link
-        href="/transactions"
-        className="self-start text-xs text-muted-foreground hover:text-foreground"
-      >
-        ← 取引
-      </Link>
+    <div className={styles.TransactionNewPage}>
+      <BackLink href="/transactions">← 取引</BackLink>
       <form
-        className="flex flex-col gap-10"
+        className={styles.Form}
         onSubmit={(event) => {
           event.preventDefault();
           void register();
         }}
       >
-        <Section label={<h1 className="text-2xl font-semibold">取引の追加</h1>}>
-          <div className="border-t border-foreground pt-3">
+        <Section label={<PageTitle>取引の追加</PageTitle>}>
+          <div className={styles.ModeField}>
             <ModePicker mode={mode} onChange={changeMode} />
           </div>
         </Section>
@@ -216,15 +210,9 @@ const TransactionNewPage = ({
         />
 
         <Section label="">
-          <div className="flex flex-col gap-4">
+          <div className={styles.Footer}>
             {error !== null && <ErrorMessage message={error} />}
-            <Button
-              type="submit"
-              size="lg"
-              // スマホでは幅いっぱいにして親指で押しやすくする（レシートの登録と同じ）
-              className="h-12 w-full sm:h-11 sm:w-auto sm:self-start sm:px-10"
-              disabled={pending}
-            >
+            <Button type="submit" size="xl" className={styles.submit} disabled={pending}>
               登録
             </Button>
           </div>

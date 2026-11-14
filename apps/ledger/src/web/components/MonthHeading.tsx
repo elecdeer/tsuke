@@ -2,8 +2,9 @@ import { Link } from "@void/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { type Ref, useEffect, useRef, useState } from "react";
 import { formatMonth, shiftMonth } from "@/ledger/dates";
-import { cn } from "@tsuke/ui/lib/utils";
+import { visuallyHiddenClassName } from "@tsuke/ui/lib/a11y";
 import { navigatePeriod } from "@/web/components/PeriodPager";
+import styles from "./PeriodHeading.module.css";
 
 /**
  * 「10月」の形で月だけを書く。前後の月へのリンクは年をまたいでも月だけで足りる。
@@ -14,11 +15,9 @@ const monthLabel = (month: string): string => `${Number(month.slice(5))}月`;
  * 年の下に月を大きく出す見出し。
  */
 const MonthTitle = ({ month }: { month: string }) => (
-  <h1 aria-label={formatMonth(month)} className="flex flex-col">
-    <span className="text-xs text-muted-foreground">{month.slice(0, 4)}</span>
-    <span className="text-6xl leading-none font-semibold tracking-tighter">
-      {Number(month.slice(5))}
-    </span>
+  <h1 aria-label={formatMonth(month)} className={styles.title}>
+    <span className={styles.caption}>{month.slice(0, 4)}</span>
+    <span className={styles.number}>{Number(month.slice(5))}</span>
   </h1>
 );
 
@@ -40,13 +39,13 @@ export const MonthHeading = ({
   const previous = shiftMonth(month, -1);
   const next = shiftMonth(month, 1);
   return (
-    <div ref={headingRef} className="flex flex-col gap-1">
-      <div className="flex gap-4 text-xs text-muted-foreground">
+    <div ref={headingRef} className={styles.PeriodHeading}>
+      <div className={styles.links}>
         <Link
           href={hrefOf(previous)}
           viewTransition
           onNavigate={navigatePeriod("prev")}
-          className="hover:text-foreground"
+          className={styles.link}
         >
           ← {monthLabel(previous)}
         </Link>
@@ -54,7 +53,7 @@ export const MonthHeading = ({
           href={hrefOf(next)}
           viewTransition
           onNavigate={navigatePeriod("next")}
-          className="hover:text-foreground"
+          className={styles.link}
         >
           {monthLabel(next)} →
         </Link>
@@ -116,48 +115,38 @@ export const StickyMonthBar = ({
   const previous = shiftMonth(month, -1);
   const next = shiftMonth(month, 1);
   return (
-    // 親の flex の gap の分だけ引き戻して、高さ 0 の箱が間隔を増やさないようにする
-    <div className="sticky top-(--header-height) z-20 -mb-8 h-0" inert={!shown}>
-      <div
-        className={cn(
-          // まとまりの始まりなので、下端は黒の細線にする（docs/design.md）
-          "absolute -inset-x-4 top-0 flex h-(--month-bar-height) items-center justify-between border-b border-foreground bg-background px-4 transition-[opacity,translate] duration-150 motion-reduce:transition-none",
-          !shown && "pointer-events-none -translate-y-1 opacity-0",
-        )}
-      >
+    <div className={styles.StickyMonthBar} inert={!shown}>
+      <div className={styles.bar} data-hidden={shown ? undefined : ""}>
         {/* 大きい見出しをそのまま縮めた形にし、同じ月だと見てわかるようにする */}
-        <p className="flex items-baseline gap-1.5">
+        <p className={styles.month}>
           {/* 「11 2026」の並びでは読み上げで意味が通らないので、読み上げには年月を渡す */}
-          <span className="sr-only">{formatMonth(month)}</span>
-          <span
-            aria-hidden="true"
-            className="text-2xl leading-none font-semibold tracking-tighter tabular-nums"
-          >
+          <span className={visuallyHiddenClassName}>{formatMonth(month)}</span>
+          <span aria-hidden="true" className={styles.number}>
             {Number(month.slice(5))}
           </span>
-          <span aria-hidden="true" className="text-xs text-muted-foreground tabular-nums">
+          <span aria-hidden="true" className={styles.year}>
             {month.slice(0, 4)}
           </span>
         </p>
         {/* 帯を細く保つため、前後の月は文字ではなく矢印だけにする */}
-        <div className="-mr-1.5 flex text-muted-foreground">
+        <div className={styles.arrows}>
           <Link
             href={hrefOf(previous)}
             viewTransition
             onNavigate={navigatePeriod("prev")}
             aria-label={monthLabel(previous)}
-            className="p-1.5 hover:text-foreground"
+            className={styles.arrow}
           >
-            <ChevronLeft className="size-5" aria-hidden="true" />
+            <ChevronLeft className={styles.arrowIcon} aria-hidden="true" />
           </Link>
           <Link
             href={hrefOf(next)}
             viewTransition
             onNavigate={navigatePeriod("next")}
             aria-label={monthLabel(next)}
-            className="p-1.5 hover:text-foreground"
+            className={styles.arrow}
           >
-            <ChevronRight className="size-5" aria-hidden="true" />
+            <ChevronRight className={styles.arrowIcon} aria-hidden="true" />
           </Link>
         </div>
       </div>

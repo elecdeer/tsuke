@@ -15,20 +15,22 @@ const meta = preview.meta({
   title: "Components/Table",
   component: Table,
   render: () => (
-    <Table className="max-w-md">
+    <Table style={{ maxWidth: "28rem" }}>
       <TableHeader>
         <TableRow>
           <TableHead>日付</TableHead>
           <TableHead>店舗</TableHead>
-          <TableHead className="text-right">金額</TableHead>
+          <TableHead align="end">金額</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {ROWS.map((row) => (
           <TableRow key={`${row.date}-${row.place}`}>
-            <TableCell className="tabular-nums">{row.date}</TableCell>
+            <TableCell numeric>{row.date}</TableCell>
             <TableCell>{row.place}</TableCell>
-            <TableCell className="text-right tabular-nums">{formatAmount(row.amount)}</TableCell>
+            <TableCell align="end" numeric>
+              {formatAmount(row.amount)}
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>

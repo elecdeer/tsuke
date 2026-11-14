@@ -2,8 +2,8 @@ import "../src/styles.css";
 import { Link, useNavigation, useRouter } from "@void/react";
 import { Camera, ChartPie, List, type LucideIcon, Settings, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
-import { cn } from "@tsuke/ui/lib/utils";
 import { isActive, isNavigating, navHref, navPath } from "../src/web/nav.ts";
+import styles from "./layout.module.css";
 
 const NAV_ITEMS: ReadonlyArray<{ href: string; label: string; icon: LucideIcon }> = [
   { href: "/", label: "集計", icon: ChartPie },
@@ -24,10 +24,7 @@ const BottomNav = ({
   activePath: string;
   hrefOf: (href: string) => string;
 }) => (
-  <nav
-    aria-label="メイン"
-    className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
-  >
+  <nav aria-label="メイン" className={styles.BottomNav}>
     {NAV_ITEMS.map((item) => {
       const active = isActive(activePath, item.href);
       const Icon = item.icon;
@@ -36,12 +33,9 @@ const BottomNav = ({
           key={item.href}
           href={hrefOf(item.href)}
           aria-current={active ? "page" : undefined}
-          className={cn(
-            "-mt-px flex h-(--bottom-nav-height) flex-col items-center justify-center gap-0.5 border-t-2 border-transparent text-[0.6875rem] text-muted-foreground",
-            active && "border-primary font-medium text-foreground",
-          )}
+          className={styles.item}
         >
-          <Icon className="size-5" aria-hidden="true" />
+          <Icon className={styles.icon} aria-hidden="true" />
           {item.label}
         </Link>
       );
@@ -68,24 +62,19 @@ const Layout = ({ children }: { children: ReactNode }) => {
   const wide = path === "/transactions" && query.has("selected");
 
   return (
-    <div className="min-h-dvh bg-background">
-      <header className="sticky top-0 z-30 h-(--header-height) border-b bg-background">
+    <div className={styles.Layout}>
+      <header className={styles.header}>
         {isNavigating(navigation) && (
           // 支援技術には main の aria-busy で伝えるので、バーは飾りとして隠す。
           // <progress> は不定の進み具合を左右に流す見た目にしにくいので使わない
-          <div aria-hidden className="absolute inset-x-0 top-0 h-0.5 overflow-hidden">
-            <div className="nav-progress h-full w-1/3 bg-foreground" />
+          <div aria-hidden className={styles.progress}>
+            <div className={styles.progressBar} />
           </div>
         )}
-        <div
-          className={cn(
-            "mx-auto grid h-full max-w-5xl grid-cols-[auto_1fr] items-end gap-x-4 px-4 transition-[max-width] duration-300 ease-out motion-reduce:transition-none md:grid-cols-12",
-            wide && "xl:max-w-7xl",
-          )}
-        >
-          <span className="pb-2 text-sm font-semibold md:col-span-3">tsuke</span>
-          <div className="flex items-end gap-6 md:col-span-9">
-            <nav aria-label="メイン" className="hidden gap-6 md:flex">
+        <div className={styles.headerInner} data-wide={wide || undefined}>
+          <span className={styles.brand}>tsuke</span>
+          <div className={styles.headerNav}>
+            <nav aria-label="メイン" className={styles.nav}>
               {NAV_ITEMS.map((item) => {
                 const active = isActive(activePath, item.href);
                 return (
@@ -93,10 +82,7 @@ const Layout = ({ children }: { children: ReactNode }) => {
                     key={item.href}
                     href={hrefOf(item.href)}
                     aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "-mb-px border-b-2 border-transparent pb-2 text-sm text-muted-foreground hover:text-foreground",
-                      active && "border-primary font-medium text-foreground",
-                    )}
+                    className={styles.navLink}
                   >
                     {item.label}
                   </Link>
@@ -107,12 +93,9 @@ const Layout = ({ children }: { children: ReactNode }) => {
               href="/settings"
               aria-label="設定"
               aria-current={isActive(activePath, "/settings") ? "page" : undefined}
-              className={cn(
-                "ml-auto mb-1 p-1 text-muted-foreground hover:text-foreground",
-                isActive(activePath, "/settings") && "text-foreground",
-              )}
+              className={styles.settings}
             >
-              <Settings className="size-4" aria-hidden="true" />
+              <Settings className={styles.settingsIcon} aria-hidden="true" />
             </Link>
           </div>
         </div>
@@ -120,10 +103,8 @@ const Layout = ({ children }: { children: ReactNode }) => {
       <main
         aria-busy={isNavigating(navigation)}
         // 狭い画面では下のナビに本文の最後が隠れないよう、ナビの高さ分の余白を足す
-        className={cn(
-          "mx-auto max-w-5xl px-4 pt-8 pb-[calc(5.5rem+env(safe-area-inset-bottom))] transition-[max-width] duration-300 ease-out motion-reduce:transition-none md:pb-8",
-          wide && "xl:max-w-7xl",
-        )}
+        className={styles.main}
+        data-wide={wide || undefined}
       >
         {children}
       </main>

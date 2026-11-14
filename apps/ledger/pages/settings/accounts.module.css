@@ -1,0 +1,23 @@
+.AccountRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  border-bottom-width: 1px;
+
+  > .select {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+    padding-block: 0.625rem;
+    text-align: left;
+    cursor: pointer;
+
+    @media (hover: hover) {
+      &:hover {
+        background-color: color-mix(in oklab, var(--muted) 60%, transparent);
+      }
+    }
+  }
+}

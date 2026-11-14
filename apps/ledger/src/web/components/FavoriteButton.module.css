@@ -1,0 +1,39 @@
+.FavoriteButton {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+
+  /* よく使う取引にした印。付いている間は星を塗る */
+  > .button {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+    padding: 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+
+    @media (hover: hover) {
+      &:hover {
+        color: var(--foreground);
+      }
+    }
+
+    &:disabled {
+      opacity: 0.5;
+    }
+
+    &[aria-pressed="true"] {
+      color: var(--foreground);
+
+      > .star {
+        fill: currentcolor;
+      }
+    }
+
+    > .star {
+      width: 1rem;
+      height: 1rem;
+    }
+  }
+}

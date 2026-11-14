@@ -1,0 +1,51 @@
+/*
+ * main の左右の余白の分だけ広げ、隣の期間が画面の端まで動いて見えるようにする。
+ * relative にして各ページの offsetLeft をこの箱からの位置にし、スクロール位置と比べられるようにする
+ * （付けないと中央に寄せた main の外からの位置になり、広い画面で止まったページを見分けられない）
+ */
+.PeriodPager {
+  position: relative;
+  display: flex;
+  margin-inline: -1rem;
+  overflow: auto hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  > .page {
+    flex-shrink: 0;
+    width: 100%;
+    min-width: 0;
+    padding-inline: 1rem;
+    scroll-snap-align: center;
+    scroll-snap-stop: always;
+
+    /* 中身を縦に、大きく間を空けて並べる */
+    &[data-gap="loose"] {
+      display: flex;
+      flex-direction: column;
+      gap: 3rem;
+    }
+  }
+
+  /* 隣の期間のページ。高さは今の期間に合わせ、仮の中身はその上に重ねて縦にずらせるようにする */
+  > .neighbor {
+    position: relative;
+    flex-shrink: 0;
+    width: 100%;
+    padding-inline: 1rem;
+    scroll-snap-align: center;
+    scroll-snap-stop: always;
+
+    > .neighborContent {
+      position: absolute;
+      top: 0;
+      right: 1rem;
+      left: 1rem;
+    }
+  }
+}

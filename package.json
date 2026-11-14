@@ -19,7 +19,6 @@
     "eslint-plugin-css-cev": "catalog:",
     "eslint-plugin-css-properties-order": "catalog:",
     "jiti": "catalog:",
-    "tailwind-csstree": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:"
   },

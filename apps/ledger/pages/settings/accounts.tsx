@@ -1,4 +1,4 @@
-import { action, Link } from "@void/react";
+import { action } from "@void/react";
 import { Plus } from "lucide-react";
 import { useId, useState } from "react";
 import { Button } from "@tsuke/ui/components/button";
@@ -16,8 +16,12 @@ import { Textarea } from "@tsuke/ui/components/textarea";
 import { type ActionResult, actionErrorMessage } from "@/web/actionError";
 import { ArchiveButton } from "@/web/components/ArchiveButton";
 import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
+import { BackLink } from "@/web/components/BackLink";
 import { MoveButtons } from "@/web/components/MoveButtons";
+import { PageTitle } from "@tsuke/ui/patterns/PageTitle";
 import type { Props } from "./accounts.server";
+import styles from "./accounts.module.css";
+import settings from "./settings.module.css";
 
 type Account = Props["accounts"][number];
 
@@ -57,17 +61,17 @@ const AccountEditor = ({ account, onClose }: { account: Account | null; onClose:
         </DialogDescription>
       </DialogHeader>
       <form
-        className="flex flex-col gap-4"
+        className={settings.EditorForm}
         onSubmit={(event) => {
           event.preventDefault();
           void save();
         }}
       >
-        <div className="flex flex-col gap-1.5">
+        <div className={settings.field}>
           <Label htmlFor={nameId}>口座名</Label>
           <Input id={nameId} value={name} onChange={(event) => setName(event.target.value)} />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className={settings.field}>
           <Label htmlFor={hintId}>AI 読み取り用のヒント</Label>
           <Textarea
             id={hintId}
@@ -78,7 +82,7 @@ const AccountEditor = ({ account, onClose }: { account: Account | null; onClose:
           />
         </div>
         {error !== null && <ErrorMessage message={error} />}
-        <div className="flex justify-end gap-2">
+        <div className={settings.actions}>
           <DialogClose render={<Button variant="outline" />}>やめる</DialogClose>
           <Button type="submit" disabled={pending}>
             保存
@@ -86,7 +90,7 @@ const AccountEditor = ({ account, onClose }: { account: Account | null; onClose:
         </div>
       </form>
       {account !== null && (
-        <div className="border-t pt-4">
+        <div className={settings.EditorSection}>
           <ArchiveButton
             archived={account.archived}
             disabled={pending}
@@ -122,21 +126,13 @@ const AccountRow = ({
   onSelect: () => void;
   onMove: (offset: -1 | 1) => void;
 }) => (
-  <li className="flex items-center gap-2 border-b">
-    <button
-      type="button"
-      onClick={onSelect}
-      className="flex min-w-0 flex-1 cursor-pointer flex-col gap-0.5 py-2.5 text-left hover:bg-muted/60"
-    >
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="truncate">{account.name}</span>
-        {account.archived && (
-          <span className="shrink-0 text-xs text-muted-foreground">アーカイブ済み</span>
-        )}
+  <li className={styles.AccountRow}>
+    <button type="button" onClick={onSelect} className={styles.select}>
+      <span className={settings.RowTitle}>
+        <span className={settings.rowName}>{account.name}</span>
+        {account.archived && <span className={settings.badge}>アーカイブ済み</span>}
       </span>
-      {account.aiHint !== null && (
-        <span className="truncate text-xs text-muted-foreground">{account.aiHint}</span>
-      )}
+      {account.aiHint !== null && <span className={settings.RowNote}>{account.aiHint}</span>}
     </button>
     {!account.archived && (
       <MoveButtons
@@ -170,15 +166,10 @@ const AccountsPage = ({ accounts }: Props) => {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link
-        href="/settings"
-        className="self-start text-xs text-muted-foreground hover:text-foreground"
-      >
-        ← 設定
-      </Link>
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-3xl font-semibold tracking-tight">口座</h1>
+    <div className={settings.Page}>
+      <BackLink href="/settings">← 設定</BackLink>
+      <div className={settings.Header}>
+        <PageTitle size="lg">口座</PageTitle>
         <Button variant="outline" onClick={() => setEditing("new")}>
           <Plus />
           口座を追加
@@ -186,11 +177,9 @@ const AccountsPage = ({ accounts }: Props) => {
       </div>
       {moveError !== null && <ErrorMessage message={moveError} />}
       {accounts.length === 0 ? (
-        <p className="border-t border-foreground py-6 text-sm text-muted-foreground">
-          口座はありません
-        </p>
+        <p className={settings.Empty}>口座はありません</p>
       ) : (
-        <ul className="border-t border-foreground">
+        <ul className={settings.List}>
           {accounts.map((account, index) => (
             <AccountRow
               key={account.id}

@@ -24,6 +24,7 @@ import {
 import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
 import { FormField } from "@tsuke/ui/patterns/FormField";
 import ServerLogin from "./ServerLogin.tsx";
+import styles from "./SettingsOverlay.module.css";
 
 interface Props {
   open: boolean;
@@ -36,7 +37,7 @@ interface Props {
 export const SettingsOverlay = ({ open, onOpenChange }: Props) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex flex-col gap-6">
+      <DialogContent layout="column" gap="loose">
         <DialogHeader>
           <DialogTitle>設定</DialogTitle>
         </DialogHeader>
@@ -104,8 +105,8 @@ const SettingsOverlayContent = ({ onOpenChange: _onOpenChange }: Pick<Props, "on
 
   return (
     <>
-      <section className="flex items-end gap-2">
-        <FormField label="サーバー URL" htmlFor={serverUrlId} className="flex-1">
+      <section className={styles.ServerUrl}>
+        <FormField label="サーバー URL" htmlFor={serverUrlId} className={styles.urlField}>
           <Input
             id={serverUrlId}
             type="url"

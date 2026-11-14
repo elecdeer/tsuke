@@ -1,0 +1,124 @@
+/* 内訳の一覧と、そのカテゴリの取引の一覧へのリンク */
+.Genres {
+  padding-bottom: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+
+  > .item {
+    > .transactionsLink {
+      display: inline-block;
+      padding-block: 0.375rem;
+      padding-left: 1.25rem;
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+
+      @media (hover: hover) {
+        &:hover {
+          color: var(--foreground);
+        }
+      }
+    }
+  }
+}
+
+/*
+ * 合計の行。広い画面では 1 行目に見出しを見えないように置き、上に重ねた本物の見出しの右に合計の下端をそろえる
+ */
+.Figures {
+  display: grid;
+  gap: 1.5rem 1rem;
+
+  @media (width >= 48rem) {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  > .headingSpace {
+    display: none;
+
+    @media (width >= 48rem) {
+      display: flex;
+      visibility: hidden;
+      flex-direction: column;
+      grid-column: span 3 / span 3;
+      gap: 1rem;
+    }
+  }
+
+  > .totals {
+    @media (width >= 48rem) {
+      grid-column: span 9 / span 9;
+    }
+  }
+}
+
+/* 中身を縦に、大きく間を空けて並べる */
+.Stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+/*
+ * 集計の画面の骨組み。見出しは動かさず、合計と本体だけを横に送る（取引の一覧とそろえる）。
+ * 広い画面では合計を見出しの右に並べたいので、横に送る並びを見出しの高さから始め、見出しをその上に重ねる。
+ */
+.SummaryLayout {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+
+  @media (width >= 48rem) {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 1rem;
+  }
+
+  /*
+   * 送っている途中の合計が見出しの後ろをくぐるよう、地の色で塗って上に重ねる。
+   * 塗るのは見出しの幅（と左の余白）だけにし、右の端は地の色へ溶かしてぼかし、切れ目を目立たせない。
+   * 字間を詰めた大きな数字は字形が文字の箱より右にはみ出すので、右にも少し余白を取ってぼかしに掛けない
+   */
+  > .heading {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    background-color: var(--background);
+
+    @media (width >= 48rem) {
+      grid-row-start: 1;
+      grid-column: 1 / span 3;
+      align-self: start;
+      width: max-content;
+      padding-right: 0.75rem;
+      padding-left: 1rem;
+      margin-left: -1rem;
+
+      &::after {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 100%;
+        width: 2.5rem;
+        pointer-events: none;
+        content: "";
+        background-image: linear-gradient(to right, var(--background), transparent);
+        -webkit-backdrop-filter: blur(3px);
+        backdrop-filter: blur(3px);
+        mask-image: linear-gradient(to right, black, transparent);
+      }
+    }
+  }
+
+  > .body {
+    min-width: 0;
+
+    @media (width >= 48rem) {
+      grid-row-start: 1;
+      grid-column: 1 / span 12;
+    }
+  }
+}

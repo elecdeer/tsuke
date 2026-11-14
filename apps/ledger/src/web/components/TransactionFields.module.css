@@ -1,0 +1,166 @@
+/* 店舗の欄と、その下に出す店舗の候補（チェーン・支店） */
+.PlaceInput {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+/*
+ * 品目の列。列の名前は表の見出しに 1 度だけ出す。
+ *
+ * 狭いところでは内訳を小さく上に添え、その下に品目名と金額を並べ、メモはさらに下に置く。
+ * 広いところでは品目を 1 行に並べる。
+ * 取引の一覧のサイドパネルのような狭い場所にも置くので、画面の幅ではなく Section の幅（コンテナクエリ）で切り替える。
+ * 支出は並べ替え・削除のメニューの列を持ち、振替・残高調整はカテゴリの列を持たない。
+ */
+.ItemGrid {
+  display: grid;
+  column-gap: 1rem;
+
+  &[data-mode="payment"] {
+    grid-template-columns: minmax(0, 1fr) 7rem 1.75rem;
+
+    @container (width >= 36rem) {
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) 7rem 1.75rem;
+    }
+  }
+
+  &[data-mode="income"] {
+    grid-template-columns: minmax(0, 1fr) 7rem;
+
+    @container (width >= 36rem) {
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) 7rem;
+    }
+  }
+
+  &[data-mode="transfer"],
+  &[data-mode="adjustment"] {
+    grid-template-columns: minmax(0, 1fr) 7rem;
+
+    @container (width >= 36rem) {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 7rem;
+    }
+  }
+}
+
+/* 狭いところでは欄に「品目名」「円」が出ていて何の欄か分かるので、見出しの行は広いところだけに出す */
+.ItemHeader {
+  display: none;
+  padding-bottom: 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--foreground);
+
+  @container (width >= 36rem) {
+    display: grid;
+  }
+
+  > .headerAmount {
+    text-align: right;
+  }
+}
+
+/* 狭いところでは見出しの行を出さないので、表の始まりの線をここで引く */
+.ItemList {
+  border-top: 1px solid var(--foreground);
+
+  @container (width >= 36rem) {
+    border-top-width: 0;
+  }
+}
+
+/*
+ * 品目 1 件の行。広い画面では入力欄の下線が行の区切りを兼ねるので、行の罫線は狭い画面（欄を積むとき）だけに引く。
+ * 欄の下線（foreground の 40%）より薄いと品目の区切りと欄の下線を取り違えるので、下線より濃くする
+ */
+.ItemRow {
+  row-gap: 0;
+  align-items: end;
+  padding-block: 0.5rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--foreground) 60%, transparent);
+
+  @container (width >= 36rem) {
+    row-gap: 0.5rem;
+    border-bottom-width: 0;
+  }
+
+  /* 品目名の上に小さく添える。品目名と金額を同じ段に並べ、欄の高さをそろえるため */
+  > .categoryField {
+    grid-column: 1 / -1;
+    order: 1;
+
+    @container (width >= 36rem) {
+      grid-column: span 1 / span 1;
+      order: 0;
+    }
+  }
+
+  > .nameField {
+    order: 2;
+
+    @container (width >= 36rem) {
+      order: 0;
+    }
+  }
+
+  > .memoField {
+    grid-column: 1 / -1;
+    order: 5;
+
+    @container (width >= 36rem) {
+      grid-column: span 1 / span 1;
+      order: 0;
+    }
+  }
+
+  /* 支出のメモは空のことが多いので、狭いところでは空の欄を隠す。広いところでは列がずれないよう残す */
+  > .collapsed {
+    display: none;
+
+    @container (width >= 36rem) {
+      display: flex;
+    }
+  }
+
+  > .amountField {
+    order: 3;
+
+    @container (width >= 36rem) {
+      order: 0;
+    }
+  }
+
+  /* ボタン（h-7）は欄（h-8）より低く、下端でそろえると欄の文字より下に寄るので、欄と同じ高さの中で縦の中央に置く */
+  > .menu {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    order: 4;
+    height: 2rem;
+
+    @container (width >= 36rem) {
+      order: 0;
+    }
+  }
+}
+
+.AddItem {
+  margin-top: 0.25rem;
+}
+
+.Fields {
+  display: grid;
+  gap: 1rem 1.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--foreground);
+
+  @container (width >= 28rem) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.Total {
+  margin-top: 0.75rem;
+}

@@ -10,16 +10,16 @@ const meta = preview.meta({
   component: Tabs,
   render: () => (
     <Tabs defaultValue="payment">
-      <div className="border-b">
+      <div style={{ borderBottomWidth: 1 }}>
         <TabsList aria-label="画面">
           <TabsTrigger value="payment">支払い</TabsTrigger>
           <TabsTrigger value="statement">明細から一括</TabsTrigger>
         </TabsList>
       </div>
-      <TabsContent value="payment" className="pt-4">
+      <TabsContent value="payment" style={{ paddingTop: "1rem" }}>
         支払いを 1 件ずつ登録する
       </TabsContent>
-      <TabsContent value="statement" className="pt-4">
+      <TabsContent value="statement" style={{ paddingTop: "1rem" }}>
         明細からまとめて登録する
       </TabsContent>
     </Tabs>

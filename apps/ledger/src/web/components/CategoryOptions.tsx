@@ -19,11 +19,7 @@ export const CategoryOptions = ({
         {category.name}
       </SelectItem>,
       ...category.genres.map((genre) => (
-        <SelectItem
-          key={`g${genre.id}`}
-          value={categoryValueOf(category.id, genre.id)}
-          className="pl-5"
-        >
+        <SelectItem key={`g${genre.id}`} value={categoryValueOf(category.id, genre.id)} inset>
           {genre.name}
         </SelectItem>
       )),

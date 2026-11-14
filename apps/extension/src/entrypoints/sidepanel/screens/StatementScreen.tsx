@@ -9,7 +9,6 @@ import { TotalAmount } from "@tsuke/ui/patterns/TotalAmount";
 import { StoreCombobox } from "../../../components/StoreCombobox.tsx";
 import { formatYen } from "@tsuke/ui/lib/format";
 import { formatShortDate } from "@/lib/format";
-import { cn } from "@tsuke/ui/lib/utils";
 import { collectPageContent } from "../../../lib/extraction.ts";
 import { createServerClient, withErrorMessage } from "../../../lib/serverClient";
 import {
@@ -20,6 +19,7 @@ import {
 } from "../../../lib/statementRows.ts";
 import { useMutation } from "../../../lib/useMutation.ts";
 import { categoriesQuery, placesQuery } from "../../../queries.ts";
+import styles from "./StatementScreen.module.css";
 
 interface Props {
   serverUrl: string;
@@ -56,43 +56,36 @@ const StatementRowItem = ({
 }: StatementRowItemProps) => {
   const placeLabel = row.place || "(利用先不明)";
   return (
-    <li
-      className={cn(
-        "grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3 gap-y-2 border-b py-3",
-        !row.selected && "text-muted-foreground",
-      )}
-    >
+    <li className={styles.StatementRow} data-unselected={!row.selected || undefined}>
       <input
         type="checkbox"
-        className="mt-1 size-4 accent-primary"
+        className={styles.checkbox}
         checked={row.selected}
         onChange={(e) => onSelectedChange(e.target.checked)}
         disabled={disabled || row.submitted}
         aria-label={`${placeLabel}（${formatShortDate(row.date)}）を登録する`}
       />
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="flex items-baseline justify-between gap-3">
-          <span className="truncate" title={placeLabel}>
+      <div className={styles.main}>
+        <span className={styles.headline}>
+          <span className={styles.place} title={placeLabel}>
             {placeLabel}
           </span>
-          <span className="shrink-0 font-medium tabular-nums">{formatYen(row.amount)}</span>
+          <span className={styles.amount}>{formatYen(row.amount)}</span>
         </span>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {formatShortDate(row.date)}
-        </span>
+        <span className={styles.date}>{formatShortDate(row.date)}</span>
         {row.submitted ? (
-          <span className="flex items-center gap-1 text-xs text-foreground">
-            <CircleCheckIcon className="size-3" aria-hidden="true" />
+          <span className={styles.status} data-submitted="">
+            <CircleCheckIcon className={styles.statusIcon} aria-hidden="true" />
             登録しました
           </span>
         ) : row.registered ? (
-          <span className="flex items-center gap-1 text-xs">
-            <CircleCheckIcon className="size-3" aria-hidden="true" />
+          <span className={styles.status}>
+            <CircleCheckIcon className={styles.statusIcon} aria-hidden="true" />
             登録済み {formatShortDate(row.registered.date)}
           </span>
         ) : null}
       </div>
-      <div className="col-start-2 grid gap-y-2">
+      <div className={styles.fields}>
         <StoreCombobox serverUrl={serverUrl} value={row.store} onChange={onStoreChange} hideLabel />
         <CategoryCombobox
           serverUrl={serverUrl}
@@ -234,12 +227,12 @@ export default function StatementScreen({ serverUrl }: Props) {
     : `${selectedRows.length}件を登録`;
 
   return (
-    <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
-      <div className="flex flex-col items-start gap-2">
+    <form className={styles.StatementScreen} onSubmit={handleSubmit}>
+      <div className={styles.Read}>
         <Button
           type="button"
           variant="outline"
-          className="w-full"
+          className={styles.readButton}
           disabled={isBusy}
           onClick={() => extractMutation.mutate()}
         >
@@ -256,11 +249,11 @@ export default function StatementScreen({ serverUrl }: Props) {
           />
         )}
         {summary === null ? (
-          <p className="text-xs text-muted-foreground">
+          <p className={styles.note}>
             カードの利用明細ページを開いて読み取ると、利用先と金額だけでまとめて登録できます。
           </p>
         ) : (
-          <output className="text-xs text-muted-foreground">
+          <output className={styles.note}>
             {summary.rowCount}件読み取りました
             {summary.registeredCount > 0 &&
               `（うち${summary.registeredCount}件は登録済みのため選択を外しました）`}
@@ -270,12 +263,12 @@ export default function StatementScreen({ serverUrl }: Props) {
         )}
       </div>
 
-      <div className="border-t border-foreground pt-3">
+      <div className={styles.Account}>
         <AccountCombobox serverUrl={serverUrl} value={accountId} onChange={setAccountId} />
       </div>
 
       {rows.length > 0 && (
-        <ul className="border-t border-foreground" aria-label="明細">
+        <ul className={styles.Rows} aria-label="明細">
           {rows.map((row) => (
             <StatementRowItem
               key={row.id}
@@ -291,8 +284,7 @@ export default function StatementScreen({ serverUrl }: Props) {
       )}
 
       {(rows.length > 0 || registerMutation.isError) && (
-        // 登録のボタンと合計は、行が多くてスクロールしても見えるよう下の帯に置く
-        <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-foreground bg-background py-2">
+        <div className={styles.Footer}>
           {registerMutation.isError && (
             <ErrorMessage
               message={
@@ -303,13 +295,13 @@ export default function StatementScreen({ serverUrl }: Props) {
             />
           )}
           {rows.length > 0 && (
-            <div className="flex items-center justify-between gap-4">
+            <div className={styles.footerRow}>
               <TotalAmount
                 amount={total}
                 label={`合計（${selectedRows.length}件）`}
-                className="min-w-0 flex-1"
+                className={styles.total}
               />
-              <Button type="submit" size="lg" className="shrink-0 px-6" disabled={!canSubmit}>
+              <Button type="submit" size="lg" className={styles.submit} disabled={!canSubmit}>
                 {submitLabel}
               </Button>
             </div>

@@ -1,5 +1,5 @@
 import { Link } from "@void/react";
-import { cn } from "@tsuke/ui/lib/utils";
+import styles from "./SummaryViewSwitch.module.css";
 
 /**
  * 集計の画面の、月の表示と年の表示の切り替え。今の表示はナビと同じく下線で示す。
@@ -13,7 +13,7 @@ export const SummaryViewSwitch = ({
   monthHref: string;
   yearHref: string;
 }) => (
-  <nav aria-label="集計の単位" className="flex gap-4 text-sm">
+  <nav aria-label="集計の単位" className={styles.SummaryViewSwitch}>
     {(
       [
         { key: "month", label: "月", href: monthHref },
@@ -24,10 +24,7 @@ export const SummaryViewSwitch = ({
         key={item.key}
         href={item.href}
         aria-current={view === item.key ? "page" : undefined}
-        className={cn(
-          "border-b-2 border-transparent pb-0.5 text-muted-foreground hover:text-foreground",
-          view === item.key && "border-primary font-medium text-foreground",
-        )}
+        className={styles.link}
       >
         {item.label}
       </Link>

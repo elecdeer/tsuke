@@ -1,0 +1,126 @@
+.CandidateButton {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0.375rem 0.25rem;
+  text-align: left;
+
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--muted);
+    }
+  }
+
+  > .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  > .note {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+  }
+}
+
+.PlaceCandidates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  border-top-width: 1px;
+
+  > .hint {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+  }
+
+  > .group {
+    > .groupTitle {
+      font-size: 0.75rem;
+      font-weight: 500;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+    }
+
+    > .status {
+      display: flex;
+      gap: 0.375rem;
+      align-items: center;
+      padding-block: 0.25rem;
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+
+      > .spinner {
+        width: 0.875rem;
+        height: 0.875rem;
+        animation: spin 1s linear infinite;
+      }
+    }
+  }
+
+  > .poi {
+    display: flex;
+    gap: 0.375rem;
+    align-items: center;
+    font-size: 0.75rem;
+    line-height: 1rem;
+
+    > .poiIcon {
+      flex-shrink: 0;
+      width: 0.875rem;
+      height: 0.875rem;
+    }
+
+    > .poiAddress {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  > .chain {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    > .chainLabel {
+      font-size: 0.75rem;
+      font-weight: 500;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+    }
+  }
+
+  > .attribution {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+
+    > .attributionLink {
+      text-decoration-line: underline;
+
+      @media (hover: hover) {
+        &:hover {
+          color: var(--foreground);
+        }
+      }
+    }
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

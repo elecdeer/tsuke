@@ -1,12 +1,10 @@
-import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { monthsOfYear } from "@/ledger/dates";
 import type { YearlyModeSummary, YearlySummary } from "@/ledger/summary";
-import { cn } from "@tsuke/ui/lib/utils";
 import { MonthlyBarChart } from "@/web/components/MonthlyBarChart";
 import { Section } from "@tsuke/ui/patterns/Section";
-import { ROW_COLUMNS } from "@/web/components/SummaryTotals";
-import { formatAmount, formatPercent } from "@/web/format";
+import { CategoryDetails, CategoryList, GenreRow } from "@/web/components/CategorySummary";
+import styles from "./YearSummary.module.css";
 
 type YearlyCategory = YearlyModeSummary["categories"][number];
 
@@ -25,30 +23,10 @@ const YearCategoryRow = ({
   year: number;
 }) => {
   const [open, setOpen] = useState(false);
-  const ratio = total > 0 ? Math.max(category.amount / total, 0) : 0;
   const months = monthsOfYear(year);
   return (
-    <details className="group border-b" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary
-        className={cn(
-          ROW_COLUMNS,
-          "cursor-pointer list-none py-2.5 hover:bg-muted/60 [&::-webkit-details-marker]:hidden",
-        )}
-      >
-        <span className="flex min-w-0 items-center gap-1.5">
-          <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
-          <span className="truncate">{category.name}</span>
-        </span>
-        <span className="text-right text-xs text-muted-foreground tabular-nums">
-          {formatPercent(category.amount, total)}
-        </span>
-        <span className="text-right tabular-nums">{formatAmount(category.amount)}</span>
-        {/* 合計に対する割合。幅だけで比べられるよう、地の線は引かない */}
-        <span className="col-span-3 mt-1.5 h-0.5">
-          <span className="block h-full bg-foreground" style={{ width: `${ratio * 100}%` }} />
-        </span>
-      </summary>
-      <div className="flex flex-col gap-3 pb-3 pl-5">
+    <CategoryDetails name={category.name} amount={category.amount} total={total} onToggle={setOpen}>
+      <div className={styles.Breakdown}>
         {open && (
           <MonthlyBarChart
             bars={months.map((month, index) => ({
@@ -61,42 +39,33 @@ const YearCategoryRow = ({
             height={140}
           />
         )}
-        <ul className="text-sm">
+        <ul className={styles.genres}>
           {category.genres.map((genre) => (
-            <li key={genre.genreId ?? "none"} className={cn(ROW_COLUMNS, "py-1.5")}>
-              <span className="truncate">{genre.name}</span>
-              <span className="text-right text-xs text-muted-foreground tabular-nums">
-                {formatPercent(genre.amount, category.amount)}
-              </span>
-              <span className="text-right tabular-nums">{formatAmount(genre.amount)}</span>
+            <li key={genre.genreId ?? "none"}>
+              <GenreRow name={genre.name} amount={genre.amount} total={category.amount} />
             </li>
           ))}
         </ul>
       </div>
-    </details>
+    </CategoryDetails>
   );
 };
 
 /**
  * 支出か収入のカテゴリ別の年の合計。
  */
-const YearCategoryBreakdown = ({ summary, year }: { summary: YearlyModeSummary; year: number }) =>
-  summary.categories.length === 0 ? (
-    <p className="border-t border-foreground py-2.5 text-sm text-muted-foreground">
-      この年の記録はありません
-    </p>
-  ) : (
-    <div className="border-t border-foreground">
-      {summary.categories.map((category) => (
-        <YearCategoryRow
-          key={category.categoryId ?? "none"}
-          category={category}
-          total={summary.total}
-          year={year}
-        />
-      ))}
-    </div>
-  );
+const YearCategoryBreakdown = ({ summary, year }: { summary: YearlyModeSummary; year: number }) => (
+  <CategoryList isEmpty={summary.categories.length === 0} empty="この年の記録はありません">
+    {summary.categories.map((category) => (
+      <YearCategoryRow
+        key={category.categoryId ?? "none"}
+        category={category}
+        total={summary.total}
+        year={year}
+      />
+    ))}
+  </CategoryList>
+);
 
 /**
  * 年の集計の中身。月ごとの支出と収入のグラフと、カテゴリ別の年の合計を出す。
@@ -112,9 +81,9 @@ export const YearSummaryBody = ({ year, summary }: { year: number; summary: Year
         series={["支出", "収入"]}
         ariaLabel={`${year}年の月ごとの支出と収入`}
         height={240}
-        className="border-t border-foreground pt-3"
+        ruled
       />
-      <p className="mt-2 text-xs text-muted-foreground">
+      <p className={styles.Note}>
         棒を押すとその月の集計へ移ります。「年の集計にのみ含める」の取引も含めています
       </p>
     </Section>

@@ -1,0 +1,61 @@
+.TransactionEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.ReceiptLink {
+  display: block;
+  width: fit-content;
+
+  > .receiptImage {
+    max-height: 24rem;
+    object-fit: contain;
+    border-width: 1px;
+  }
+}
+
+.Footer {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+
+  > .note {
+    display: flex;
+    gap: 0.375rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+
+    > .noteIcon {
+      flex-shrink: 0;
+      width: 0.875rem;
+      height: 0.875rem;
+      margin-top: 1px;
+    }
+  }
+
+  > .actions {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+
+    > .saved {
+      display: flex;
+      gap: 0.25rem;
+      align-items: center;
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+      color: var(--muted-foreground);
+
+      > .savedIcon {
+        width: 1rem;
+        height: 1rem;
+      }
+    }
+
+    > .delete {
+      margin-left: auto;
+    }
+  }
+}

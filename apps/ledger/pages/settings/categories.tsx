@@ -1,4 +1,4 @@
-import { action, Link } from "@void/react";
+import { action } from "@void/react";
 import { ChevronRight, Plus } from "lucide-react";
 import { useId, useState } from "react";
 import { Button } from "@tsuke/ui/components/button";
@@ -18,6 +18,10 @@ import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
 import { MoveButtons } from "@/web/components/MoveButtons";
 import { Section } from "@tsuke/ui/patterns/Section";
 import type { Props } from "./categories.server";
+import { BackLink } from "@/web/components/BackLink";
+import { PageTitle } from "@tsuke/ui/patterns/PageTitle";
+import styles from "./categories.module.css";
+import settings from "./settings.module.css";
 
 type Category = Props["payment"][number];
 type Genre = Category["genres"][number];
@@ -113,18 +117,18 @@ const NameEditor = ({ editing, onClose }: { editing: Editing; onClose: () => voi
         <DialogTitle>{title}</DialogTitle>
       </DialogHeader>
       <form
-        className="flex flex-col gap-4"
+        className={settings.EditorForm}
         onSubmit={(event) => {
           event.preventDefault();
           void run(() => saveName(editing, name));
         }}
       >
-        <div className="flex flex-col gap-1.5">
+        <div className={settings.field}>
           <Label htmlFor={nameId}>{field}</Label>
           <Input id={nameId} value={name} onChange={(event) => setName(event.target.value)} />
         </div>
         {error !== null && <ErrorMessage message={error} />}
-        <div className="flex justify-end gap-2">
+        <div className={settings.actions}>
           <DialogClose render={<Button variant="outline" />}>やめる</DialogClose>
           <Button type="submit" disabled={pending}>
             保存
@@ -132,7 +136,7 @@ const NameEditor = ({ editing, onClose }: { editing: Editing; onClose: () => voi
         </div>
       </form>
       {(editing.kind === "category" || editing.kind === "genre") && (
-        <div className="flex flex-col gap-1 border-t pt-4">
+        <div className={settings.EditorSection}>
           <ArchiveButton
             archived={
               editing.kind === "category" ? editing.category.archived : editing.genre.archived
@@ -140,7 +144,7 @@ const NameEditor = ({ editing, onClose }: { editing: Editing; onClose: () => voi
             disabled={pending}
             onClick={() => void run(() => toggleArchived(editing))}
           />
-          <p className="text-xs text-muted-foreground">
+          <p className={settings.note}>
             入力の候補に出なくなります。これまでの取引と集計はそのまま残ります
           </p>
         </div>
@@ -150,9 +154,7 @@ const NameEditor = ({ editing, onClose }: { editing: Editing; onClose: () => voi
 };
 
 /** 名前の横に出す、アーカイブ済みの印 */
-const ArchivedMark = () => (
-  <span className="shrink-0 text-xs text-muted-foreground">アーカイブ済み</span>
-);
+const ArchivedMark = () => <span className={settings.badge}>アーカイブ済み</span>;
 
 /**
  * カテゴリ 1 件のまとまり。支出のカテゴリは開くと内訳の一覧が出る。収入は内訳を持たないので開かない。
@@ -181,31 +183,27 @@ const CategoryBlock = ({
   const expandable = mode === "payment";
 
   return (
-    <li className="border-b">
-      <div className="flex items-center gap-2">
+    <li className={styles.CategoryBlock}>
+      <div className={styles.categoryRow}>
         {expandable && (
           <button
             type="button"
             aria-label={`${category.name}の内訳を${open ? "閉じる" : "開く"}`}
             aria-expanded={open}
             onClick={() => setOpen(!open)}
-            className="flex size-7 shrink-0 cursor-pointer items-center justify-center text-muted-foreground hover:bg-muted/60"
+            className={styles.expand}
           >
-            <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
+            <ChevronRight className={styles.chevron} />
           </button>
         )}
         <button
           type="button"
           onClick={() => onEdit({ kind: "category", category })}
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 py-2.5 text-left hover:bg-muted/60"
+          className={cn(styles.select, settings.RowTitle)}
         >
-          <span className="truncate">{category.name}</span>
+          <span className={settings.rowName}>{category.name}</span>
           {category.archived && <ArchivedMark />}
-          {expandable && (
-            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-              {activeGenres} 件
-            </span>
-          )}
+          {expandable && <span className={styles.count}>{activeGenres} 件</span>}
         </button>
         {!category.archived && (
           <MoveButtons
@@ -218,16 +216,16 @@ const CategoryBlock = ({
         )}
       </div>
       {expandable && open && (
-        <div className="pb-2 pl-9 text-sm">
-          <ul>
+        <div className={styles.genres}>
+          <ul className={styles.genreList}>
             {category.genres.map((genre, genreIndex) => (
-              <li key={genre.id} className="flex items-center gap-2">
+              <li key={genre.id} className={styles.genre}>
                 <button
                   type="button"
                   onClick={() => onEdit({ kind: "genre", genre })}
-                  className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 py-1.5 text-left hover:bg-muted/60"
+                  className={cn(styles.genreSelect, settings.RowTitle)}
                 >
-                  <span className="truncate">{genre.name}</span>
+                  <span className={settings.rowName}>{genre.name}</span>
                   {genre.archived && <ArchivedMark />}
                 </button>
                 {!genre.archived && (
@@ -243,7 +241,7 @@ const CategoryBlock = ({
             ))}
           </ul>
           {activeGenres === 0 && (
-            <p className="py-1.5 text-xs text-muted-foreground">
+            <p className={styles.genresNote}>
               支出の入力では内訳を選ぶので、内訳を追加するまでこのカテゴリは選べません
             </p>
           )}
@@ -274,15 +272,10 @@ const CategoriesPage = ({ payment, income }: Props) => {
   };
 
   return (
-    <div className="flex flex-col gap-12">
-      <div className="flex flex-col gap-6">
-        <Link
-          href="/settings"
-          className="self-start text-xs text-muted-foreground hover:text-foreground"
-        >
-          ← 設定
-        </Link>
-        <h1 className="text-3xl font-semibold tracking-tight">カテゴリ</h1>
+    <div className={styles.CategoriesPage}>
+      <div className={settings.Page}>
+        <BackLink href="/settings">← 設定</BackLink>
+        <PageTitle size="lg">カテゴリ</PageTitle>
         {moveError !== null && <ErrorMessage message={moveError} />}
       </div>
       {(["payment", "income"] as const).map((mode) => {
@@ -291,11 +284,9 @@ const CategoriesPage = ({ payment, income }: Props) => {
         return (
           <Section key={mode} label={MODE_LABELS[mode]}>
             {list.length === 0 ? (
-              <p className="border-t border-foreground py-6 text-sm text-muted-foreground">
-                カテゴリはありません
-              </p>
+              <p className={settings.Empty}>カテゴリはありません</p>
             ) : (
-              <ul className="border-t border-foreground">
+              <ul className={settings.List}>
                 {list.map((category, index) => (
                   <CategoryBlock
                     key={category.id}
@@ -323,7 +314,7 @@ const CategoriesPage = ({ payment, income }: Props) => {
             )}
             <Button
               variant="outline"
-              className="mt-3"
+              className={styles.AddCategory}
               onClick={() => setEditing({ kind: "newCategory", mode })}
             >
               <Plus />

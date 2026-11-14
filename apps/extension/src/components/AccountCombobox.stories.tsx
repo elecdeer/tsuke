@@ -12,9 +12,9 @@ import { AccountCombobox } from "./AccountCombobox.tsx";
 const ControlledWrapper = ({ serverUrl }: { serverUrl: string }) => {
   const [value, setValue] = useState<number | null>(null);
   return (
-    <div className="flex flex-col gap-2">
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
       <AccountCombobox serverUrl={serverUrl} value={value} onChange={setValue} />
-      <p className="text-xs text-muted-foreground">
+      <p style={{ color: "var(--muted-foreground)", fontSize: "0.75rem" }}>
         選択中: {value !== null ? `accountId=${value}` : "なし"}
       </p>
     </div>
@@ -31,7 +31,7 @@ const meta = preview.meta({
   },
   decorators: [
     () => (
-      <div className="p-4">
+      <div style={{ padding: "1rem" }}>
         <ControlledWrapper serverUrl={MOCK_SERVER_URL} />
       </div>
     ),

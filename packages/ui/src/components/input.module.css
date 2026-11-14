@@ -1,0 +1,89 @@
+@layer ui-primitive {
+  /*
+   * 枠の代わりに下線だけを引き、入力中は下線を太くする（docs/design.md）。太さは影で足して、高さを変えない
+   */
+  .Input {
+    width: 100%;
+    min-width: 0;
+    height: 2rem;
+    padding: 0.25rem 0;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    outline-style: none;
+    background-color: transparent;
+    border-color: color-mix(in oklab, var(--foreground) 40%, transparent);
+    border-width: 0 0 1px;
+    border-radius: 0;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+    transition-property:
+      color, background-color, border-color, outline-color, text-decoration-color;
+
+    /*
+     * iOS の Safari は日付の欄を独自の見た目（値の中央寄せ・上下の余白）で描き、隣に並べた選択欄と高さがずれるので、
+     * 見た目を外して値の部分の余白を消し、左に揃える
+     */
+    &[type="date"],
+    &[type="number"] {
+      appearance: none;
+    }
+
+    &::-webkit-date-and-time-value {
+      margin: 0;
+      text-align: left;
+    }
+
+    &::file-selector-button {
+      display: inline-flex;
+      height: 1.5rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--foreground);
+      background-color: transparent;
+      border-width: 0;
+    }
+
+    &::placeholder {
+      color: var(--muted-foreground);
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        border-color: var(--foreground);
+      }
+    }
+
+    &:focus-visible {
+      border-color: var(--foreground);
+      box-shadow: inset 0 -1px 0 var(--foreground);
+    }
+
+    &:disabled {
+      pointer-events: none;
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    /* 行の中に並べる低い欄 */
+    &[data-size="sm"] {
+      height: 1.75rem;
+    }
+
+    /* 金額などの数字は右に寄せ、桁をそろえる */
+    &[data-align="end"] {
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    /* 数の欄の増減ボタンは使わない（金額は打ち込む） */
+    &::-webkit-inner-spin-button,
+    &::-webkit-outer-spin-button {
+      appearance: none;
+    }
+
+    &[aria-invalid="true"] {
+      border-color: var(--destructive);
+      box-shadow: inset 0 -1px 0 var(--destructive);
+    }
+  }
+}

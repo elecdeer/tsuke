@@ -1,0 +1,61 @@
+.ReceiptPhoto {
+  position: relative;
+
+  > .toggle {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    z-index: 10;
+  }
+
+  > .frame {
+    position: relative;
+    overflow: hidden;
+    border-width: 1px;
+
+    /* 細かい文字を読めるよう幅いっぱいに出す。長いレシートはスクロールして見る */
+    > .image {
+      display: block;
+      width: 100%;
+      height: auto;
+
+      &[data-cropped] {
+        position: absolute;
+        width: auto;
+        max-width: none;
+      }
+
+      /* 大きさが分かるまでは位置を決められないので、一瞬でも全体が見えないよう隠す */
+      &[data-pending] {
+        visibility: hidden;
+      }
+    }
+  }
+}
+
+.Thumbnail {
+  position: relative;
+  display: block;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 3rem;
+  overflow: hidden;
+  outline-offset: 2px;
+  background-color: var(--muted);
+  border-width: 1px;
+
+  > .thumbnailImage {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+/* 閉じるボタンと写真の切り替えが重ならないよう、写真は見出しの下でスクロールさせる */
+.DialogBody {
+  min-height: 0;
+  padding: 0 1rem 1rem;
+  margin: 0 -1rem -1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}

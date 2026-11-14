@@ -7,9 +7,11 @@ import { StoreCombobox } from "./StoreCombobox.tsx";
 const ControlledWrapper = ({ serverUrl }: { serverUrl: string }) => {
   const [value, setValue] = useState<string | null>(null);
   return (
-    <div className="flex flex-col gap-2">
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
       <StoreCombobox serverUrl={serverUrl} value={value} onChange={setValue} />
-      <p className="text-xs text-muted-foreground">選択中: {value ?? "なし"}</p>
+      <p style={{ color: "var(--muted-foreground)", fontSize: "0.75rem" }}>
+        選択中: {value ?? "なし"}
+      </p>
     </div>
   );
 };
@@ -24,7 +26,7 @@ const meta = preview.meta({
   },
   decorators: [
     () => (
-      <div className="p-4">
+      <div style={{ padding: "1rem" }}>
         <ControlledWrapper serverUrl={MOCK_SERVER_URL} />
       </div>
     ),

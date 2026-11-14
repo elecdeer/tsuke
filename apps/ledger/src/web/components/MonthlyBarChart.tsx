@@ -5,9 +5,9 @@ import { scaleBand } from "@tanstack/charts/scales/band";
 import { scaleLinear } from "@tanstack/charts/scales/linear";
 import { tooltip } from "@tanstack/charts/tooltip";
 import { useMemo } from "react";
-import { cn } from "@tsuke/ui/lib/utils";
 import { formatYen } from "@/web/format";
 import { formatCompactAmount, monthSummaryHref } from "@/web/summaryView";
+import styles from "./MonthlyBarChart.module.css";
 
 /** グラフの 1 本の棒。series は凡例とツールチップに出す名前 */
 export type MonthlyBar = { month: string; series: string; amount: number };
@@ -27,14 +27,15 @@ export const MonthlyBarChart = ({
   series,
   ariaLabel,
   height,
-  className,
+  ruled = false,
 }: {
   bars: MonthlyBar[];
   /** 系列の名前。この順に黒、グレーの色を割り当てる */
   series: string[];
   ariaLabel: string;
   height: number;
-  className?: string;
+  /** まとまりの始まりとして、上に黒の線を引く */
+  ruled?: boolean;
 }) => {
   const router = useRouter();
   const definition = useMemo(
@@ -77,16 +78,15 @@ export const MonthlyBarChart = ({
 
   return (
     <div
-      className={cn("monthly-bar-chart text-muted-foreground", className)}
+      className={styles.MonthlyBarChart}
       data-series-count={series.length}
+      data-ruled={ruled || undefined}
     >
       {series.length > 1 && (
-        <ul className="mb-2 flex gap-4 text-xs" aria-hidden>
+        <ul className={styles.legend} aria-hidden>
           {series.map((name, index) => (
-            <li key={name} className="flex items-center gap-1.5">
-              <span
-                className={cn("size-2.5", index === 0 ? "bg-foreground" : "bg-muted-foreground/50")}
-              />
+            <li key={name} className={styles.legendItem}>
+              <span className={styles.swatch} data-series={index === 0 ? "first" : "second"} />
               {name}
             </li>
           ))}

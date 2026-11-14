@@ -1,0 +1,50 @@
+/*
+ * 施設の種類の色。ピンの地の色（--poi-pin）と、一覧のアイコンの色（--poi-text）を、色のまとまりごとに決める。
+ * 一覧は暗いテーマでも読めるよう少し明るくする。data-poi-color を付けた要素の中で変数を使う
+ */
+.PoiColor {
+  &[data-poi-color="food"] {
+    --poi-pin: oklch(64.6% 0.222 41.116);
+    --poi-text: oklch(70.5% 0.213 47.604);
+  }
+
+  &[data-poi-color="shopping"] {
+    --poi-pin: oklch(54.6% 0.245 262.881);
+    --poi-text: oklch(62.3% 0.214 259.815);
+  }
+
+  &[data-poi-color="lodging"] {
+    --poi-pin: oklch(59.1% 0.293 322.896);
+    --poi-text: oklch(66.7% 0.295 322.15);
+  }
+
+  &[data-poi-color="tourism"] {
+    --poi-pin: oklch(60% 0.118 184.704);
+    --poi-text: oklch(70.4% 0.14 182.503);
+  }
+
+  &[data-poi-color="medical"] {
+    --poi-pin: oklch(57.7% 0.245 27.325);
+    --poi-text: oklch(63.7% 0.237 25.331);
+  }
+
+  &[data-poi-color="education"] {
+    --poi-pin: oklch(54.1% 0.281 293.009);
+    --poi-text: oklch(60.6% 0.25 292.717);
+  }
+
+  &[data-poi-color="finance"] {
+    --poi-pin: oklch(50.8% 0.118 165.612);
+    --poi-text: oklch(69.6% 0.17 162.48);
+  }
+
+  &[data-poi-color="transit"] {
+    --poi-pin: oklch(51.1% 0.262 276.966);
+    --poi-text: oklch(58.5% 0.233 277.117);
+  }
+
+  &[data-poi-color="other"] {
+    --poi-pin: oklch(44.6% 0.043 257.281);
+    --poi-text: oklch(55.4% 0.046 257.417);
+  }
+}

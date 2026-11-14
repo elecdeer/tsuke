@@ -22,7 +22,7 @@ const meta = preview.meta({
   render: () => (
     <Dialog>
       <DialogTrigger render={<Button variant="outline">品目を編集</Button>} />
-      <DialogContent className="gap-4">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>品目を編集</DialogTitle>
         </DialogHeader>

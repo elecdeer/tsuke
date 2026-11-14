@@ -1,8 +1,8 @@
 import { useRouter } from "@void/react";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
-import { cn } from "@tsuke/ui/lib/utils";
 import { type MonthSlideDirection, setMonthSlide } from "@/web/monthSlide";
 import { fillHeight, neighborOffset, revealHeight, snappedPage } from "@/web/monthPager";
+import styles from "./PeriodPager.module.css";
 
 /** scrollend の来ないブラウザで、スクロールが止まったとみなすまでの時間（ms） */
 const SCROLL_IDLE = 120;
@@ -71,7 +71,7 @@ export const PeriodPager = ({
   next,
   hrefOf,
   placeholder,
-  className,
+  gap = "none",
   children,
 }: {
   period: string;
@@ -79,7 +79,8 @@ export const PeriodPager = ({
   next: string;
   hrefOf: (period: string) => string;
   placeholder: (period: string) => ReactNode;
-  className?: string;
+  /** loose は今の期間の中身を縦に、大きく間を空けて並べる */
+  gap?: "none" | "loose";
   children: ReactNode;
 }) => {
   const router = useRouter();
@@ -215,12 +216,12 @@ export const PeriodPager = ({
    * 隣の期間のページ。高さは今の期間に合わせ、仮の中身はその上に重ねて縦にずらせるようにする。
    */
   const neighbor = (neighborPeriod: string, index: number) => (
-    <div aria-hidden inert className="relative w-full shrink-0 snap-center snap-always px-4">
+    <div aria-hidden inert className={styles.neighbor}>
       <div
         ref={(element) => {
           if (element !== null) neighbors.current[index] = element;
         }}
-        className="absolute inset-x-4 top-0"
+        className={styles.neighborContent}
       >
         {placeholder(neighborPeriod)}
       </div>
@@ -228,19 +229,9 @@ export const PeriodPager = ({
   );
 
   return (
-    // main の左右の余白の分だけ広げ、隣の期間が画面の端まで動いて見えるようにする。
-    // relative にして各ページの offsetLeft をこの箱からの位置にし、スクロール位置と比べられるようにする
-    // （付けないと中央に寄せた main の外からの位置になり、広い画面で止まったページを見分けられない）
-    <div
-      ref={scroller}
-      {...{ [PAGER_ATTRIBUTE]: "" }}
-      className="relative -mx-4 flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-    >
+    <div ref={scroller} {...{ [PAGER_ATTRIBUTE]: "" }} className={styles.PeriodPager}>
       {hydrated && neighbor(previous, 0)}
-      <div
-        ref={current}
-        className={cn("w-full min-w-0 shrink-0 snap-center snap-always px-4", className)}
-      >
+      <div ref={current} className={styles.page} data-gap={gap}>
         {children}
       </div>
       {hydrated && neighbor(next, 1)}
