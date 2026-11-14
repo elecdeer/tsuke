@@ -102,6 +102,38 @@ describe("createPayment", () => {
     ]);
   });
 
+  test("D1 の 1 文の変数の上限を超える数の品目でも、すべての品目と推測を記録する", async () => {
+    // 先に 1 件入れて、分けて入れた品目と推測が別の取引に付かないことも確かめる
+    await createPayment(db, payment());
+    const items = Array.from({ length: 40 }, (_, index) => ({
+      genreId: groceryId,
+      name: `品目${index}`,
+      memo: null,
+      amount: index + 1,
+      aiGuess: { genreId: groceryId, name: `品目${index}` },
+    }));
+
+    const result = await createPayment(
+      db,
+      payment({ aiRead: { source: "receipt", model: "test-model" }, items }),
+    );
+
+    expect(result).toEqual({ ok: true, id: 2 });
+    const rows = sqlite
+      .prepare(
+        "SELECT name, amount, sort FROM transaction_items WHERE transaction_id = 2 ORDER BY sort",
+      )
+      .all();
+    expect(rows).toEqual(
+      items.map((item, index) => ({ name: item.name, amount: item.amount, sort: index })),
+    );
+    const inferences = dumpInferences();
+    expect(inferences).toHaveLength(40);
+    expect(inferences.every((row) => (row as { transactionId: number }).transactionId === 2)).toBe(
+      true,
+    );
+  });
+
   test("店舗のない登録でも推測を記録する", async () => {
     await createPayment(
       db,

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
-import type { LedgerDb } from "../src/db.ts";
+import { D1_MAX_BOUND_PARAMETERS, type LedgerDb } from "../src/db.ts";
 import * as schema from "./schema.ts";
 
 const MIGRATIONS_DIR = new URL("./migrations/", import.meta.url);
@@ -51,6 +51,10 @@ export const createTestLedgerDb = (): { db: LedgerDb; sqlite: DatabaseSync } => 
     params: unknown[],
     method: "run" | "all" | "values" | "get",
   ): { rows: unknown[] } => {
+    // node:sqlite は変数を 3 万個以上受け付けるので、D1 の上限を超える文がテストで通らないよう同じ上限で止める
+    if (params.length > D1_MAX_BOUND_PARAMETERS) {
+      throw new Error(`too many SQL variables: ${params.length}`);
+    }
     const statement = sqlite.prepare(sql);
     // sqlite-proxy は行を列の配列で受け取る
     statement.setReturnArrays(true);

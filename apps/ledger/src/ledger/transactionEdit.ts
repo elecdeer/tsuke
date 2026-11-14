@@ -9,7 +9,7 @@ import {
   transactionItems,
   transactions,
 } from "../../db/schema.ts";
-import type { LedgerDb } from "../db.ts";
+import { chunkInsertRows, type LedgerDb } from "../db.ts";
 import { advanceLimitOf } from "./advance.ts";
 import { PlaceDetailSchema, placeDetailColumns } from "./placeDetail.ts";
 import { upsertPlaceByName } from "./places.ts";
@@ -363,18 +363,19 @@ export const createTransaction = async (
       source: "manual",
     })
     .returning({ id: transactions.id });
-  const insertItems = db
-    .insert(transactionItems)
-    .values(itemRows(sql`(SELECT MAX(${transactions.id}) FROM ${transactions})`, resolved.items));
+  const insertItems = chunkInsertRows(
+    transactionItems,
+    itemRows(sql`(SELECT MAX(${transactions.id}) FROM ${transactions})`, resolved.items),
+  ).map((rows) => db.insert(transactionItems).values(rows));
 
   const created =
     placeName === null
-      ? (await db.batch([insertTransaction, insertItems]))[0][0]
+      ? (await db.batch([insertTransaction, ...insertItems]))[0][0]
       : (
           await db.batch([
             upsertPlaceByName(db, placeName, input.placeDetail),
             insertTransaction,
-            insertItems,
+            ...insertItems,
           ])
         )[1][0];
   return created === undefined
@@ -452,7 +453,9 @@ export const updateTransaction = async (
     })
     .where(eq(transactions.id, id));
   const deleteItems = db.delete(transactionItems).where(eq(transactionItems.transactionId, id));
-  const insertItems = db.insert(transactionItems).values(itemRows(id, resolved.items));
+  const insertItems = chunkInsertRows(transactionItems, itemRows(id, resolved.items)).map((rows) =>
+    db.insert(transactionItems).values(rows),
+  );
   const reimbursementWrites =
     current.mode === "income"
       ? [
@@ -475,13 +478,13 @@ export const updateTransaction = async (
 
   // 店舗を変えていないときは作らない。過去の取引を直しただけでアーカイブ済みの店舗が元に戻らないようにするため
   if (placeName === null || placeName === current.placeName) {
-    await db.batch([updateTransactionRow, deleteItems, insertItems, ...reimbursementWrites]);
+    await db.batch([updateTransactionRow, deleteItems, ...insertItems, ...reimbursementWrites]);
   } else {
     await db.batch([
       upsertPlaceByName(db, placeName, input.placeDetail),
       updateTransactionRow,
       deleteItems,
-      insertItems,
+      ...insertItems,
       ...reimbursementWrites,
     ]);
   }
