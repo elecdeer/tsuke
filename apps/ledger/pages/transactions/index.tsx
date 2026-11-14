@@ -485,9 +485,11 @@ const SidePanel = ({
 const PanelSheet = ({
   open,
   onClosed,
+  selected,
   ...props
-}: PanelProps & {
-  /** 閉じるアニメーションの間は open を false にして、閉じる前の取引を出しておく */
+}: Omit<PanelProps, "selected"> & {
+  /** 閉じるアニメーションの間も、閉じる前の取引を出しておく。まだ何も開いていなければ null */
+  selected: PanelProps["selected"] | null;
   open: boolean;
   /** 閉じるアニメーションが終わったとき */
   onClosed: () => void;
@@ -503,10 +505,12 @@ const PanelSheet = ({
         if (!next) onClosed();
       }}
     >
-      <DrawerContent>
-        <DrawerTitle className={visuallyHiddenClassName}>取引の編集</DrawerTitle>
-        <TransactionPanel {...props} showPageLink={false} />
-      </DrawerContent>
+      {selected !== null && (
+        <DrawerContent>
+          <DrawerTitle className={visuallyHiddenClassName}>取引の編集</DrawerTitle>
+          <TransactionPanel {...props} selected={selected} showPageLink={false} />
+        </DrawerContent>
+      )}
     </Drawer>
   );
 };
@@ -723,7 +727,11 @@ const TransactionsPage = ({
           />
         )}
       </div>
-      {!sidePanel && shown !== null && (
+      {/*
+       * 開くときに下から滑り込むよう、シートは取引を開く前から置いておき、open だけを切り替える。
+       * 開くのと同時に作ると、Base UI は最初から開いていたものとして扱い、開くアニメーションを付けない
+       */}
+      {!sidePanel && (
         <PanelSheet
           filter={filter}
           selected={shown}
