@@ -3,7 +3,7 @@ import { type TransitionEvent, useEffect, useState } from "react";
 import { submitAction } from "void/pages-client";
 import { Maximize2, Plus, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { buttonStyleProps } from "@tsuke/ui/components/button";
-import { Dialog, DialogContent, DialogTitle } from "@tsuke/ui/components/dialog";
+import { Drawer, DrawerContent, DrawerTitle } from "@tsuke/ui/components/drawer";
 import { visuallyHiddenClassName } from "@tsuke/ui/lib/a11y";
 import {
   Select,
@@ -293,11 +293,11 @@ const advanceSummaryOf = (transaction: TransactionListItem): string | null => {
     : summary;
 };
 
-/** サイドパネルで詳細を開く画面の幅。これより狭い画面ではモーダルで開く。一覧とパネルを並べても一覧の 12 列のグリッドが崩れない幅にする */
+/** サイドパネルで詳細を開く画面の幅。これより狭い画面では下から出るシートで開く。一覧とパネルを並べても一覧の 12 列のグリッドが崩れない幅にする */
 const SIDE_PANEL_MEDIA = "(min-width: 80rem)";
 
 /**
- * 取引 1 件の行。押すと画面を移らずに取引を開く。広い画面では一覧の横のサイドパネル、狭い画面ではモーダルで開く。
+ * 取引 1 件の行。押すと画面を移らずに取引を開く。広い画面では一覧の横のサイドパネル、狭い画面では下から出るシートで開く。
  *
  * 振替と残高調整はお金の出入りではないので、行全体を薄くして支出・収入と見分ける。
  */
@@ -363,13 +363,13 @@ const TransactionRow = ({
   );
 };
 
-/** サイドパネルとモーダルに共通の、開いている取引についての値 */
+/** サイドパネルとシートに共通の、開いている取引についての値 */
 type PanelProps = Pick<Props, "filter" | "accounts" | "categories" | "chainNames"> & {
   selected: NonNullable<Props["selected"]>;
 };
 
 /**
- * 開いている取引の編集。広い画面のサイドパネルと、狭い画面のモーダルの中身。
+ * 開いている取引の編集。広い画面のサイドパネルと、狭い画面のシートの中身。
  *
  * 取引の画面のアクションを呼ぶとその画面へ移ってしまうので、一覧の画面のアクションを一覧のクエリ付きで呼び、
  * 一覧とパネルをその場で描き直す。
@@ -382,7 +382,7 @@ const TransactionPanel = ({
   chainNames,
   showPageLink,
 }: PanelProps & {
-  /** 取引の画面で開くリンクを出すか。モーダルは画面を移らずに見るためのものなので出さない */
+  /** 取引の画面で開くリンクを出すか。シートは画面を移らずに見るためのものなので出さない */
   showPageLink: boolean;
 }) => {
   const router = useRouter();
@@ -480,9 +480,9 @@ const SidePanel = ({
 );
 
 /**
- * 狭い画面で一覧の上に出す、取引の編集のモーダル。閉じると一覧の URL から selected を外す。
+ * 狭い画面で下から出す、取引の編集のシート。閉じると一覧の URL から selected を外す。
  */
-const PanelDialog = ({
+const PanelSheet = ({
   open,
   onClosed,
   ...props
@@ -494,7 +494,7 @@ const PanelDialog = ({
 }) => {
   const router = useRouter();
   return (
-    <Dialog
+    <Drawer
       open={open}
       onOpenChange={(next) => {
         if (!next) void router.visit(transactionsHref(props.filter), { preserveScroll: true });
@@ -503,11 +503,11 @@ const PanelDialog = ({
         if (!next) onClosed();
       }}
     >
-      <DialogContent size="lg" showCloseButton={false}>
-        <DialogTitle className={visuallyHiddenClassName}>取引の編集</DialogTitle>
+      <DrawerContent>
+        <DrawerTitle className={visuallyHiddenClassName}>取引の編集</DrawerTitle>
         <TransactionPanel {...props} showPageLink={false} />
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   );
 };
 
@@ -606,7 +606,7 @@ const TransactionListSkeleton = () => (
 
 /**
  * 取引の一覧の画面。日付ごとにまとめ、日付を左の列に出す。
- * 取引を選ぶと、広い画面では一覧の右にサイドパネルを、狭い画面ではモーダルを開いてその場で編集できる。
+ * 取引を選ぶと、広い画面では一覧の右にサイドパネルを、狭い画面では下からシートを出してその場で編集できる。
  */
 const TransactionsPage = ({
   filter,
@@ -724,7 +724,7 @@ const TransactionsPage = ({
         )}
       </div>
       {!sidePanel && shown !== null && (
-        <PanelDialog
+        <PanelSheet
           filter={filter}
           selected={shown}
           open={selected !== null}

@@ -1,0 +1,90 @@
+@layer ui {
+  .Overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background-color: color-mix(in oklab, var(--background) 70%, transparent);
+    transition: opacity 400ms cubic-bezier(0.32, 0.72, 0, 1);
+
+    &[data-starting-style],
+    &[data-ending-style] {
+      opacity: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+    }
+  }
+
+  /* シートを画面の下に寄せる箱 */
+  .Viewport {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  /*
+   * ダイアログと同じく角丸を持たず、浮く面なので影を付ける。上に少し隙間を残し、下の一覧が見えることで重なっているとわかるようにする。
+   * スワイプの間は指に付いてくるよう、動きを止めて --drawer-swipe-movement-y だけずらす
+   */
+  .Content {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-height: calc(100dvh - 3rem);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--popover-foreground);
+    outline-style: none;
+    background-color: var(--popover);
+    box-shadow:
+      0 0 0 1px var(--input),
+      var(--dialog-shadow);
+    transform: translateY(var(--drawer-swipe-movement-y, 0));
+    transition: transform 400ms cubic-bezier(0.32, 0.72, 0, 1);
+
+    &[data-swiping] {
+      user-select: none;
+      transition-duration: 0ms;
+    }
+
+    &[data-starting-style],
+    &[data-ending-style] {
+      transform: translateY(100%);
+    }
+
+    &[data-ending-style] {
+      transition-duration: calc(var(--drawer-swipe-strength, 1) * 400ms);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+    }
+
+    /* 下へスワイプして閉じられることを示す取っ手 */
+    > .handle {
+      flex-shrink: 0;
+      width: 2.5rem;
+      height: 0.25rem;
+      margin: 0.5rem auto 0;
+      background-color: var(--border);
+    }
+
+    > .body {
+      display: grid;
+      gap: 1rem;
+      padding: 0.75rem 1rem calc(1rem + env(safe-area-inset-bottom));
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+  }
+
+  .Title {
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1.5rem;
+  }
+}
