@@ -3,6 +3,8 @@ import { type TransitionEvent, useEffect, useState } from "react";
 import { submitAction } from "void/pages-client";
 import { Maximize2, Plus, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { buttonStyleProps } from "@tsuke/ui/components/button";
+import { Drawer, DrawerContent, DrawerTitle } from "@tsuke/ui/components/drawer";
+import { visuallyHiddenClassName } from "@tsuke/ui/lib/a11y";
 import {
   Select,
   SelectContent,
@@ -30,6 +32,7 @@ import { groupByDate } from "@/web/groupByDate";
 import { ADVANCE_STATUS_LABELS, MODE_LABELS, TRANSACTION_MODES } from "@/web/labels";
 import { titleOf } from "@/web/transactionTitle";
 import { createMonthPageCache } from "@/web/monthPageCache";
+import { useMediaQuery } from "@/web/mediaQuery";
 import { isFiltered, transactionsHref } from "@/web/transactionsHref";
 import type { Props } from "./index.server";
 import { PageTitle } from "@tsuke/ui/patterns/PageTitle";
@@ -290,11 +293,11 @@ const advanceSummaryOf = (transaction: TransactionListItem): string | null => {
     : summary;
 };
 
-/** サイドパネルで詳細を開く画面の幅。一覧とパネルを並べても一覧の 12 列のグリッドが崩れない幅にする */
+/** サイドパネルで詳細を開く画面の幅。これより狭い画面では下から出るシートで開く。一覧とパネルを並べても一覧の 12 列のグリッドが崩れない幅にする */
 const SIDE_PANEL_MEDIA = "(min-width: 80rem)";
 
 /**
- * 取引 1 件の行。押すと編集画面へ移る。広い画面では画面を移らず、一覧の横のサイドパネルで開く。
+ * 取引 1 件の行。押すと画面を移らずに取引を開く。広い画面では一覧の横のサイドパネル、狭い画面では下から出るシートで開く。
  *
  * 振替と残高調整はお金の出入りではないので、行全体を薄くして支出・収入と見分ける。
  */
@@ -316,11 +319,10 @@ const TransactionRow = ({
   return (
     <li className={styles.TransactionRow}>
       <Link
-        // JavaScript が動く前や狭い画面では、取引の画面へ移る
+        // JavaScript が動く前は、取引の画面へ移る
         href={`/transactions/${transaction.id}`}
         aria-current={selected ? "true" : undefined}
         onNavigate={(event) => {
-          if (!window.matchMedia(SIDE_PANEL_MEDIA).matches) return;
           event.preventDefault();
           void router.visit(transactionsHref(filter, transaction.id), { preserveScroll: true });
         }}
@@ -361,23 +363,27 @@ const TransactionRow = ({
   );
 };
 
+/** サイドパネルとシートに共通の、開いている取引についての値 */
+type PanelProps = Pick<Props, "filter" | "accounts" | "categories" | "chainNames"> & {
+  selected: NonNullable<Props["selected"]>;
+};
+
 /**
- * 広い画面で一覧の横に出す、取引の編集のパネル。
+ * 開いている取引の編集。広い画面のサイドパネルと、狭い画面のシートの中身。
  *
  * 取引の画面のアクションを呼ぶとその画面へ移ってしまうので、一覧の画面のアクションを一覧のクエリ付きで呼び、
  * 一覧とパネルをその場で描き直す。
  */
-const SidePanel = ({
+const TransactionPanel = ({
   filter,
   selected,
-  closing,
   accounts,
   categories,
   chainNames,
-}: Pick<Props, "filter" | "accounts" | "categories" | "chainNames"> & {
-  selected: NonNullable<Props["selected"]>;
-  /** 閉じるアニメーションの間だけ、閉じる前の取引を出しておく。操作はさせない */
-  closing: boolean;
+  showPageLink,
+}: PanelProps & {
+  /** 取引の画面で開くリンクを出すか。シートは画面を移らずに見るためのものなので出さない */
+  showPageLink: boolean;
 }) => {
   const router = useRouter();
   // 別の取引を開いても「保存しました」が残らないよう、保存した取引の ID で持つ
@@ -388,13 +394,8 @@ const SidePanel = ({
     `/transactions?${name}&${transactionsHref(filter, selectedId).split("?")[1]}`;
 
   return (
-    <aside
-      aria-label="取引の編集"
-      inert={closing}
-      className={styles.SidePanel}
-      data-closing={closing || undefined}
-    >
-      <div className={styles.panelHeader}>
+    <>
+      <div className={styles.PanelHeader}>
         <div className={styles.favorite}>
           <FavoriteButton
             favorite={selected.isFavorite}
@@ -409,13 +410,15 @@ const SidePanel = ({
             }
           />
         </div>
-        <Link
-          href={`/transactions/${transaction.id}`}
-          aria-label="取引の画面で開く"
-          className={styles.panelLink}
-        >
-          <Maximize2 className={styles.panelIcon} aria-hidden="true" />
-        </Link>
+        {showPageLink && (
+          <Link
+            href={`/transactions/${transaction.id}`}
+            aria-label="取引の画面で開く"
+            className={styles.panelLink}
+          >
+            <Maximize2 className={styles.panelIcon} aria-hidden="true" />
+          </Link>
+        )}
         <Link
           href={transactionsHref(filter)}
           preserveScroll
@@ -452,7 +455,63 @@ const SidePanel = ({
           })
         }
       />
-    </aside>
+    </>
+  );
+};
+
+/**
+ * 広い画面で一覧の横に出す、取引の編集のパネル。
+ */
+const SidePanel = ({
+  closing,
+  ...props
+}: PanelProps & {
+  /** 閉じるアニメーションの間だけ、閉じる前の取引を出しておく。操作はさせない */
+  closing: boolean;
+}) => (
+  <aside
+    aria-label="取引の編集"
+    inert={closing}
+    className={styles.SidePanel}
+    data-closing={closing || undefined}
+  >
+    <TransactionPanel {...props} showPageLink />
+  </aside>
+);
+
+/**
+ * 狭い画面で下から出す、取引の編集のシート。閉じると一覧の URL から selected を外す。
+ */
+const PanelSheet = ({
+  open,
+  onClosed,
+  selected,
+  ...props
+}: Omit<PanelProps, "selected"> & {
+  /** 閉じるアニメーションの間も、閉じる前の取引を出しておく。まだ何も開いていなければ null */
+  selected: PanelProps["selected"] | null;
+  open: boolean;
+  /** 閉じるアニメーションが終わったとき */
+  onClosed: () => void;
+}) => {
+  const router = useRouter();
+  return (
+    <Drawer
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) void router.visit(transactionsHref(props.filter), { preserveScroll: true });
+      }}
+      onOpenChangeComplete={(next) => {
+        if (!next) onClosed();
+      }}
+    >
+      {selected !== null && (
+        <DrawerContent>
+          <DrawerTitle className={visuallyHiddenClassName}>取引の編集</DrawerTitle>
+          <TransactionPanel {...props} selected={selected} showPageLink={false} />
+        </DrawerContent>
+      )}
+    </Drawer>
   );
 };
 
@@ -554,7 +613,7 @@ const TransactionListSkeleton = () => (
 
 /**
  * 取引の一覧の画面。日付ごとにまとめ、日付を左の列に出す。
- * 広い画面で取引を選ぶと、一覧の右にサイドパネルを開いてその場で編集できる。
+ * 取引を選ぶと、広い画面では一覧の右にサイドパネルを、狭い画面では下からシートを出してその場で編集できる。
  */
 const TransactionsPage = ({
   filter,
@@ -568,6 +627,8 @@ const TransactionsPage = ({
   // パネルを閉じても列が縮みきるまでは中身を残すため、最後に開いた取引を持っておく
   const [shown, setShown] = useState(selected);
   if (selected !== null && selected !== shown) setShown(selected);
+  // サーバーでは画面の幅がわからないので、サイドパネルで描いておく。狭い画面では CSS でパネルの列を隠している
+  const sidePanel = useMediaQuery(SIDE_PANEL_MEDIA, true);
   // 未入金は全期間の一覧なので、月を移るときは絞り込みを外してその月の一覧にする
   const monthHref = (month: string) =>
     transactionsHref({
@@ -658,7 +719,7 @@ const TransactionsPage = ({
         )}
       </div>
       <div className={styles.panelColumn}>
-        {shown !== null && (
+        {sidePanel && shown !== null && (
           <SidePanel
             filter={filter}
             selected={shown}
@@ -669,6 +730,21 @@ const TransactionsPage = ({
           />
         )}
       </div>
+      {/*
+       * 開くときに下から滑り込むよう、シートは取引を開く前から置いておき、open だけを切り替える。
+       * 開くのと同時に作ると、Base UI は最初から開いていたものとして扱い、開くアニメーションを付けない
+       */}
+      {!sidePanel && (
+        <PanelSheet
+          filter={filter}
+          selected={shown}
+          open={selected !== null}
+          onClosed={() => setShown(null)}
+          accounts={accounts}
+          categories={categories}
+          chainNames={chainNames}
+        />
+      )}
     </div>
   );
 };
