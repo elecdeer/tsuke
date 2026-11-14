@@ -543,12 +543,9 @@ const TransactionList = ({
               key={group.date}
               gap="none"
               // スクロールしても今見ている日付がわかるよう、日付をヘッダーの下に貼り付ける。
-              // 月のバーが出ているときはその下に並べる（未入金の一覧には月のバーがない）
-              stickyTop={
-                unreceivedOnly
-                  ? "var(--header-height)"
-                  : "calc(var(--header-height) + var(--month-bar-height))"
-              }
+              // 月の一覧は PeriodPager の横スクロールの箱の中にあり、sticky がその箱を基準にしてしまう。
+              // 箱は縦にスクロールしないので貼り付かず、top の分だけ日付が下にずれて行に重なるので、貼り付けない
+              stickyTop={unreceivedOnly ? "var(--header-height)" : undefined}
               label={
                 <span className={styles.DayLabel}>
                   {unreceivedOnly ? formatFullDay(group.date) : formatDayOfMonth(group.date)}
