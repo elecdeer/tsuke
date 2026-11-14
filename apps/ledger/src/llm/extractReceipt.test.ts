@@ -4,7 +4,7 @@
 import * as v from "valibot";
 import { describe, expect, test } from "vite-plus/test";
 import { createFakeModelProvider } from "./fakeModelProvider.ts";
-import { ACCOUNT_NOTES_RULE } from "./extractPayment.ts";
+import { ACCOUNT_NOTES_RULE, TAX_ITEM_RULE, TOTAL_RULE } from "./extractPayment.ts";
 import {
   buildReceiptPrompt,
   ReceiptImageSchema,
@@ -34,6 +34,7 @@ const extracted = {
   placePhone: null,
   receiptBox: { ymin: 100, xmin: 200, ymax: 900, xmax: 700 },
   items: [{ name: "牛乳", amount: 248, memo: null, genreId: 10101 }],
+  total: 248,
   confidence: "high",
   reasoning: "receipt",
 };
@@ -83,7 +84,18 @@ describe("buildReceiptPrompt", () => {
 
   test("合計・お預り・お釣りの行を品目にしないよう指示する", () => {
     const { system } = buildReceiptPrompt(baseInput());
-    expect(system).toContain("Do NOT make items from subtotal, total, tax, tendered");
+    expect(system).toContain("Do NOT make items from subtotal, total, tendered");
+  });
+
+  test("合計を品目から計算せず、表示どおりに読むよう指示する", () => {
+    const { system } = buildReceiptPrompt(baseInput());
+    expect(system).toContain(TOTAL_RULE);
+  });
+
+  test("外税の税は品目に配分せず、税の品目として出すよう指示する", () => {
+    const { system } = buildReceiptPrompt(baseInput());
+    expect(system).toContain(TAX_ITEM_RULE);
+    expect(system).not.toContain("add the tax so the items sum");
   });
 
   test("読み取った店舗名はチェーン名と支店名を空白で区切るよう指示する", () => {

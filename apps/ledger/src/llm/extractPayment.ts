@@ -73,6 +73,8 @@ export const ExtractedPaymentSchema = v.strictObject({
   accountId: v.nullable(v.number()),
   placeName: v.nullable(v.string()),
   items: v.array(ExtractedPaymentItemSchema),
+  /** 印字・表示された支払いの合計。品目の合計と比べて読み違いに気づくために読ませる */
+  total: v.nullable(v.number()),
   confidence: v.picklist(["high", "medium", "low"]),
   reasoning: v.string(),
 });
@@ -86,6 +88,19 @@ export const PLACE_NOTES_RULE =
 /** 口座の一覧のヒントの読み方。口座の一覧を渡すプロンプトで共通に使う */
 export const ACCOUNT_NOTES_RULE =
   "An account line may add `hint:` (the user's note on how to recognize or when to choose the account; follow it).";
+
+/**
+ * 外税の税の行の扱い。レシートとページからの抽出で共通に使う。
+ *
+ * 税を品目の金額に配分させないのは、税は税率ごとの小計にかけて端数を処理するので、
+ * 品目ごとに税を足すと合計がずれるうえ、配分を落とすと税の分だけ合計が少なくなるため
+ */
+export const TAX_ITEM_RULE =
+  "- Tax: when prices are tax-exclusive (外税, 税抜) and the tax is shown separately, keep each item's `amount` as shown (before tax) and add the tax as its own item: one item per tax line as shown (e.g. `外税 10%`, `消費税`), with that line's amount, `memo` null, and the `genreId` of the largest item. Do not add tax to the items' amounts. When prices already include tax (内税, 税込, `内消費税`), the tax lines are only a breakdown; do NOT make items from them. Either way, the items must sum to the total paid.";
+
+/** 合計の読み方。レシートとページからの抽出で共通に使う */
+export const TOTAL_RULE =
+  "- `total`: the total amount paid as shown (合計, お支払い金額, ご請求額), in JPY (integer), after discounts and including tax and fees; null when it is not shown. Read it as shown; do not compute it from the items.";
 
 const ARIA_SNAPSHOT_MAX_CHARS = 16000;
 const RECENT_PLACES_LIMIT = 20;
@@ -187,12 +202,14 @@ export const buildPrompt = (input: ExtractPaymentContext): { system: string; pro
     `- \`accountId\` must be one of the provided account IDs; otherwise null. ${ACCOUNT_NOTES_RULE}`,
     '- `date`: "YYYY-MM-DD"; prefer the order/purchase date when several exist.',
     `- \`placeName\`: use a recent store name as is when it clearly fits, else extract the merchant name from the page. ${PLACE_NOTES_RULE}`,
+    TOTAL_RULE,
     "- `confidence`: high/medium/low based on how clearly the page conveys the payment.",
     "- `reasoning`: 1-3 sentences justifying your choices.",
     "",
     "`items` (one per line item):",
     "- Split itemized receipts/orders into one entry per product; single payments → one item.",
     "- `amount` is the per-item subtotal in JPY (integer); items should sum to the page total when shown. Discounts are separate items with negative amounts.",
+    TAX_ITEM_RULE,
     "- `name` is the product/service name; `memo` is a short note (e.g. quantity, variant) only when helpful.",
     "- `genreId` is the per-item genre. Must be one of the provided genre IDs; otherwise null.",
     "  Pick the genre by its parent category context — the listing shows `categoryId=name: genreId=name, ...` so you can see which genres belong to which category.",
