@@ -24,7 +24,13 @@ const meta = preview.meta({
     (Story) => (
       <ToastProvider>
         {/* サイドパネルの本文（App の main）と同じ余白で置く */}
-        <div className="min-h-screen bg-background px-4 pt-6">
+        <div
+          style={{
+            minHeight: "100vh",
+            padding: "1.5rem 1rem 0",
+            backgroundColor: "var(--background)",
+          }}
+        >
           <Story />
           <Toaster />
         </div>

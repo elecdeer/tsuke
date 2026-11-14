@@ -7,6 +7,7 @@ import {
   ComboboxClear,
   ComboboxContent,
   ComboboxEmpty,
+  ComboboxField,
   ComboboxItem,
   ComboboxList,
   useComboboxAnchor,
@@ -17,6 +18,7 @@ import { useSuspenseQuery } from "@/lib/query";
 import { placeOptions, type PlaceOption } from "@/lib/placeOptions";
 import { placesQuery } from "../queries";
 import { FormField } from "@tsuke/ui/patterns/FormField";
+import { FieldError, FieldLoading } from "@/components/FieldStatus";
 
 interface Props {
   serverUrl: string;
@@ -43,17 +45,8 @@ export const StoreCombobox = ({ serverUrl, value, onChange, hideLabel = false }:
 
   return (
     <FormField label={LABEL} htmlFor={id} hideLabel={hideLabel}>
-      <ErrorBoundary
-        fallback={<p className="py-1.5 text-sm text-destructive">店舗の取得に失敗しました</p>}
-      >
-        <Suspense
-          fallback={
-            <output
-              className="block h-8 animate-pulse border-b border-foreground/40 bg-muted"
-              aria-label="店舗を読み込み中"
-            />
-          }
-        >
+      <ErrorBoundary fallback={<FieldError message="店舗の取得に失敗しました" />}>
+        <Suspense fallback={<FieldLoading label="店舗を読み込み中" />}>
           <StoreComboboxContent id={id} serverUrl={serverUrl} value={value} onChange={onChange} />
         </Suspense>
       </ErrorBoundary>
@@ -104,7 +97,7 @@ const StoreComboboxContent = ({
       // 追加の候補は入力した名前そのものなので、絞り込みに関わらず常に出す
       filter={(option: PlaceOption, q: string) => option.isNew || contains(option.name, q)}
     >
-      <div ref={anchor} className="flex min-w-0 items-center gap-0.5">
+      <ComboboxField ref={anchor}>
         <ComboboxPrimitive.Input id={id} placeholder="なし" render={<Input />} />
         {value !== null && (
           <ComboboxClear
@@ -113,24 +106,17 @@ const StoreComboboxContent = ({
             <XIcon />
           </ComboboxClear>
         )}
-      </div>
+      </ComboboxField>
       <ComboboxContent
         // 欄の右のボタンまで含めた幅で、欄のすぐ下に出す
         anchor={anchor}
-        sideOffset={0}
-        // 箱ではなく欄の続きに見せたいので、影・枠をやめ、下の端だけ黒の線で閉じる
-        className="border-b border-foreground bg-background shadow-none ring-0"
+        // 箱ではなく欄の続きに見せる
+        variant="inline"
       >
-        <ComboboxEmpty className="py-2 text-left text-muted-foreground">
-          過去の店舗はありません
-        </ComboboxEmpty>
-        <ComboboxList className="p-0">
+        <ComboboxEmpty>過去の店舗はありません</ComboboxEmpty>
+        <ComboboxList>
           {(option: PlaceOption) => (
-            <ComboboxItem
-              key={`${option.isNew}:${option.name}`}
-              value={option}
-              className="border-b py-2 pl-0 last:border-b-0"
-            >
+            <ComboboxItem key={`${option.isNew}:${option.name}`} value={option}>
               {option.isNew ? (
                 <>
                   <PlusIcon aria-hidden="true" />「{option.name}」を追加

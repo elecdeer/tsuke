@@ -1,0 +1,56 @@
+.Layout {
+  min-height: 100vh;
+  background-color: var(--background);
+}
+
+/*
+ * 画面の上に固定するヘッダー。台帳のヘッダー（apps/ledger/pages/layout.tsx）にそろえ、
+ * 名前と画面の切り替え（下線のタブ）と設定への入口を 1 段に並べる
+ */
+.Header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-end;
+  height: 2.75rem;
+  padding-inline: 1rem;
+  background-color: var(--background);
+  border-bottom-width: 1px;
+
+  > .brand {
+    padding-bottom: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.25rem;
+  }
+
+  > .settings {
+    padding: 0.25rem;
+    margin-bottom: 0.25rem;
+    margin-left: auto;
+    color: var(--muted-foreground);
+    outline-style: none;
+
+    @media (hover: hover) {
+      &:hover {
+        color: var(--foreground);
+      }
+    }
+
+    &:focus-visible {
+      color: var(--foreground);
+      outline: 3px solid var(--ring);
+    }
+
+    > .settingsIcon {
+      width: 1rem;
+      height: 1rem;
+    }
+  }
+}
+
+.Main {
+  padding: 1.5rem 1rem 0;
+}

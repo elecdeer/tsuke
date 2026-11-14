@@ -44,14 +44,12 @@ describe("poiKindColor", () => {
   });
 
   test("飲食・買い物・宿泊・医療はそれぞれ違う色にする", () => {
-    const pins = ["restaurant", "grocery", "lodging", "medical"].map(
-      (kind) => poiKindColor(kind).pin,
-    );
+    const pins = ["restaurant", "grocery", "lodging", "medical"].map((kind) => poiKindColor(kind));
 
     expect(new Set(pins).size).toBe(pins.length);
   });
 
   test("種類がわからない施設にも色を返す", () => {
-    expect(poiKindColor("unknown").pin).toBe(poiKindColor("未知の値").pin);
+    expect(poiKindColor("unknown")).toBe(poiKindColor("未知の値"));
   });
 });

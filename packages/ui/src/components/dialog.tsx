@@ -1,9 +1,11 @@
 import * as React from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { visuallyHiddenClassName } from "@tsuke/ui/lib/a11y";
 import { cn } from "@tsuke/ui/lib/utils";
 
 import { Button } from "@tsuke/ui/components/button";
 import { XIcon } from "lucide-react";
+import styles from "./dialog.module.css";
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
@@ -25,10 +27,7 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
-      className={cn(
-        "fixed inset-0 isolate z-50 bg-background/70 duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
-        className,
-      )}
+      className={cn(styles.Overlay, className)}
       {...props}
     />
   );
@@ -38,29 +37,38 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  size = "default",
+  layout = "grid",
+  gap = "default",
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean;
+  /** 広い画面での幅。lg は入力の多いもの、xl は地図など画面いっぱいを使うもの */
+  size?: "default" | "lg" | "xl";
+  /** column は縦に並べ、中の一部（写真や地図）を残りの高さに縮めて収める */
+  layout?: "grid" | "column";
+  /** 中身どうしの間隔 */
+  gap?: "tight" | "default" | "loose";
 }) {
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
-        className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 bg-popover p-4 text-sm text-popover-foreground shadow-dialog ring-1 ring-input duration-150 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-98 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-98",
-          className,
-        )}
+        data-size={size}
+        data-layout={layout}
+        data-gap={gap}
+        className={cn(styles.Content, className)}
         {...props}
       >
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            render={<Button variant="ghost" className="absolute top-2 right-2" size="icon-sm" />}
+            render={<Button variant="ghost" className={styles.close} size="icon-sm" />}
           >
             <XIcon />
-            <span className="sr-only">Close</span>
+            <span className={visuallyHiddenClassName}>Close</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Popup>
@@ -69,9 +77,7 @@ function DialogContent({
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div data-slot="dialog-header" className={cn("flex flex-col gap-2", className)} {...props} />
-  );
+  return <div data-slot="dialog-header" className={cn(styles.Header, className)} {...props} />;
 }
 
 function DialogFooter({
@@ -83,14 +89,7 @@ function DialogFooter({
   showCloseButton?: boolean;
 }) {
   return (
-    <div
-      data-slot="dialog-footer"
-      className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 border-t p-4 sm:flex-row sm:justify-end",
-        className,
-      )}
-      {...props}
-    >
+    <div data-slot="dialog-footer" className={cn(styles.Footer, className)} {...props}>
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close render={<Button variant="outline" />}>Close</DialogPrimitive.Close>
@@ -103,20 +102,24 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-base leading-6 font-medium", className)}
+      className={cn(styles.Title, className)}
       {...props}
     />
   );
 }
 
-function DialogDescription({ className, ...props }: DialogPrimitive.Description.Props) {
+function DialogDescription({
+  className,
+  visuallyHidden = false,
+  ...props
+}: DialogPrimitive.Description.Props & {
+  /** 見た目からは隠し、読み上げにだけ残す */
+  visuallyHidden?: boolean;
+}) {
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn(
-        "text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
-        className,
-      )}
+      className={cn(visuallyHidden ? visuallyHiddenClassName : styles.Description, className)}
       {...props}
     />
   );

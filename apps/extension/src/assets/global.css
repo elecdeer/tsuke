@@ -1,6 +1,2 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-
 /* 色・書体・角丸は台帳の Web 画面と共有する（packages/ui/docs/design.md） */
 @import "@tsuke/ui/theme.css";

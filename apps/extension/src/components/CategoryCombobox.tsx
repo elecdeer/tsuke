@@ -12,12 +12,12 @@ import {
   ComboboxTrigger,
   ComboboxValue,
 } from "@tsuke/ui/components/combobox";
-import { selectTriggerClassName } from "@tsuke/ui/components/select";
+import { SelectTriggerText, selectTriggerStyleProps } from "@tsuke/ui/components/select";
 import { ErrorBoundary } from "@/lib/ErrorBoundary";
 import { useSuspenseQuery } from "@/lib/query";
-import { cn } from "@tsuke/ui/lib/utils";
 import { categoriesQuery } from "../queries";
 import { FormField } from "@tsuke/ui/patterns/FormField";
+import { FieldError, FieldLoading } from "@/components/FieldStatus";
 
 export type CategorySelection = {
   categoryId: number;
@@ -71,17 +71,12 @@ export const CategoryCombobox = ({
 
   return (
     <FormField label={LABEL} htmlFor={id} hideLabel={hideLabel}>
-      <ErrorBoundary
-        fallback={<p className="py-1.5 text-sm text-destructive">カテゴリの取得に失敗しました</p>}
-      >
+      <ErrorBoundary fallback={<FieldError message="カテゴリの取得に失敗しました" />}>
         <Suspense
           fallback={
-            <output
-              className={cn(
-                "block animate-pulse bg-muted",
-                variant === "inline" ? "h-6 w-24" : "h-8 border-b border-foreground/40",
-              )}
-              aria-label="カテゴリを読み込み中"
+            <FieldLoading
+              label="カテゴリを読み込み中"
+              variant={variant === "inline" ? "caption" : "default"}
             />
           }
         >
@@ -156,28 +151,25 @@ const CategoryComboboxContent = ({
           <button
             type="button"
             aria-label={LABEL}
-            data-size="default"
-            className={cn(
-              selectTriggerClassName,
-              "w-full",
-              // 品目の行では品目名に添える見出しのように、低く小さく薄く出す。下線も消し、下の品目名の欄と取り違えないようにする
-              variant === "inline" &&
-                "w-fit max-w-full border-transparent text-xs text-muted-foreground data-[size=default]:h-6",
-            )}
+            // 品目の行では品目名に添える見出しのように、低く小さく薄く出す
+            {...selectTriggerStyleProps({
+              variant: variant === "inline" ? "caption" : "default",
+              width: "full",
+            })}
           />
         }
       >
         <ComboboxValue>
           {(v: GenreItem | null) => (
-            <span className={cn("truncate", !v && "text-muted-foreground")}>
+            <SelectTriggerText placeholder={!v}>
               {/* 台帳と違い未分類のままでは登録できないので、選ぶよう促す */}
               {v ? genreLabel(v) : "カテゴリを選択"}
-            </span>
+            </SelectTriggerText>
           )}
         </ComboboxValue>
       </ComboboxTrigger>
       <ComboboxContent>
-        <ComboboxInput showTrigger={false} placeholder="カテゴリを検索" />
+        <ComboboxInput placeholder="カテゴリを検索" />
         <ComboboxEmpty>カテゴリが見つかりません</ComboboxEmpty>
         <ComboboxList>
           {(group: GenreGroup) => (

@@ -8,6 +8,7 @@ import { useSuspenseQuery } from "@/lib/query";
 import { authStatusQuery, serverUrlQuery } from "../../queries.ts";
 import MainScreen from "./screens/MainScreen.tsx";
 import StatementScreen from "./screens/StatementScreen.tsx";
+import styles from "./App.module.css";
 
 /**
  * アプリケーションのルートコンポーネント。
@@ -23,7 +24,7 @@ export default function App() {
 }
 
 const AppShell = () => (
-  <div className="min-h-screen bg-background">
+  <div className={styles.Layout}>
     <Header />
   </div>
 );
@@ -33,17 +34,12 @@ const AppShell = () => (
  * 名前と画面の切り替え（下線のタブ）と設定への入口を 1 段に並べる。
  */
 const Header = ({ nav, onOpenSettings }: { nav?: ReactNode; onOpenSettings?: () => void }) => (
-  <header className="sticky top-0 z-30 flex h-11 items-end gap-5 border-b bg-background px-4">
-    <h1 className="pb-2 text-sm font-semibold">tsuke</h1>
+  <header className={styles.Header}>
+    <h1 className={styles.brand}>tsuke</h1>
     {nav}
     {onOpenSettings && (
-      <button
-        type="button"
-        aria-label="設定"
-        className="mb-1 ml-auto p-1 text-muted-foreground outline-none hover:text-foreground focus-visible:text-foreground focus-visible:outline-3 focus-visible:outline-solid focus-visible:outline-ring"
-        onClick={onOpenSettings}
-      >
-        <SettingsIcon className="size-4" aria-hidden="true" />
+      <button type="button" aria-label="設定" className={styles.settings} onClick={onOpenSettings}>
+        <SettingsIcon className={styles.settingsIcon} aria-hidden="true" />
       </button>
     )}
   </header>
@@ -137,7 +133,7 @@ interface AppLayoutProps {
  * タブの切り替えはヘッダーに、タブの中身（`Screens`）は本文に置くので、Tabs で全体を包む。
  */
 const AppLayout = ({ settingsOpen, onSettingsOpenChange, children }: AppLayoutProps) => (
-  <Tabs defaultValue="payment" className="min-h-screen bg-background">
+  <Tabs defaultValue="payment" className={styles.Layout}>
     <Header
       nav={
         <TabsList aria-label="画面">
@@ -147,7 +143,7 @@ const AppLayout = ({ settingsOpen, onSettingsOpenChange, children }: AppLayoutPr
       }
       onOpenSettings={() => onSettingsOpenChange(true)}
     />
-    <main className="px-4 pt-6">{children}</main>
+    <main className={styles.Main}>{children}</main>
     <SettingsOverlay open={settingsOpen} onOpenChange={onSettingsOpenChange} />
     <Toaster />
   </Tabs>

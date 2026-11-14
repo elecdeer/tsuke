@@ -15,6 +15,7 @@ import {
   suggestQueries,
   type PlaceMasters,
 } from "@/web/placeMatching";
+import styles from "./PlaceCandidates.module.css";
 
 type Lookup =
   | { type: "searching" }
@@ -31,13 +32,9 @@ const CandidateButton = ({
   note: string;
   onClick: () => void;
 }) => (
-  <button
-    type="button"
-    className="flex w-full flex-col px-1 py-1.5 text-left hover:bg-muted"
-    onClick={onClick}
-  >
-    <span className="truncate">{name}</span>
-    {note !== "" && <span className="truncate text-xs text-muted-foreground">{note}</span>}
+  <button type="button" className={styles.CandidateButton} onClick={onClick}>
+    <span className={styles.name}>{name}</span>
+    {note !== "" && <span className={styles.note}>{note}</span>}
   </button>
 );
 
@@ -80,14 +77,12 @@ export const PlaceCandidates = ({
   const pois = lookup.type === "done" ? lookup.pois : [];
 
   return (
-    <div className="flex flex-col gap-3 border-t pt-2 text-sm">
-      <p className="text-xs text-muted-foreground">
-        新しい店舗として登録します。同じ店舗があれば選んでください
-      </p>
+    <div className={styles.PlaceCandidates}>
+      <p className={styles.hint}>新しい店舗として登録します。同じ店舗があれば選んでください</p>
 
       {similar.length > 0 && (
-        <section aria-label="登録済みの似た店舗">
-          <h3 className="text-xs font-medium text-muted-foreground">登録済みの似た店舗</h3>
+        <section aria-label="登録済みの似た店舗" className={styles.group}>
+          <h3 className={styles.groupTitle}>登録済みの似た店舗</h3>
           <ul>
             {similar.map((placeName) => (
               <li key={placeName}>
@@ -103,23 +98,19 @@ export const PlaceCandidates = ({
       )}
 
       {detail.poi === null ? (
-        <section aria-label="OpenPOI の候補" aria-live="polite">
-          <h3 className="text-xs font-medium text-muted-foreground">OpenPOI の候補</h3>
+        <section aria-label="OpenPOI の候補" aria-live="polite" className={styles.group}>
+          <h3 className={styles.groupTitle}>OpenPOI の候補</h3>
           {lookup.type === "searching" && (
-            <p className="flex items-center gap-1.5 py-1 text-xs text-muted-foreground">
-              <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+            <p className={styles.status}>
+              <LoaderCircle className={styles.spinner} aria-hidden="true" />
               探しています
             </p>
           )}
           {lookup.type === "error" && (
-            <p className="py-1 text-xs text-muted-foreground">
-              候補を取得できませんでした。このまま登録できます
-            </p>
+            <p className={styles.status}>候補を取得できませんでした。このまま登録できます</p>
           )}
           {lookup.type === "done" && pois.length === 0 && (
-            <p className="py-1 text-xs text-muted-foreground">
-              見つかりませんでした。地図からも探せます
-            </p>
+            <p className={styles.status}>見つかりませんでした。地図からも探せます</p>
           )}
           <ul>
             {pois.map((poi) => (
@@ -134,9 +125,9 @@ export const PlaceCandidates = ({
           </ul>
         </section>
       ) : (
-        <p className="flex items-center gap-1.5 text-xs">
-          <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate">{detail.poi.address || "住所の情報なし"}</span>
+        <p className={styles.poi}>
+          <MapPin className={styles.poiIcon} aria-hidden="true" />
+          <span className={styles.poiAddress}>{detail.poi.address || "住所の情報なし"}</span>
           <Button
             type="button"
             variant="ghost"
@@ -149,8 +140,8 @@ export const PlaceCandidates = ({
         </p>
       )}
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor={chainId} className="text-xs font-medium text-muted-foreground">
+      <div className={styles.chain}>
+        <label htmlFor={chainId} className={styles.chainLabel}>
           チェーン（支店をまとめて見るときの名前）
         </label>
         <Input
@@ -169,13 +160,13 @@ export const PlaceCandidates = ({
         </datalist>
       </div>
 
-      <p className="text-xs text-muted-foreground">
+      <p className={styles.attribution}>
         候補の出典:{" "}
         <a
           href={OPEN_POI_ATTRIBUTION_URL}
           target="_blank"
           rel="noreferrer"
-          className="underline hover:text-foreground"
+          className={styles.attributionLink}
         >
           OpenPOI API
         </a>

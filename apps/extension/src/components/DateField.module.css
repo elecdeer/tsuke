@@ -1,0 +1,13 @@
+/* 日付の欄と、その右に置くカレンダーを開くボタン（台帳の店舗の欄の地図のボタンと同じ並び） */
+.DateField {
+  display: flex;
+  gap: 0.125rem;
+  align-items: center;
+  min-width: 0;
+
+  > .input {
+    flex: 1;
+    min-width: 0;
+    font-variant-numeric: tabular-nums;
+  }
+}

@@ -1,0 +1,9 @@
+@layer ui-primitive {
+  .YenUnit {
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+    letter-spacing: normal;
+  }
+}

@@ -1,5 +1,4 @@
 import { fileURLToPath } from "node:url";
-import tailwindcss from "@tailwindcss/vite";
 import { voidReact } from "@void/react/plugin";
 import { voidPlugin } from "void";
 import { defineConfig } from "vite-plus";
@@ -10,7 +9,6 @@ export default defineConfig({
     // 本物の記録を取り込んだローカルの DB を使わずに、架空のデータ（scripts/sample-data.sql）で画面を確かめるため
     voidPlugin({ persistTo: process.env.LEDGER_PERSIST_TO }),
     voidReact(),
-    tailwindcss(),
   ],
   resolve: {
     alias: {

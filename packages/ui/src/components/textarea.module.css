@@ -1,0 +1,39 @@
+@layer ui-primitive {
+  .Textarea {
+    display: flex;
+    width: 100%;
+    min-height: 4rem;
+    padding: 0.5rem 0.625rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    outline-style: none;
+    background-color: transparent;
+    border-color: var(--input);
+    border-width: 1px;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+    transition-property:
+      color, background-color, border-color, outline-color, text-decoration-color;
+    field-sizing: content;
+
+    &::placeholder {
+      color: var(--muted-foreground);
+    }
+
+    &:focus-visible {
+      border-color: var(--ring);
+      box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      background-color: color-mix(in oklab, var(--input) 50%, transparent);
+      opacity: 0.5;
+    }
+
+    &[aria-invalid="true"] {
+      border-color: var(--destructive);
+      box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 20%, transparent);
+    }
+  }
+}

@@ -1,4 +1,3 @@
-import tailwindcss from "@tailwindcss/vite";
 import { defineMain } from "@storybook/react-vite/node";
 
 export default defineMain({
@@ -11,8 +10,4 @@ export default defineMain({
   features: {
     experimentalTestSyntax: true,
   },
-  viteFinal: (config) => ({
-    ...config,
-    plugins: [...(config.plugins ?? []), tailwindcss()],
-  }),
 });

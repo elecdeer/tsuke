@@ -2,7 +2,7 @@ import type { LedgerOutput } from "ledger/client";
 import { PlusIcon, RotateCwIcon, ScanTextIcon, TriangleAlertIcon, XIcon } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { Button } from "@tsuke/ui/components/button";
-import { selectTriggerClassName } from "@tsuke/ui/components/select";
+import { SelectTriggerText, selectTriggerStyleProps } from "@tsuke/ui/components/select";
 import { AccountCombobox } from "../../../components/AccountCombobox.tsx";
 import { CategoryCombobox, type CategorySelection } from "../../../components/CategoryCombobox.tsx";
 import { DateField } from "../../../components/DateField.tsx";
@@ -18,6 +18,7 @@ import { useMutation } from "../../../lib/useMutation.ts";
 import { collectPageContent, findCategorySelectionByGenreId } from "../../../lib/extraction.ts";
 import { createServerClient, withErrorMessage } from "../../../lib/serverClient";
 import { categoriesQuery, placesQuery } from "../../../queries.ts";
+import styles from "./MainScreen.module.css";
 
 interface Item {
   id: string;
@@ -51,9 +52,8 @@ const localDateString = () => Temporal.Now.plainDateISO().toString();
 
 /**
  * 押すとモーダルを開く品目の欄。台帳の品目名・メモの欄と同じく、選択欄の見た目（下線）にする。
- * 高さは data-size="default" で選択欄と同じにする。
  */
-const FIELD_TRIGGER = cn(selectTriggerClassName, "w-full");
+const fieldTriggerProps = selectTriggerStyleProps({ width: "full" });
 
 const isItemReady = (item: Item): boolean =>
   parseInt(item.amount, 10) > 0 && item.category !== null && item.category.genreId > 0;
@@ -76,8 +76,8 @@ const ItemRow = ({ item, serverUrl, onEdit, onCategoryChange, onRemove }: ItemRo
   const hasAmount = Number.isInteger(amountNum) && amountNum > 0;
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_7rem_1.75rem] items-end gap-x-4 border-b border-foreground/60 py-2">
-      <div className="col-span-full">
+    <div className={styles.ItemRow}>
+      <div className={styles.category}>
         <CategoryCombobox
           serverUrl={serverUrl}
           value={item.category}
@@ -88,30 +88,25 @@ const ItemRow = ({ item, serverUrl, onEdit, onCategoryChange, onRemove }: ItemRo
       </div>
       <button
         type="button"
-        data-size="default"
-        className={FIELD_TRIGGER}
+        {...fieldTriggerProps}
         onClick={() => onEdit("name")}
         aria-label="品名を編集"
         title={item.name || undefined}
       >
-        <span className={cn("min-w-0 flex-1 truncate", !item.name && "text-muted-foreground")}>
-          {item.name || "品名"}
-        </span>
+        <SelectTriggerText placeholder={!item.name}>{item.name || "品名"}</SelectTriggerText>
       </button>
       <button
         type="button"
-        data-size="default"
-        className={cn(FIELD_TRIGGER, "justify-end gap-0.5 tabular-nums")}
+        {...selectTriggerStyleProps({ width: "full", align: "end" })}
         onClick={() => onEdit("amount")}
         aria-label="金額を編集"
       >
-        <span className={cn("truncate", !hasAmount && "text-muted-foreground")}>
+        <SelectTriggerText placeholder={!hasAmount} align="end">
           {hasAmount ? formatAmount(amountNum) : "0"}
-        </span>
+        </SelectTriggerText>
         <YenUnit />
       </button>
-      {/* ボタン（h-7）は欄（h-8）より低いので、欄と同じ高さの中で縦の中央に置く */}
-      <div className="flex h-8 items-center justify-end">
+      <div className={styles.remove}>
         <Button
           size="icon-sm"
           variant="ghost"
@@ -124,15 +119,13 @@ const ItemRow = ({ item, serverUrl, onEdit, onCategoryChange, onRemove }: ItemRo
       </div>
       <button
         type="button"
-        data-size="default"
-        className={cn(FIELD_TRIGGER, "col-span-2 mt-1")}
+        {...fieldTriggerProps}
+        className={cn(fieldTriggerProps.className, styles.memo)}
         onClick={() => onEdit("memo")}
         aria-label="メモを編集"
         title={item.memo || undefined}
       >
-        <span className={cn("min-w-0 flex-1 truncate", !item.memo && "text-muted-foreground")}>
-          {item.memo || "メモ"}
-        </span>
+        <SelectTriggerText placeholder={!item.memo}>{item.memo || "メモ"}</SelectTriggerText>
       </button>
     </div>
   );
@@ -313,12 +306,12 @@ export default function MainScreen({ serverUrl }: Props) {
           : "登録";
 
   return (
-    <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
-      <div className="flex flex-col items-start gap-2">
+    <form className={styles.MainScreen} onSubmit={handleSubmit}>
+      <div className={styles.Autofill}>
         <Button
           type="button"
           variant="outline"
-          className="w-full"
+          className={styles.autofillButton}
           disabled={extractMutation.isPending || mutation.isPending}
           onClick={() => extractMutation.mutate("fast")}
         >
@@ -326,7 +319,7 @@ export default function MainScreen({ serverUrl }: Props) {
           {extractMutation.isPending ? "自動入力中…" : "このページから自動入力"}
         </Button>
         {autofilled && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div className={styles.reread}>
             <Button
               type="button"
               variant="outline"
@@ -337,7 +330,7 @@ export default function MainScreen({ serverUrl }: Props) {
               <RotateCwIcon />
               もう一度読み取る
             </Button>
-            <span className="text-xs text-muted-foreground">
+            <span className={styles.rereadNote}>
               少し時間はかかりますが、より正確に読み取ります
             </span>
           </div>
@@ -353,17 +346,17 @@ export default function MainScreen({ serverUrl }: Props) {
         )}
       </div>
 
-      <div className="grid gap-y-4 border-t border-foreground pt-3">
+      <div className={styles.Fields}>
         <DateField value={date} onChange={setDate} required />
         <AccountCombobox serverUrl={serverUrl} value={accountId} onChange={setAccountId} />
         <StoreCombobox serverUrl={serverUrl} value={placeName} onChange={setPlaceName} />
       </div>
 
-      <section aria-labelledby={itemsHeadingId} className="flex flex-col">
-        <h2 id={itemsHeadingId} className="pb-2 text-base font-semibold">
+      <section aria-labelledby={itemsHeadingId} className={styles.Items}>
+        <h2 id={itemsHeadingId} className={styles.itemsTitle}>
           品目
         </h2>
-        <div className="border-t border-foreground">
+        <div className={styles.itemList}>
           {items.map((item) => (
             <ItemRow
               key={item.id}
@@ -376,8 +369,10 @@ export default function MainScreen({ serverUrl }: Props) {
           ))}
         </div>
         <Button
-          className="mt-1 -ml-2.5 self-start text-muted-foreground"
+          className={styles.addItem}
           variant="ghost"
+          tone="muted"
+          flush
           type="button"
           onClick={() => setItems((prev) => [...prev, newItem(prev.at(-1)?.category ?? null)])}
         >
@@ -386,14 +381,13 @@ export default function MainScreen({ serverUrl }: Props) {
         </Button>
       </section>
 
-      {/* 登録のボタンと合計は、品目が多くてスクロールしても見えるよう下の帯に置く（台帳のレシートの登録と同じ） */}
-      <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-foreground bg-background py-2">
+      <div className={styles.Footer}>
         {duplicateState === "warned" && (
-          <div role="alert" className="flex gap-1.5 text-sm text-destructive">
-            <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            <div className="flex flex-col gap-1">
+          <div role="alert" className={styles.duplicates}>
+            <TriangleAlertIcon className={styles.duplicatesIcon} aria-hidden="true" />
+            <div className={styles.duplicatesBody}>
               <p>直近で同額の支払いが登録されている可能性があります：</p>
-              <ul className="flex flex-col gap-0.5 text-foreground">
+              <ul className={styles.duplicatesList}>
                 {items.flatMap((item) => {
                   const dups = duplicatesByItemId[item.id] ?? [];
                   if (dups.length === 0) return [];
@@ -417,12 +411,12 @@ export default function MainScreen({ serverUrl }: Props) {
           />
         )}
 
-        <div className="flex items-center justify-between gap-4">
-          <TotalAmount amount={total} className="min-w-0 flex-1" />
+        <div className={styles.footerRow}>
+          <TotalAmount amount={total} className={styles.total} />
           <Button
             type="submit"
             size="lg"
-            className="shrink-0 px-8"
+            className={styles.submit}
             variant={duplicateState === "warned" ? "destructive" : "default"}
             disabled={!canSubmit || mutation.isPending || duplicateState === "checking"}
           >

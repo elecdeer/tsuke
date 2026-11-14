@@ -11,7 +11,7 @@ const meta = preview.meta({
   args: { "aria-label": "品目名", placeholder: "品目名" },
   decorators: [
     (Story) => (
-      <div className="max-w-xs">
+      <div style={{ maxWidth: "20rem" }}>
         <Story />
       </div>
     ),

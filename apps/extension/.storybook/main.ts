@@ -1,5 +1,4 @@
 import { fileURLToPath } from "node:url";
-import tailwindcss from "@tailwindcss/vite";
 import { defineMain } from "@storybook/react-vite/node";
 
 export default defineMain({
@@ -14,7 +13,6 @@ export default defineMain({
   },
   viteFinal: (config) => ({
     ...config,
-    plugins: [...(config.plugins ?? []), tailwindcss()],
     resolve: {
       ...(config.resolve ?? {}),
       alias: {

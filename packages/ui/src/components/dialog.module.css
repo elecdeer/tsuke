@@ -1,0 +1,159 @@
+@layer ui {
+  .Overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background-color: color-mix(in oklab, var(--background) 70%, transparent);
+    isolation: isolate;
+
+    &[data-open] {
+      animation: overlay-in 150ms;
+    }
+
+    &[data-closed] {
+      animation: overlay-out 150ms forwards;
+    }
+  }
+
+  /* 画面より高くなるときは、ダイアログの中でスクロールさせる */
+  .Content {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    z-index: 50;
+    display: grid;
+    gap: 1rem;
+    width: 100%;
+    max-width: calc(100% - 2rem);
+    max-height: calc(100dvh - 2rem);
+    padding: 1rem;
+    overflow-y: auto;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--popover-foreground);
+    outline-style: none;
+    background-color: var(--popover);
+    box-shadow:
+      0 0 0 1px var(--input),
+      var(--dialog-shadow);
+    translate: -50% -50%;
+
+    &[data-open] {
+      animation: content-in 150ms;
+    }
+
+    &[data-closed] {
+      animation: content-out 150ms forwards;
+    }
+
+    @media (width >= 40rem) {
+      max-width: 24rem;
+
+      &[data-size="lg"] {
+        max-width: 32rem;
+      }
+
+      &[data-size="xl"] {
+        max-width: min(calc(100% - 2rem), 72rem);
+      }
+    }
+
+    /* 地図など、画面いっぱいの高さを使うもの */
+    &[data-size="xl"] {
+      height: calc(100dvh - 2rem);
+
+      @media (width >= 48rem) {
+        max-height: 50rem;
+      }
+    }
+
+    /* 縦に並べ、中の一部（写真や地図）を残りの高さに縮めて収める */
+    &[data-layout="column"] {
+      display: flex;
+      flex-direction: column;
+    }
+
+    &[data-gap="tight"] {
+      gap: 0.75rem;
+    }
+
+    &[data-gap="loose"] {
+      gap: 1.5rem;
+    }
+
+    > .close {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+    }
+  }
+
+  .Header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .Footer {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 0.5rem;
+    padding: 1rem;
+    margin: 0 -1rem -1rem;
+    border-top-width: 1px;
+
+    @media (width >= 40rem) {
+      flex-direction: row;
+      justify-content: flex-end;
+    }
+  }
+
+  .Title {
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1.5rem;
+  }
+
+  .Description {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--muted-foreground);
+
+    > :global(a) {
+      text-decoration-line: underline;
+      text-underline-offset: 3px;
+
+      @media (hover: hover) {
+        &:hover {
+          color: var(--foreground);
+        }
+      }
+    }
+  }
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes overlay-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes content-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes content-out {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}

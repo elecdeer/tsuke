@@ -1,20 +1,20 @@
 /*
- * tsuke の画面（台帳の Web 画面と拡張機能のサイドパネル）で共有する色・書体・角丸のトークン。
+ * tsuke の画面（台帳の Web 画面と拡張機能のサイドパネル）で共有する色・書体・角丸のトークンと、ページ全体の土台。
  * 見た目の方針は packages/ui/docs/design.md にまとめてある。
  *
- * 使う側の CSS で tailwindcss・tw-animate-css・shadcn/tailwind.css を読み込んだ後に読み込む。
+ * CSS のレイヤーは reset → base → ui-primitive → ui の順に弱い。部品（@tsuke/ui）の CSS はどちらかの ui レイヤーに入れ、
+ * レイヤーに入れていないアプリ側の CSS（className で渡すもの）が、詳細度に関係なく常に勝つようにする。
+ * ui-primitive には、ほかの部品が中で使って見た目を足すもの（ボタン・入力欄・一覧の行など）を入れ、
+ * それを使う部品（ui）の指定が詳細度に関係なく勝つようにする。
  */
+@layer reset, base, ui-primitive, ui;
 
-/* このパッケージの部品が使うクラスも、読み込んだ側の Tailwind に生成させる */
-@source "../components";
-@source "../patterns";
-@source "../lib";
-
-@custom-variant dark (&:is(.dark *));
+@import "./reset.css";
 
 :root {
-  /* 角丸は使わない（docs/design.md） */
-  --radius: 0;
+  --font-sans:
+    "Helvetica Neue", Helvetica, Arial, "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+    "Noto Sans JP", sans-serif;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -89,54 +89,17 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
-@theme inline {
-  --font-sans:
-    "Helvetica Neue", Helvetica, Arial, "Hiragino Sans", "Hiragino Kaku Gothic ProN",
-    "Noto Sans JP", sans-serif;
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --shadow-popup: var(--popup-shadow);
-  --shadow-dialog: var(--dialog-shadow);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-}
-
 @layer base {
   * {
-    @apply border-border outline-ring;
+    outline-color: var(--ring);
+    border-color: var(--border);
   }
+
   body {
-    @apply bg-background font-sans text-foreground antialiased;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: var(--foreground);
+    background-color: var(--background);
   }
 }

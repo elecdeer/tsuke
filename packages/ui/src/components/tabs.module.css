@@ -1,0 +1,58 @@
+@layer ui {
+  /*
+   * タブの切り替え。見た目は台帳のヘッダーのナビ（apps/ledger/pages/layout.tsx）にそろえ、
+   * 箱や背景で囲まず、今いるタブだけに赤の下線を引く（docs/design.md）。
+   */
+  .Tabs {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .List {
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-end;
+  }
+
+  .Trigger {
+    /* ヘッダーの下の罫線に下線を重ねるので、1px 下へずらす */
+    padding-bottom: 0.5rem;
+    margin-bottom: -1px;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+    outline-style: none;
+    border-color: transparent;
+    border-bottom-width: 2px;
+
+    @media (hover: hover) {
+      &:hover {
+        color: var(--foreground);
+      }
+    }
+
+    &:focus-visible {
+      color: var(--foreground);
+      text-decoration-line: underline;
+    }
+
+    &:disabled {
+      pointer-events: none;
+      opacity: 0.5;
+    }
+
+    &[data-active] {
+      font-weight: 500;
+      color: var(--foreground);
+      border-color: var(--primary);
+    }
+  }
+
+  .Content {
+    flex: 1;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    outline-style: none;
+  }
+}

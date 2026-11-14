@@ -18,7 +18,9 @@ import {
   useRef,
   useState,
 } from "react";
-import { Button, buttonVariants } from "@tsuke/ui/components/button";
+import { Button, buttonStyleProps } from "@tsuke/ui/components/button";
+import { visuallyHiddenClassName } from "@tsuke/ui/lib/a11y";
+import { PageTitle } from "@tsuke/ui/patterns/PageTitle";
 import { Input } from "@tsuke/ui/components/input";
 import { createLedgerClient, LedgerFetchError } from "@/client";
 import type { DuplicateCandidate } from "@/ledger/payments";
@@ -53,6 +55,7 @@ import { isDraftEdited, type TransactionDraft } from "@/web/transactionDraft";
 import { useReceiptQueue } from "@/web/useReceiptQueue";
 import { cn } from "@tsuke/ui/lib/utils";
 import type { Props } from "./new.server";
+import styles from "./new.module.css";
 
 /** 入力が止まってから重複を確かめるまでの間（ms） */
 const DUPLICATE_CHECK_DELAY = 500;
@@ -112,19 +115,18 @@ const DuplicateWarning = ({ byItem }: { byItem: DuplicateCandidate[][] }) => {
   ];
   if (candidates.length === 0) return null;
   return (
-    // 常に見せる下の帯に置くので、候補が多くてもフォームを隠しすぎないようにする
-    <div className="flex max-h-[30dvh] gap-1.5 overflow-y-auto text-sm text-destructive">
-      <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-      <div className="flex flex-col gap-1">
+    <div className={styles.DuplicateWarning}>
+      <TriangleAlert className={styles.warningIcon} aria-hidden="true" />
+      <div className={styles.warningBody}>
         <p>
           同じ内訳・金額の支出が前後の日にすでにあります。二重に登録していないか確かめてください。
         </p>
-        <ul className="flex flex-col gap-0.5 text-foreground">
+        <ul className={styles.candidates}>
           {candidates.map((candidate) => (
-            <li key={candidate.transactionId}>
+            <li key={candidate.transactionId} className={styles.candidate}>
               <Link
                 href={`/transactions/${candidate.transactionId}`}
-                className="underline underline-offset-4"
+                className={styles.candidateLink}
               >
                 {formatDay(candidate.date)} {candidate.placeName ?? "店舗なし"}{" "}
                 {formatYen(candidate.amount)}
@@ -169,15 +171,13 @@ const FilePickButton = ({
     <>
       <label
         htmlFor={inputId}
-        className={cn(
-          buttonVariants({ variant: "outline", size: "lg" }),
-          "cursor-pointer",
-          compact && "max-md:size-12 max-md:px-0",
-          disabled && "pointer-events-none opacity-50",
-        )}
+        {...buttonStyleProps({ variant: "outline", size: "lg" })}
+        className={cn(buttonStyleProps().className, styles.FilePick)}
+        data-compact={compact || undefined}
+        data-disabled={disabled || undefined}
       >
         {icon}
-        <span className={cn(compact && "max-md:sr-only")}>{children}</span>
+        <span className={styles.filePickLabel}>{children}</span>
       </label>
       <input
         id={inputId}
@@ -185,7 +185,7 @@ const FilePickButton = ({
         accept="image/*"
         capture={capture}
         multiple={multiple}
-        className="sr-only"
+        className={visuallyHiddenClassName}
         disabled={disabled}
         onChange={pick}
       />
@@ -208,7 +208,7 @@ const PhotoPicker = ({
   compact: boolean;
   onPick: (files: File[]) => void;
 }) => (
-  <div className="flex shrink-0 items-center gap-2 md:gap-3">
+  <div className={styles.PhotoPicker}>
     <FilePickButton
       icon={<Camera />}
       capture="environment"
@@ -246,14 +246,21 @@ const StatusIcon = ({ status, className }: { status: ReceiptStatus; className?: 
     case "reading":
       return (
         <LoaderCircle
-          className={cn(status === "reading" && "animate-spin", className)}
+          className={cn(styles.StatusIcon, className)}
+          data-status={status}
           aria-hidden="true"
         />
       );
     case "read":
       return <CircleCheck className={className} aria-hidden="true" />;
     case "failed":
-      return <TriangleAlert className={cn("text-destructive", className)} aria-hidden="true" />;
+      return (
+        <TriangleAlert
+          className={cn(styles.StatusIcon, className)}
+          data-status={status}
+          aria-hidden="true"
+        />
+      );
   }
 };
 
@@ -293,30 +300,22 @@ const QueueList = ({
   }, [selectedId]);
 
   return (
-    // 横にスクロールする一覧は外へ出た分を切り取るので、選んでいる枠の分だけ内側に余白を取る
-    <ol
-      ref={listRef}
-      aria-label="撮ったレシート"
-      className="-m-1 flex min-w-0 gap-2 overflow-x-auto p-1"
-    >
+    <ol ref={listRef} aria-label="撮ったレシート" className={styles.QueueList}>
       {entries.map((entry, index) => {
         const selected = entry.id === selectedId;
         const image = images.get(entry.id);
         return (
-          <li key={entry.id} className="shrink-0">
+          <li key={entry.id} className={styles.queueItem}>
             <button
               type="button"
               aria-current={selected ? "true" : undefined}
               aria-label={`${index + 1} 枚目（${STATUS_LABELS[entry.status]}）`}
-              className={cn(
-                "relative block h-12 w-9 overflow-hidden border bg-muted outline-offset-2 md:h-24 md:w-16",
-                selected && "outline-2 outline-primary",
-              )}
+              className={styles.queueButton}
               onClick={() => onSelect(entry.id)}
             >
-              {image !== undefined && <img src={image} alt="" className="size-full object-cover" />}
-              <span className="absolute inset-x-0 bottom-0 flex items-center justify-center bg-background/85 py-0.5">
-                <StatusIcon status={entry.status} className="size-3.5" />
+              {image !== undefined && <img src={image} alt="" className={styles.queueImage} />}
+              <span className={styles.queueStatus}>
+                <StatusIcon status={entry.status} className={styles.queueStatusIcon} />
               </span>
             </button>
           </li>
@@ -331,8 +330,8 @@ const QueueList = ({
  */
 const ConfidenceNote = ({ extracted }: { extracted: ExtractedPayment }) =>
   extracted.confidence === "high" ? null : (
-    <p className="flex gap-1.5 text-xs text-muted-foreground">
-      <Info className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+    <p className={styles.Note}>
+      <Info className={styles.noteIcon} aria-hidden="true" />
       読み取れなかった所があるかもしれません。写真と見比べて確かめてください。（
       {extracted.reasoning}）
     </p>
@@ -418,27 +417,26 @@ const ReceiptReview = ({
   };
 
   const footer = (
-    // 登録のボタンは常に見せる下の帯にあり、フォームの外になるので form 属性で結び付ける
-    <div className="sticky bottom-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom))] z-10 flex flex-col gap-3 border-t border-foreground bg-background py-2 md:bottom-0">
+    <div className={styles.Footer}>
       {ready && <DuplicateWarning byItem={duplicates} />}
       {error !== null && <ErrorMessage message={error} />}
-      <div className="flex items-center justify-between gap-4">
+      <div className={styles.footerRow}>
         {/* 広い画面では写真を隣に並べているので、見本は狭い画面だけに出す */}
         {image !== undefined && (
           <ReceiptPhotoThumbnail
             src={image}
             crop={receiptCrop(entry.extracted?.receiptBox)}
-            className="md:hidden"
+            className={styles.thumbnail}
           />
         )}
         {/* 写真と最初に見比べる数字なので、フォームをスクロールしていても見えるようにする */}
-        {ready && <ItemsTotal items={draft.items} className="min-w-0 flex-1" />}
+        {ready && <ItemsTotal items={draft.items} className={styles.total} />}
         <Button
           type="submit"
           form={ids.form}
-          size="lg"
           // この画面で押すのはほぼこのボタンだけなので、スマホでは親指で押しやすい大きさにする
-          className="ml-auto h-12 shrink-0 px-10 sm:h-11"
+          size="xl"
+          className={styles.submit}
           disabled={pending || !ready}
         >
           登録
@@ -448,21 +446,22 @@ const ReceiptReview = ({
   );
 
   return (
-    <div className="flex flex-col md:col-span-8">
+    <div className={styles.Review}>
       <form
         id={ids.form}
-        className="flex flex-col gap-6 pb-4 md:gap-10"
+        className={styles.ReviewForm}
         onSubmit={(event) => {
           event.preventDefault();
           void register();
         }}
       >
         <Section label="支出">
-          <div className="flex flex-col gap-4 border-t border-foreground pt-3">
+          <div className={styles.Payment}>
             {entry.status === "waiting" || entry.status === "reading" ? (
-              <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <p className={styles.reading}>
                 <LoaderCircle
-                  className={cn("size-4", entry.status === "reading" && "animate-spin")}
+                  className={styles.readingIcon}
+                  data-spinning={entry.status === "reading" || undefined}
                   aria-hidden="true"
                 />
                 {entry.status === "reading"
@@ -470,7 +469,7 @@ const ReceiptReview = ({
                   : "読み取りの順番を待っています"}
               </p>
             ) : entry.status === "failed" ? (
-              <div className="flex flex-wrap items-center gap-3">
+              <div className={styles.failed}>
                 <ErrorMessage message="レシートを読み取れませんでした。読み直すか、手で入力してください" />
                 <Button type="button" variant="outline" size="sm" onClick={onRetry}>
                   <RotateCw />
@@ -481,7 +480,7 @@ const ReceiptReview = ({
               entry.extracted !== null && <ConfidenceNote extracted={entry.extracted} />
             )}
             {ready && (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+              <div className={styles.fields}>
                 <FormField label="日付" htmlFor={ids.date}>
                   <Input
                     id={ids.date}
@@ -500,7 +499,7 @@ const ReceiptReview = ({
                     onChange={(fromAccountId) => update({ fromAccountId })}
                   />
                 </FormField>
-                <FormField label="店舗" htmlFor={ids.place} className="col-span-2">
+                <FormField label="店舗" htmlFor={ids.place} className={styles.placeField}>
                   <PlaceInput
                     id={ids.place}
                     value={draft.placeName}
@@ -526,33 +525,27 @@ const ReceiptReview = ({
           </Section>
         )}
 
-        <div className="flex flex-col items-start gap-3">
+        <div className={styles.AfterActions}>
           {/* 結果を写真と見比べた後に使うものなので、見比べる品目より後ろに置く */}
           {entry.status === "read" && (
             <>
               {entry.readMs !== undefined && (
-                <p className="text-xs text-muted-foreground">
+                <p className={styles.readTime}>
                   読み取りにかかった時間: {formatReadTime(entry.readMs)}
                 </p>
               )}
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <div className={styles.reread}>
                 <Button type="button" variant="outline" size="sm" onClick={onReread}>
                   <RotateCw />
                   もう一度読み取る
                 </Button>
-                <span className="text-xs text-muted-foreground">
+                <span className={styles.rereadNote}>
                   少し時間はかかりますが、より正確に読み取ります
                 </span>
               </div>
             </>
           )}
-          <Button
-            type="button"
-            variant="ghost"
-            className="-ml-2.5"
-            disabled={pending}
-            onClick={discard}
-          >
+          <Button type="button" variant="ghost" flush disabled={pending} onClick={discard}>
             <Trash2 />
             捨てる
           </Button>
@@ -567,10 +560,10 @@ const ReceiptReview = ({
  * 登録できたことの知らせ。登録した取引を開いて直せるよう、取引への入口を付ける。
  */
 const RegisteredNotice = ({ transactionId }: { transactionId: number }) => (
-  <output className="flex items-center gap-1.5 text-sm">
-    <CircleCheck className="size-4 shrink-0" aria-hidden="true" />
+  <output className={styles.RegisteredNotice}>
+    <CircleCheck className={styles.noticeIcon} aria-hidden="true" />
     登録しました。
-    <Link href={`/transactions/${transactionId}`} className="underline underline-offset-4">
+    <Link href={`/transactions/${transactionId}`} className={styles.noticeLink}>
       登録した取引を開く
     </Link>
   </output>
@@ -638,23 +631,20 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }:
   const reviewing = selected !== null;
 
   return (
-    <div className={cn("flex flex-col gap-4 md:gap-10", reviewing && "max-md:-mt-4")}>
+    <div className={styles.ReceiptNewPage} data-reviewing={reviewing || undefined}>
       <Section
         label={
           // 確かめている間は写真を広く見せたい。狭い画面では下のナビで今の画面が分かるので、見出しは読み上げだけにする
-          <h1 className={cn("text-2xl font-semibold", reviewing && "max-md:sr-only")}>レシート</h1>
+          <PageTitle className={styles.Title} data-reviewing={reviewing || undefined}>
+            レシート
+          </PageTitle>
         }
       >
-        <div
-          className={cn(
-            "flex flex-col gap-3 border-t border-foreground pt-3",
-            reviewing && "max-md:border-t-0 max-md:pt-0",
-          )}
-        >
-          <div className="flex items-center gap-2 md:flex-col md:items-start md:gap-3">
+        <div className={styles.Capture} data-reviewing={reviewing || undefined}>
+          <div className={styles.captureRow}>
             <PhotoPicker adding={adding} compact={reviewing} onPick={(files) => void add(files)} />
             {unconfirmed > 0 && (
-              <p className="text-sm text-muted-foreground max-md:sr-only">
+              <p className={styles.unconfirmed}>
                 確かめていないレシート {unconfirmed} 枚
                 {selected !== null &&
                   `（${queue.entries.indexOf(selected) + 1} 枚目・${STATUS_LABELS[selected.status]}）`}
@@ -671,24 +661,21 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }:
           </div>
           <Link
             href="/transactions/new"
-            className={cn(
-              "self-start text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground",
-              // 確かめている間は写真を広く見せたいので、狭い画面では隠す
-              reviewing && "max-md:hidden",
-            )}
+            className={styles.manualLink}
+            data-reviewing={reviewing || undefined}
           >
             レシートなしで手で入力する
           </Link>
           {adding && (
-            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+            <span className={styles.adding}>
+              <LoaderCircle className={styles.addingIcon} aria-hidden="true" />
               写真を取り込んでいます
             </span>
           )}
           {addError !== null && <ErrorMessage message={addError} />}
           {registeredId !== null && <RegisteredNotice transactionId={registeredId} />}
           {queue.loaded && unconfirmed === 0 && registeredId === null && (
-            <p className="text-sm text-muted-foreground">
+            <p className={styles.hint}>
               レシートを撮ると AI が読み取ります。続けて何枚でも撮れます。
             </p>
           )}
@@ -696,9 +683,9 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }:
       </Section>
 
       {selected !== null && (
-        <div className="md:grid md:grid-cols-12 md:items-start md:gap-x-4">
+        <div className={styles.Workspace}>
           {/* 狭い画面では写真を隣に並べる幅がないので、下の帯の見本から開く */}
-          <div className="hidden md:sticky md:top-[calc(var(--header-height)+1rem)] md:col-span-4 md:block md:max-h-[calc(100dvh-var(--header-height)-2rem)] md:overflow-y-auto">
+          <div className={styles.photo}>
             {image !== undefined && (
               <ReceiptPhoto
                 // レシートごとに全体の表示を選び直す。範囲が外れたレシートのための切り替えなので、次へ持ち越さない

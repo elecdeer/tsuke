@@ -1,0 +1,64 @@
+/* 統合先の選択欄と、統合のボタン */
+.MergeRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+}
+
+/* 検索の欄と並び順 */
+.Filters {
+  display: grid;
+  gap: 0.75rem 1rem;
+
+  @media (width >= 40rem) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+.Results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  > .count {
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+  }
+}
+
+.PlaceRow {
+  border-bottom-width: 1px;
+
+  > .select {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 1rem;
+    align-items: baseline;
+    width: 100%;
+    padding-block: 0.625rem;
+    text-align: left;
+    cursor: pointer;
+
+    @media (hover: hover) {
+      &:hover {
+        background-color: color-mix(in oklab, var(--muted) 60%, transparent);
+      }
+    }
+
+    > .text {
+      display: flex;
+      flex-direction: column;
+      gap: 0.125rem;
+      min-width: 0;
+    }
+
+    > .usage {
+      font-size: 0.75rem;
+      font-variant-numeric: tabular-nums;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+    }
+  }
+}

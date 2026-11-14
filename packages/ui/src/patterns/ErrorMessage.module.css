@@ -1,0 +1,17 @@
+@layer ui {
+  .ErrorMessage {
+    display: flex;
+    gap: 0.375rem;
+    align-items: flex-start;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--destructive);
+
+    > .icon {
+      flex-shrink: 0;
+      width: 1rem;
+      height: 1rem;
+      margin-top: 0.125rem;
+    }
+  }
+}

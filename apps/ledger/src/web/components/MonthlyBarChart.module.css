@@ -1,0 +1,40 @@
+/*
+ * 系列の色を黒とグレーにし、目盛りの文字は数字の幅をそろえる。
+ * TanStack Charts は既定の色を --ts-chart-N の変数から読むので、それを上書きする。
+ */
+.MonthlyBarChart {
+  --ts-chart-1: var(--foreground);
+  --ts-chart-2: color-mix(in oklch, var(--muted-foreground) 50%, transparent);
+
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+
+  &[data-ruled] {
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--foreground);
+  }
+
+  > .legend {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+
+    > .legendItem {
+      display: flex;
+      gap: 0.375rem;
+      align-items: center;
+
+      > .swatch {
+        width: 0.625rem;
+        height: 0.625rem;
+        background-color: var(--foreground);
+
+        &[data-series="second"] {
+          background-color: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+        }
+      }
+    }
+  }
+}

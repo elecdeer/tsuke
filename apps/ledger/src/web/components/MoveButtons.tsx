@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { Button } from "@tsuke/ui/components/button";
+import styles from "./MoveButtons.module.css";
 
 /**
  * 並びの中で行を上下へ動かすボタン。端の行では、その向きのボタンを押せなくする。
@@ -18,7 +19,7 @@ export const MoveButtons = ({
   disabled: boolean;
   onMove: (offset: -1 | 1) => void;
 }) => (
-  <div className="flex shrink-0">
+  <div className={styles.MoveButtons}>
     <Button
       variant="ghost"
       size="icon-sm"

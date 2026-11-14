@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
 
 /**
- * Tailwind のクラス名をマージしつつ、条件付きクラスを解決する。
+ * 条件付きのクラス名を解決して 1 つにつなげる。
+ * 部品の CSS は ui レイヤーに入っているので、後ろに足したアプリ側のクラスが常に勝つ（styles/theme.css）。
  */
-export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
+export const cn = (...inputs: ClassValue[]): string => clsx(inputs);

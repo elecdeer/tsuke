@@ -1,0 +1,10 @@
+/* サーバー URL の欄と保存のボタン */
+.ServerUrl {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+
+  > .urlField {
+    flex: 1;
+  }
+}

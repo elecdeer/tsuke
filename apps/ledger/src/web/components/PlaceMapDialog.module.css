@@ -1,0 +1,272 @@
+/* 地図に置く印の土台。指しているものを手前に出す */
+.Marker {
+  &:hover,
+  &:focus-visible {
+    z-index: 10;
+
+    > .label {
+      display: block;
+    }
+  }
+
+  /*
+   * 施設のピン。先が下を向いたしずく形で、中に種類のアイコンを出す。
+   * しずくの先は四角を回したぶん箱の外へ出るので、その分を下の余白で取り、先を土台の下端に合わせる
+   */
+  > .pin {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    margin-bottom: 5px;
+    background-color: var(--poi-pin);
+    border: 1px solid #fff;
+    border-radius: 50% 50% 50% 0;
+    box-shadow:
+      0 4px 6px -1px rgb(0 0 0 / 10%),
+      0 2px 4px -2px rgb(0 0 0 / 10%);
+    rotate: -45deg;
+
+    > .pinIcon {
+      width: 0.875rem;
+      height: 0.875rem;
+      color: #fff;
+      rotate: 45deg;
+    }
+
+    /* 選ぶと大きくなり、縁が付く */
+    &[data-selected] {
+      width: 2.25rem;
+      height: 2.25rem;
+      margin-bottom: 0.5rem;
+      box-shadow:
+        0 0 0 2px oklch(20.5% 0 0),
+        0 4px 6px -1px rgb(0 0 0 / 10%),
+        0 2px 4px -2px rgb(0 0 0 / 10%);
+
+      > .pinIcon {
+        width: 1.25rem;
+        height: 1.25rem;
+      }
+    }
+  }
+
+  /* 名前。選んでいるときと、指しているときだけ出す */
+  > .label {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    display: none;
+    padding: 0.125rem 0.375rem;
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--popover-foreground);
+    white-space: nowrap;
+    pointer-events: none;
+    background-color: var(--popover);
+    box-shadow:
+      0 1px 3px 0 rgb(0 0 0 / 10%),
+      0 1px 2px -1px rgb(0 0 0 / 10%);
+    translate: -50% 0;
+
+    &[data-selected] {
+      display: block;
+    }
+  }
+
+  /* 現在地の印 */
+  > .currentDot {
+    display: block;
+    width: 0.75rem;
+    height: 0.75rem;
+    background-color: oklch(54.6% 0.245 262.881);
+    border: 3px solid #fff;
+    border-radius: 9999px;
+    box-shadow:
+      0 1px 3px 0 rgb(0 0 0 / 10%),
+      0 1px 2px -1px rgb(0 0 0 / 10%);
+  }
+}
+
+/*
+ * 地図と探す欄と一覧。狭い画面では縦に積み、広い画面では地図を左に大きく、探す欄と一覧を右に並べる
+ */
+.PlaceMap {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 0;
+
+  @media (width >= 48rem) {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 22rem;
+  }
+
+  > .search {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+
+    @media (width >= 48rem) {
+      grid-row-start: 1;
+      grid-column-start: 2;
+    }
+
+    > .searchRow {
+      display: flex;
+      gap: 0.375rem;
+    }
+
+    > .scopes {
+      display: flex;
+      gap: 0.25rem;
+    }
+  }
+
+  > .map {
+    flex: 3;
+    width: 100%;
+    min-height: 0;
+    border-width: 1px;
+    isolation: isolate;
+
+    @media (width >= 48rem) {
+      grid-row: 1 / span 2;
+      grid-column-start: 1;
+    }
+  }
+
+  > .results {
+    display: flex;
+    flex: 2;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-height: 0;
+
+    @media (width >= 48rem) {
+      grid-row-start: 2;
+      grid-column-start: 2;
+    }
+
+    > .status {
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+
+      > .busy {
+        display: flex;
+        gap: 0.375rem;
+        align-items: center;
+
+        > .spinner {
+          width: 0.875rem;
+          height: 0.875rem;
+          animation: spin 1s linear infinite;
+        }
+      }
+
+      > .error {
+        color: var(--destructive);
+      }
+    }
+
+    > .list {
+      flex: 1;
+      min-height: 0;
+      margin-inline: -0.25rem;
+      overflow-y: auto;
+
+      > .item {
+        > .itemButton {
+          display: flex;
+          gap: 0.5rem;
+          align-items: center;
+          width: 100%;
+          padding: 0.375rem 0.25rem;
+          text-align: left;
+
+          @media (hover: hover) {
+            &:hover {
+              background-color: var(--muted);
+            }
+          }
+
+          &[aria-pressed="true"] {
+            background-color: var(--muted);
+          }
+
+          > .kindIcon {
+            flex-shrink: 0;
+            width: 1rem;
+            height: 1rem;
+            color: var(--poi-text);
+          }
+
+          > .itemText {
+            flex: 1;
+            min-width: 0;
+
+            > .itemName {
+              display: block;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              font-weight: 500;
+              white-space: nowrap;
+            }
+
+            > .itemNote {
+              display: block;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              font-size: 0.75rem;
+              line-height: 1rem;
+              color: var(--muted-foreground);
+              white-space: nowrap;
+            }
+          }
+
+          > .distance {
+            flex-shrink: 0;
+            font-size: 0.75rem;
+            font-variant-numeric: tabular-nums;
+            line-height: 1rem;
+            color: var(--muted-foreground);
+          }
+        }
+      }
+    }
+  }
+}
+
+/* 選んだ施設と、決めるボタン。ダイアログの下端に帯で置く */
+.Footer {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 1rem;
+  margin: 0 -1rem -1rem;
+  background-color: color-mix(in oklab, var(--muted) 50%, transparent);
+  border-top-width: 1px;
+
+  > .selected {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    > .placeholder {
+      color: var(--muted-foreground);
+    }
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

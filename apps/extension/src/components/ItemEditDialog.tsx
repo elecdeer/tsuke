@@ -11,7 +11,7 @@ import {
 import { Input } from "@tsuke/ui/components/input";
 import { CategoryCombobox, type CategorySelection } from "./CategoryCombobox.tsx";
 import { FormField } from "@tsuke/ui/patterns/FormField";
-import { YenUnit } from "@tsuke/ui/patterns/YenUnit";
+import { AmountInput } from "@tsuke/ui/patterns/AmountInput";
 
 export type ItemEditField = "name" | "memo" | "amount";
 
@@ -67,7 +67,7 @@ export const ItemEditDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent initialFocus={initialFocusFn} className="gap-4 sm:min-w-72">
+      <DialogContent initialFocus={initialFocusFn}>
         <DialogHeader>
           <DialogTitle>品目を編集</DialogTitle>
         </DialogHeader>
@@ -88,26 +88,16 @@ export const ItemEditDialog = ({
           />
         </FormField>
         <FormField label="金額" htmlFor={ids.amount}>
-          <div className="relative">
-            <Input
-              ref={amountRef}
-              id={ids.amount}
-              className="appearance-none pr-4 text-right tabular-nums [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-              type="number"
-              min={1}
-              step={1}
-              placeholder="0"
-              value={item.amount}
-              onChange={(e) => onChange({ amount: e.target.value })}
-            />
-            {/* 入力欄の文字と同じ大きさの行に置き、小さくした「円」の下端を数字にそろえる */}
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 right-0 py-1 text-sm"
-            >
-              <YenUnit />
-            </span>
-          </div>
+          <AmountInput
+            ref={amountRef}
+            id={ids.amount}
+            type="number"
+            min={1}
+            step={1}
+            placeholder="0"
+            value={item.amount}
+            onChange={(e) => onChange({ amount: e.target.value })}
+          />
         </FormField>
         <CategoryCombobox
           serverUrl={serverUrl}

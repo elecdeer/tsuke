@@ -5,9 +5,15 @@
 色・書体・角丸のトークンと、両方で使う部品・型はこのパッケージ（`@tsuke/ui`）に置き、両方から読み込む。
 
 - トークン：`src/styles/theme.css`
-- 部品（shadcn/ui）：`src/components/`
+- 部品（base-ui の部品に CSS Modules で見た目を付けたもの）：`src/components/`
 - 型（ラベル付きの欄、円の単位、合計、エラーの知らせ、見出しと中身のまとまり）：`src/patterns/`
 - 見本：`pnpm --filter @tsuke/ui run storybook` で開く Storybook
+
+## スタイルの書き方
+
+- 見た目は部品ごとの CSS Modules（`*.module.css`）に書き、クラスの名前と入れ子は CEV（Component / Element / Variant）にそろえる。ESLint（eslint-plugin-css-cev）が確かめる
+- 部品の見た目の違いは、使う側から className で足さずに、部品のバリアント（`variant`・`size`・`width` などの props。CSS では `data-*` 属性）として部品の側に用意する。className は、並べる側が置き場所（グリッドの列・余白など）を決めるときにだけ使う
+- 部品の CSS は `ui-primitive`・`ui` のレイヤーに入れる。レイヤーに入れていないアプリ側の CSS は、詳細度に関係なく部品の CSS に勝つ（`src/styles/theme.css`）
 
 ## 判断の基準
 
@@ -19,7 +25,7 @@
 ## グリッド
 
 - 広い画面では 12 列のグリッドにし、見出しを左の 3 列、中身を右の 9 列に置く。要素は中央に寄せず左揃えにする
-- 狭い画面（`md` より狭い）では 1 列にし、見出しを中身の上に積む
+- 狭い画面（48rem より狭い）では 1 列にし、見出しを中身の上に積む
 
 ## 文字
 

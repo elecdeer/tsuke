@@ -1,22 +1,21 @@
 import { Link } from "@void/react";
 import { type ReactNode, useEffect } from "react";
-import { ChevronRight } from "lucide-react";
 import { shiftMonth } from "@/ledger/dates";
 import type { CategoryTotal, ModeSummary } from "@/ledger/summary";
-import { cn } from "@tsuke/ui/lib/utils";
 import { MonthHeading } from "@/web/components/MonthHeading";
 import { PeriodPager } from "@/web/components/PeriodPager";
 import { Section } from "@tsuke/ui/patterns/Section";
 import { SkeletonBlock } from "@/web/components/Skeleton";
-import { ROW_COLUMNS, SummaryTotals } from "@/web/components/SummaryTotals";
+import { SummaryTotals } from "@/web/components/SummaryTotals";
+import { CategoryDetails, CategoryList, GenreRow } from "@/web/components/CategorySummary";
 import { SummaryViewSwitch } from "@/web/components/SummaryViewSwitch";
 import { YearHeading } from "@/web/components/YearHeading";
 import { YearSummaryBody } from "@/web/components/YearSummary";
 import { monthForYear, monthSummaryHref, yearSummaryHref } from "@/web/summaryView";
-import { formatAmount, formatPercent } from "@/web/format";
 import { createMonthPageCache } from "@/web/monthPageCache";
 import { transactionsHref } from "@/web/transactionsHref";
 import type { Props } from "./index.server";
+import styles from "./index.module.css";
 
 type Mode = "payment" | "income";
 
@@ -33,75 +32,43 @@ const CategoryRow = ({
   total: number;
   month: string;
   mode: Mode;
-}) => {
-  const ratio = total > 0 ? Math.max(category.amount / total, 0) : 0;
-  return (
-    <details className="group border-b">
-      <summary
-        className={cn(
-          ROW_COLUMNS,
-          "cursor-pointer list-none py-2.5 hover:bg-muted/60 [&::-webkit-details-marker]:hidden",
-        )}
-      >
-        <span className="flex min-w-0 items-center gap-1.5">
-          <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
-          <span className="truncate">{category.name}</span>
-        </span>
-        <span className="text-right text-xs text-muted-foreground tabular-nums">
-          {formatPercent(category.amount, total)}
-        </span>
-        <span className="text-right tabular-nums">{formatAmount(category.amount)}</span>
-        {/* 合計に対する割合。幅だけで比べられるよう、地の線は引かない */}
-        <span className="col-span-3 mt-1.5 h-0.5">
-          <span className="block h-full bg-foreground" style={{ width: `${ratio * 100}%` }} />
-        </span>
-      </summary>
-      <ul className="pb-2 text-sm">
-        {category.genres.map((genre) => {
-          const content = (
-            <>
-              <span className="truncate pl-5">{genre.name}</span>
-              <span className="text-right text-xs text-muted-foreground tabular-nums">
-                {formatPercent(genre.amount, category.amount)}
-              </span>
-              <span className="text-right tabular-nums">{formatAmount(genre.amount)}</span>
-            </>
-          );
-          return (
-            <li key={genre.genreId ?? "none"}>
-              {/* 内訳のない品目は条件で絞り込めないので、一覧へのリンクにしない */}
-              {category.categoryId !== null && genre.genreId !== null ? (
-                <Link
-                  href={transactionsHref({
+}) => (
+  <CategoryDetails name={category.name} amount={category.amount} total={total}>
+    <ul className={styles.Genres}>
+      {category.genres.map((genre) => (
+        <li key={genre.genreId ?? "none"} className={styles.item}>
+          <GenreRow
+            name={genre.name}
+            amount={genre.amount}
+            total={category.amount}
+            indent
+            // 内訳のない品目は条件で絞り込めないので、一覧へのリンクにしない
+            href={
+              category.categoryId !== null && genre.genreId !== null
+                ? transactionsHref({
                     month,
                     mode,
                     categoryId: category.categoryId,
                     genreId: genre.genreId,
-                  })}
-                  className={cn(ROW_COLUMNS, "py-1.5 hover:bg-muted/60")}
-                >
-                  {content}
-                </Link>
-              ) : (
-                <div className={cn(ROW_COLUMNS, "py-1.5")}>{content}</div>
-              )}
-            </li>
-          );
-        })}
-        {category.categoryId !== null && (
-          <li>
-            <Link
-              href={transactionsHref({ month, mode, categoryId: category.categoryId })}
-              className="inline-block py-1.5 pl-5 text-xs text-muted-foreground hover:text-foreground"
-            >
-              {category.name}の取引 →
-            </Link>
-          </li>
-        )}
-      </ul>
-    </details>
-  );
-};
+                  })
+                : undefined
+            }
+          />
+        </li>
+      ))}
+      {category.categoryId !== null && (
+        <li className={styles.item}>
+          <Link
+            href={transactionsHref({ month, mode, categoryId: category.categoryId })}
+            className={styles.transactionsLink}
+          >
+            {category.name}の取引 →
+          </Link>
+        </li>
+      )}
+    </ul>
+  </CategoryDetails>
+);
 
 /**
  * 支出か収入のカテゴリ別の合計。
@@ -114,24 +81,19 @@ const CategoryBreakdown = ({
   summary: ModeSummary;
   month: string;
   mode: Mode;
-}) =>
-  summary.categories.length === 0 ? (
-    <p className="border-t border-foreground py-2.5 text-sm text-muted-foreground">
-      この月の記録はありません
-    </p>
-  ) : (
-    <div className="border-t border-foreground">
-      {summary.categories.map((category) => (
-        <CategoryRow
-          key={category.categoryId ?? "none"}
-          category={category}
-          total={summary.total}
-          month={month}
-          mode={mode}
-        />
-      ))}
-    </div>
-  );
+}) => (
+  <CategoryList isEmpty={summary.categories.length === 0} empty="この月の記録はありません">
+    {summary.categories.map((category) => (
+      <CategoryRow
+        key={category.categoryId ?? "none"}
+        category={category}
+        total={summary.total}
+        month={month}
+        mode={mode}
+      />
+    ))}
+  </CategoryList>
+);
 
 type MonthProps = Extract<Props, { view: "month" }>;
 type YearProps = Extract<Props, { view: "year" }>;
@@ -169,11 +131,11 @@ const SummaryFigures = ({
   body: ReactNode;
 }) => (
   <>
-    <div className="grid gap-x-4 gap-y-6 md:grid-cols-12 md:items-end">
-      <div aria-hidden className="hidden md:invisible md:col-span-3 md:flex md:flex-col md:gap-4">
+    <div className={styles.Figures}>
+      <div aria-hidden className={styles.headingSpace}>
         {heading}
       </div>
-      <div className="md:col-span-9">
+      <div className={styles.totals}>
         <SummaryTotals totals={totals} />
       </div>
     </div>
@@ -187,16 +149,9 @@ const SummaryFigures = ({
  * 広い画面では合計を見出しの右に並べたいので、横に送る並びを見出しの高さから始め、見出しをその上に重ねる。
  */
 const SummaryLayout = ({ heading, children }: { heading: ReactNode; children: ReactNode }) => (
-  <div className="flex flex-col gap-12 md:grid md:grid-cols-12 md:gap-x-4">
-    {/*
-     * 送っている途中の合計が見出しの後ろをくぐるよう、地の色で塗って上に重ねる。
-     * 塗るのは見出しの幅（と左の余白）だけにし、右の端は地の色へ溶かしてぼかし、切れ目を目立たせない。
-     * 字間を詰めた大きな数字は字形が文字の箱より右にはみ出すので、右にも少し余白を取ってぼかしに掛けない
-     */}
-    <div className="relative z-10 flex flex-col gap-4 bg-background md:col-span-3 md:col-start-1 md:row-start-1 md:-ml-4 md:w-max md:self-start md:pr-3 md:pl-4 md:after:pointer-events-none md:after:absolute md:after:inset-y-0 md:after:left-full md:after:w-10 md:after:bg-linear-to-r md:after:from-background md:after:to-transparent md:after:backdrop-blur-[3px] md:after:mask-[linear-gradient(to_right,black,transparent)] md:after:content-['']">
-      {heading}
-    </div>
-    <div className="min-w-0 md:col-span-12 md:col-start-1 md:row-start-1">{children}</div>
+  <div className={styles.SummaryLayout}>
+    <div className={styles.heading}>{heading}</div>
+    <div className={styles.body}>{children}</div>
   </div>
 );
 
@@ -247,14 +202,14 @@ const MonthSummaryPage = ({ month, summary }: MonthProps) => {
         hrefOf={monthSummaryHref}
         // 前に見た月なら覚えている集計を、まだ見ていなければ骨組みを出す
         placeholder={(neighbor) => (
-          <div className="flex flex-col gap-12">
+          <div className={styles.Stack}>
             <MonthSummaryFigures
               month={neighbor}
               summary={monthCache.recall(monthSummaryHref(neighbor)) ?? null}
             />
           </div>
         )}
-        className="flex flex-col gap-12"
+        gap="loose"
       >
         <MonthSummaryFigures month={month} summary={summary} />
       </PeriodPager>
@@ -315,7 +270,7 @@ const YearSummaryPage = ({ year, currentMonth, summary }: YearProps) => {
         next={String(year + 1)}
         hrefOf={hrefOf}
         placeholder={(neighbor) => (
-          <div className="flex flex-col gap-12">
+          <div className={styles.Stack}>
             <YearSummaryFigures
               year={Number(neighbor)}
               currentMonth={currentMonth}
@@ -323,7 +278,7 @@ const YearSummaryPage = ({ year, currentMonth, summary }: YearProps) => {
             />
           </div>
         )}
-        className="flex flex-col gap-12"
+        gap="loose"
       >
         <YearSummaryFigures year={year} currentMonth={currentMonth} summary={summary} />
       </PeriodPager>

@@ -1,0 +1,78 @@
+@layer ui {
+  /*
+   * justify-self は fixed 要素にも効き、幅が中身（absolute のトーストなので 0）に縮むため使わない。
+   * 左右の inset と margin-inline: auto + max-width で中央寄せする
+   */
+  .Viewport {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    left: 1rem;
+    z-index: 50;
+    display: flex;
+    width: auto;
+    max-width: 18rem;
+    height: var(--toast-frontmost-height);
+    margin-inline: auto;
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+  }
+
+  .Toast {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--toast-z-index);
+    padding: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    transform: translateY(calc(var(--toast-offset-y) * -1))
+      scale(calc(1 - var(--toast-index) * 0.05));
+    transform-origin: bottom;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
+    transition-property: all;
+
+    &[data-starting-style],
+    &[data-ending-style] {
+      opacity: 0;
+      translate: 0 0.5rem;
+    }
+
+    &[data-type="error"] {
+      box-shadow:
+        0 0 0 1px var(--destructive),
+        var(--popup-shadow);
+    }
+  }
+
+  .Content {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    overflow: hidden;
+
+    > .text {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      gap: 0.125rem;
+      min-width: 0;
+    }
+
+    > .close {
+      flex-shrink: 0;
+      margin: -0.25rem;
+    }
+  }
+
+  .Title {
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  .Description {
+    color: var(--muted-foreground);
+  }
+}

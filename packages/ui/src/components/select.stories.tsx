@@ -11,9 +11,9 @@ const meta = preview.meta({
   title: "Components/Select",
   component: Select,
   render: () => (
-    <div className="max-w-xs">
+    <div style={{ maxWidth: "20rem" }}>
       <Select items={ACCOUNTS} defaultValue="">
-        <SelectTrigger aria-label="支払元" className="w-full">
+        <SelectTrigger aria-label="支払元" width="full">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

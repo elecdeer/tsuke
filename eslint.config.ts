@@ -3,7 +3,6 @@ import css from "@eslint/css";
 import cssCev from "eslint-plugin-css-cev";
 import cssPropertiesOrder from "eslint-plugin-css-properties-order";
 import { defineConfig, globalIgnores } from "eslint/config";
-import { tailwind4 } from "tailwind-csstree";
 
 export default defineConfig([
   globalIgnores([
@@ -18,8 +17,6 @@ export default defineConfig([
     files: ["**/*.css"],
     plugins: { css },
     language: "css/css",
-    // @theme・@apply・@custom-variant など Tailwind v4 の構文を解釈させる
-    languageOptions: { customSyntax: tailwind4 },
     extends: [css.configs.recommended],
     rules: {
       // 色などのトークンは @tsuke/ui/theme.css で定義し、各アプリの CSS は @import で読むだけなので、ファイル単位では変数を解決できない
@@ -28,7 +25,19 @@ export default defineConfig([
         "error",
         {
           // 月送りの View Transitions は、未対応のブラウザでは画面がそのまま切り替わるだけの上乗せの演出として使っている
-          allowProperties: ["view-transition-name"],
+          // user-select・backdrop-filter は Safari の一部が接頭辞付き（-webkit-）しか読まないので、必ず両方を並べて書く。
+          // field-sizing は入力に合わせて欄を伸ばすだけで、未対応のブラウザでは決まった高さのままになる。
+          // overscroll-behavior(-x)・scrollbar-width・accent-color は、未対応のブラウザでは既定の見た目・動きになるだけ
+          allowProperties: [
+            "view-transition-name",
+            "user-select",
+            "backdrop-filter",
+            "field-sizing",
+            "overscroll-behavior",
+            "overscroll-behavior-x",
+            "scrollbar-width",
+            "accent-color",
+          ],
           allowSelectors: ["view-transition-group", "view-transition-old", "view-transition-new"],
         },
       ],

@@ -1,0 +1,53 @@
+@layer ui {
+  /*
+   * 取引の一覧のサイドパネルのように、広い画面でも幅の狭い場所に置くことがあるので、
+   * 画面の幅ではなく置き場所の幅（コンテナクエリ）で切り替える。切り替える幅は、画面の幅の md（48rem）から
+   * 本文の左右の余白（2rem）を引いたもので、ヘッダーのグリッドと同じところで切り替わる。
+   */
+  .Section {
+    container-type: inline-size;
+
+    > .grid {
+      display: grid;
+      gap: 0.5rem 1rem;
+
+      &[data-gap="none"] {
+        row-gap: 0;
+      }
+
+      > .label {
+        font-size: 1rem;
+        font-weight: 600;
+        line-height: 1.5rem;
+
+        /*
+         * スクロールしても見出しが見えるよう、上に貼り付ける。貼り付ける高さは --section-sticky-top で受け取る。
+         * 狭い画面では見出しが中身の上に積まれ、中身と重なるので背景で隠す
+         */
+        &[data-sticky] {
+          position: sticky;
+          top: var(--section-sticky-top, 0);
+          z-index: 10;
+          align-self: start;
+          background-color: var(--background);
+        }
+
+        @container (width >= 46rem) {
+          grid-column: span 3 / span 3;
+        }
+      }
+
+      > .body {
+        min-width: 0;
+
+        @container (width >= 46rem) {
+          grid-column: span 9 / span 9;
+        }
+      }
+
+      @container (width >= 46rem) {
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+      }
+    }
+  }
+}

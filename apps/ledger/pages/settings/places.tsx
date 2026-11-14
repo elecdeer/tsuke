@@ -24,10 +24,9 @@ import {
 import { Input } from "@tsuke/ui/components/input";
 import { Label } from "@tsuke/ui/components/label";
 import { NativeSelect, NativeSelectOption } from "@tsuke/ui/components/native-select";
-import { selectTriggerClassName } from "@tsuke/ui/components/select";
+import { SelectTriggerText, selectTriggerStyleProps } from "@tsuke/ui/components/select";
 import { Textarea } from "@tsuke/ui/components/textarea";
 import { monthOf } from "@/ledger/dates";
-import { cn } from "@tsuke/ui/lib/utils";
 import { type ActionResult, actionErrorMessage } from "@/web/actionError";
 import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
 import {
@@ -41,6 +40,11 @@ import {
 } from "@/web/placeList";
 import { transactionsHref } from "@/web/transactionsHref";
 import type { Props } from "./places.server";
+import { BackLink } from "@/web/components/BackLink";
+import { FormField } from "@tsuke/ui/patterns/FormField";
+import { PageTitle } from "@tsuke/ui/patterns/PageTitle";
+import styles from "./places.module.css";
+import settings from "./settings.module.css";
 
 type Place = Props["places"][number];
 
@@ -117,19 +121,13 @@ const MergeTargetInput = ({
         [place.name, ...place.aliases].some((text) => contains(text, query))
       }
     >
-      <ComboboxTrigger
-        id={id}
-        data-size="default"
-        className={cn(selectTriggerClassName, "w-full min-w-0 font-normal")}
-      >
-        <span
-          className={cn("line-clamp-1 flex-1 text-left", value === null && "text-muted-foreground")}
-        >
+      <ComboboxTrigger id={id} {...selectTriggerStyleProps({ width: "full" })}>
+        <SelectTriggerText placeholder={value === null}>
           {value?.name ?? "統合先を選ぶ"}
-        </span>
+        </SelectTriggerText>
       </ComboboxTrigger>
       <ComboboxContent>
-        <ComboboxInput placeholder="検索" showTrigger={false} />
+        <ComboboxInput placeholder="検索" />
         <ComboboxEmpty>店舗がありません</ComboboxEmpty>
         <ComboboxList>
           {(place: Place) => (
@@ -207,27 +205,24 @@ const PlaceEditor = ({
           {place.lastUsedOn === null ? (
             usageLabel(place)
           ) : (
-            <Link
-              href={transactionsHref({ month: monthOf(place.lastUsedOn), placeId: place.id })}
-              className="underline underline-offset-2 hover:text-foreground"
-            >
+            <Link href={transactionsHref({ month: monthOf(place.lastUsedOn), placeId: place.id })}>
               {usageLabel(place)}
             </Link>
           )}
         </DialogDescription>
       </DialogHeader>
       <form
-        className="flex flex-col gap-4"
+        className={settings.EditorForm}
         onSubmit={(event) => {
           event.preventDefault();
           void save();
         }}
       >
-        <div className="flex flex-col gap-1.5">
+        <div className={settings.field}>
           <Label htmlFor={nameId}>店舗名</Label>
           <Input id={nameId} value={name} onChange={(event) => setName(event.target.value)} />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className={settings.field}>
           <Label htmlFor={aliasesId}>AI 読み取り用の別名</Label>
           <Textarea
             id={aliasesId}
@@ -236,11 +231,11 @@ const PlaceEditor = ({
             placeholder={"AMAZON.CO.JP\nｱﾏｿﾞﾝ"}
             onChange={(event) => setAliases(event.target.value)}
           />
-          <p className="text-xs text-muted-foreground">
+          <p className={settings.note}>
             レシートや明細での書かれ方を 1 行に 1 つ。読み取りのときにこの店舗として扱います
           </p>
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className={settings.field}>
           <Label htmlFor={hintId}>AI 読み取り用のヒント</Label>
           <Textarea
             id={hintId}
@@ -251,16 +246,16 @@ const PlaceEditor = ({
           />
         </div>
         {error !== null && <ErrorMessage message={error} />}
-        <div className="flex justify-end gap-2">
+        <div className={settings.actions}>
           <DialogClose render={<Button variant="outline" />}>やめる</DialogClose>
           <Button type="submit" disabled={pending}>
             保存
           </Button>
         </div>
       </form>
-      <div className="flex flex-col gap-1.5 border-t pt-4">
+      <div className={settings.EditorSection}>
         <Label htmlFor={mergeId}>別の店舗に統合</Label>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+        <div className={styles.MergeRow}>
           <MergeTargetInput
             id={mergeId}
             value={mergeTarget}
@@ -276,17 +271,13 @@ const PlaceEditor = ({
             統合
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className={settings.note}>
           取引を統合先へ移してこの店舗を消します。今の名前は統合先の別名に残ります
         </p>
       </div>
       {place.useCount === 0 && (
-        <div className="border-t pt-4">
-          <Button
-            variant="ghost"
-            className="text-destructive"
-            onClick={() => setConfirming("delete")}
-          >
+        <div className={settings.EditorSection}>
+          <Button variant="ghost" tone="destructive" onClick={() => setConfirming("delete")}>
             <Trash2 />
             この店舗を削除
           </Button>
@@ -321,22 +312,16 @@ const PlaceRow = ({ place, onSelect }: { place: Place; onSelect: () => void }) =
     ...(place.aiHint !== null ? ["ヒントあり"] : []),
   ].join("・");
   return (
-    <li className="border-b">
-      <button
-        type="button"
-        onClick={onSelect}
-        className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 py-2.5 text-left hover:bg-muted/60"
-      >
-        <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate">{place.name}</span>
-            {place.archived && (
-              <span className="shrink-0 text-xs text-muted-foreground">アーカイブ済み</span>
-            )}
+    <li className={styles.PlaceRow}>
+      <button type="button" onClick={onSelect} className={styles.select}>
+        <span className={styles.text}>
+          <span className={settings.RowTitle}>
+            <span className={settings.rowName}>{place.name}</span>
+            {place.archived && <span className={settings.badge}>アーカイブ済み</span>}
           </span>
-          {notes !== "" && <span className="truncate text-xs text-muted-foreground">{notes}</span>}
+          {notes !== "" && <span className={settings.RowNote}>{notes}</span>}
         </span>
-        <span className="text-xs text-muted-foreground tabular-nums">{usageLabel(place)}</span>
+        <span className={styles.usage}>{usageLabel(place)}</span>
       </button>
     </li>
   );
@@ -359,30 +344,19 @@ const PlacesPage = ({ places }: Props) => {
   const selected = places.find((place) => place.id === selectedId);
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link
-        href="/settings"
-        className="self-start text-xs text-muted-foreground hover:text-foreground"
-      >
-        ← 設定
-      </Link>
-      <h1 className="text-3xl font-semibold tracking-tight">店舗</h1>
-      <div className="grid gap-x-4 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="flex flex-col gap-0.5">
-          <Label htmlFor={searchId} className="text-xs font-normal text-muted-foreground">
-            名前・別名で検索
-          </Label>
+    <div className={settings.Page}>
+      <BackLink href="/settings">← 設定</BackLink>
+      <PageTitle size="lg">店舗</PageTitle>
+      <div className={styles.Filters}>
+        <FormField label="名前・別名で検索" htmlFor={searchId}>
           <Input
             id={searchId}
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <Label htmlFor={sortId} className="text-xs font-normal text-muted-foreground">
-            並び順
-          </Label>
+        </FormField>
+        <FormField label="並び順" htmlFor={sortId}>
           <NativeSelect
             id={sortId}
             value={sort}
@@ -397,20 +371,18 @@ const PlacesPage = ({ places }: Props) => {
               </NativeSelectOption>
             ))}
           </NativeSelect>
-        </div>
+        </FormField>
       </div>
-      <div className="flex flex-col gap-2">
-        <p className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
+      <div className={styles.Results}>
+        <p className={styles.count} aria-live="polite">
           {visible.length === places.length
             ? `${places.length} 件`
             : `${places.length} 件中 ${visible.length} 件`}
         </p>
         {visible.length === 0 ? (
-          <p className="border-t border-foreground py-6 text-sm text-muted-foreground">
-            該当する店舗はありません
-          </p>
+          <p className={settings.Empty}>該当する店舗はありません</p>
         ) : (
-          <ul className="border-t border-foreground">
+          <ul className={settings.List}>
             {visible.map((place) => (
               <PlaceRow key={place.id} place={place} onSelect={() => setSelectedId(place.id)} />
             ))}
@@ -423,7 +395,7 @@ const PlacesPage = ({ places }: Props) => {
           if (!open) setSelectedId(null);
         }}
       >
-        <DialogContent className="max-h-[90dvh] overflow-y-auto">
+        <DialogContent>
           {selected !== undefined && (
             <PlaceEditor
               key={selected.id}

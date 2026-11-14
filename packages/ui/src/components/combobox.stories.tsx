@@ -7,6 +7,7 @@ import {
   Combobox,
   ComboboxContent,
   ComboboxEmpty,
+  ComboboxField,
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
@@ -15,8 +16,7 @@ import {
   useComboboxAnchor,
 } from "./combobox.tsx";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react";
-import { selectTriggerClassName } from "./select.tsx";
-import { cn } from "@tsuke/ui/lib/utils";
+import { SelectTriggerText, selectTriggerStyleProps } from "./select.tsx";
 
 const meta = preview.meta({
   title: "Components/Combobox",
@@ -32,28 +32,27 @@ const CATEGORIES = ["食費 / 食料品", "食費 / 外食", "交通費 / 電車
  */
 export const WithSearch = meta.story({
   render: () => (
-    <div className="max-w-xs">
+    <div style={{ maxWidth: "20rem" }}>
       <Combobox items={CATEGORIES}>
         <ComboboxTrigger
           render={
             <button
               type="button"
               aria-label="カテゴリ"
-              data-size="default"
-              className={cn(selectTriggerClassName, "w-full")}
+              {...selectTriggerStyleProps({ width: "full" })}
             />
           }
         >
           <ComboboxValue>
             {(value: string | null) => (
-              <span className={cn("truncate", value === null && "text-muted-foreground")}>
+              <SelectTriggerText placeholder={value === null}>
                 {value ?? "カテゴリを選択"}
-              </span>
+              </SelectTriggerText>
             )}
           </ComboboxValue>
         </ComboboxTrigger>
         <ComboboxContent>
-          <ComboboxInput showTrigger={false} placeholder="カテゴリを検索" />
+          <ComboboxInput placeholder="カテゴリを検索" />
           <ComboboxEmpty>カテゴリが見つかりません</ComboboxEmpty>
           <ComboboxList>
             {(item: string) => (
@@ -92,7 +91,7 @@ const InlineCandidates = () => {
   const items = trimmed === "" || PLACES.includes(trimmed) ? PLACES : [...PLACES, `+${trimmed}`];
 
   return (
-    <div className="max-w-xs">
+    <div style={{ maxWidth: "20rem" }}>
       <Combobox
         items={items}
         value={value}
@@ -102,24 +101,14 @@ const InlineCandidates = () => {
         autoHighlight
         filter={(item: string, q: string) => item.startsWith("+") || contains(item, q)}
       >
-        <div ref={anchor}>
+        <ComboboxField ref={anchor}>
           <ComboboxPrimitive.Input aria-label="店舗" placeholder="なし" render={<Input />} />
-        </div>
-        <ComboboxContent
-          anchor={anchor}
-          sideOffset={0}
-          className="rounded-none border-b border-foreground bg-background shadow-none ring-0"
-        >
-          <ComboboxEmpty className="justify-start py-2 text-left">
-            過去の店舗はありません
-          </ComboboxEmpty>
-          <ComboboxList className="p-0">
+        </ComboboxField>
+        <ComboboxContent anchor={anchor} variant="inline">
+          <ComboboxEmpty>過去の店舗はありません</ComboboxEmpty>
+          <ComboboxList>
             {(item: string) => (
-              <ComboboxItem
-                key={item}
-                value={item}
-                className="rounded-none border-b py-2 pl-0 last:border-b-0 data-highlighted:bg-muted"
-              >
+              <ComboboxItem key={item} value={item}>
                 {item.startsWith("+") ? (
                   <>
                     <PlusIcon aria-hidden="true" />「{item.slice(1)}」を追加

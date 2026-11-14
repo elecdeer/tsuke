@@ -1,10 +1,12 @@
-import { action, Link } from "@void/react";
+import { action } from "@void/react";
 import { useState } from "react";
 import { monthOf } from "@/ledger/dates";
+import { BackLink } from "@/web/components/BackLink";
 import { FavoriteButton } from "@/web/components/FavoriteButton";
 import { TransactionEditor } from "@/web/components/TransactionEditor";
 import { transactionsHref } from "@/web/transactionsHref";
 import type { Props } from "./[id].server";
+import styles from "./[id].module.css";
 
 /**
  * 取引の編集の画面。
@@ -13,14 +15,11 @@ const TransactionEditPage = (props: Props) => {
   // 別の取引の画面へ移っても「保存しました」が残らないよう、保存した取引の ID で持つ
   const [savedId, setSavedId] = useState<number | null>(null);
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <Link
-          href={transactionsHref({ month: monthOf(props.transaction.date) })}
-          className="text-xs text-muted-foreground hover:text-foreground"
-        >
+    <div className={styles.TransactionEditPage}>
+      <div className={styles.header}>
+        <BackLink href={transactionsHref({ month: monthOf(props.transaction.date) })}>
           ← {Number(props.transaction.date.slice(5, 7))}月の取引
-        </Link>
+        </BackLink>
         <FavoriteButton
           favorite={props.isFavorite}
           label="よく使う取引"

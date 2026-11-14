@@ -1,0 +1,61 @@
+.SettingsPage {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+.List {
+  border-top: 1px solid var(--foreground);
+
+  > .item {
+    border-bottom-width: 1px;
+  }
+}
+
+.Account {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 1rem;
+  align-items: center;
+  padding-block: 0.625rem;
+
+  > .accountText {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+
+    > .accountLabel {
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+    }
+
+    > .accountEmail {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}
+
+/* マスタの管理の画面への入口の行 */
+.MasterLink {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1rem;
+  column-gap: 1rem;
+  align-items: baseline;
+  padding-block: 0.625rem;
+
+  @media (hover: hover) {
+    &:hover {
+      background-color: color-mix(in oklab, var(--muted) 60%, transparent);
+    }
+  }
+
+  > .arrow {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+  }
+}
