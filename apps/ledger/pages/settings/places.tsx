@@ -205,7 +205,7 @@ const PlaceEditor = ({
           {place.lastUsedOn === null ? (
             usageLabel(place)
           ) : (
-            <Link href={transactionsHref({ month: monthOf(place.lastUsedOn), placeId: place.id })}>
+            <Link href={transactionsHref({ period: monthOf(place.lastUsedOn), placeId: place.id })}>
               {usageLabel(place)}
             </Link>
           )}

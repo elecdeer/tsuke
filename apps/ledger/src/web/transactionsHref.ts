@@ -1,11 +1,15 @@
+import { isYearPeriod } from "../ledger/dates.ts";
 import type { TransactionFilter } from "../ledger/transactions.ts";
 
 /**
  * 取引の一覧の URL を、絞り込みの条件から作る。指定のない条件はクエリに入れない。
+ * 期間は月なら month、年なら year のクエリにする。
  * selected を渡すと、その取引を広い画面のサイドパネルで開いた一覧にする。
  */
 export const transactionsHref = (filter: TransactionFilter, selected?: number): string => {
-  const params = new URLSearchParams({ month: filter.month });
+  const params = new URLSearchParams(
+    isYearPeriod(filter.period) ? { year: filter.period } : { month: filter.period },
+  );
   if (filter.mode !== undefined) params.set("mode", filter.mode);
   if (filter.accountId !== undefined) params.set("accountId", String(filter.accountId));
   if (filter.categoryId !== undefined) params.set("categoryId", String(filter.categoryId));
@@ -18,7 +22,7 @@ export const transactionsHref = (filter: TransactionFilter, selected?: number): 
 };
 
 /**
- * 月のほかに何か絞り込んでいれば true を返す。
+ * 期間のほかに何か絞り込んでいれば true を返す。
  */
 export const isFiltered = (filter: TransactionFilter): boolean =>
   filter.mode !== undefined ||

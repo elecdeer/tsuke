@@ -18,7 +18,7 @@ import type {
   TransactionMode,
 } from "@/ledger/transactions";
 import { advanceStatusOf, unreceivedAmountOf } from "@/ledger/advance";
-import { shiftMonth } from "@/ledger/dates";
+import { isYearPeriod, shiftPeriod } from "@/ledger/dates";
 import { categoryLabels, categoryValueOf, parseCategoryValue } from "@/web/categoryValue";
 import { Section } from "@tsuke/ui/patterns/Section";
 import { FavoriteButton } from "@/web/components/FavoriteButton";
@@ -26,16 +26,18 @@ import { TransactionEditor } from "@/web/components/TransactionEditor";
 import { CategoryOptions } from "@/web/components/CategoryOptions";
 import { MonthHeading, StickyMonthBar, useMonthHeadingHidden } from "@/web/components/MonthHeading";
 import { PeriodPager } from "@/web/components/PeriodPager";
+import { PeriodViewSwitch } from "@/web/components/PeriodViewSwitch";
+import { YearHeading } from "@/web/components/YearHeading";
 import { SkeletonBlock, SkeletonText } from "@/web/components/Skeleton";
-import { formatAmount, formatDayOfMonth, formatFullDay } from "@/web/format";
+import { formatAmount, formatDayOfMonth, formatMonthDay } from "@/web/format";
 import { groupByDate } from "@/web/groupByDate";
 import { ADVANCE_STATUS_LABELS, MODE_LABELS, TRANSACTION_MODES } from "@/web/labels";
 import { titleOf } from "@/web/transactionTitle";
 import { createMonthPageCache } from "@/web/monthPageCache";
 import { useMediaQuery } from "@/web/mediaQuery";
+import { monthForYear } from "@/web/summaryView";
 import { isFiltered, transactionsHref } from "@/web/transactionsHref";
 import type { Props } from "./index.server";
-import { PageTitle } from "@tsuke/ui/patterns/PageTitle";
 import styles from "./index.module.css";
 
 /** 立替の絞り込みの選択肢 */
@@ -44,7 +46,7 @@ const ADVANCE_FILTERS = ["any", "unreceived"] as const;
 
 /**
  * 種類・口座・カテゴリの絞り込み。選ぶとすぐにその条件の一覧へ移る。
- * 何か絞り込んでいれば、月だけを残してすべて外すリセットを出す。
+ * 何か絞り込んでいれば、期間だけを残してすべて外すリセットを出す。
  */
 const Filters = ({
   filter,
@@ -191,7 +193,7 @@ const Filters = ({
       )}
       {isFiltered(filter) && (
         <Link
-          href={transactionsHref({ month: filter.month })}
+          href={transactionsHref({ period: filter.period })}
           preserveScroll
           className={styles.reset}
         >
@@ -519,7 +521,7 @@ const PanelSheet = ({
 const listCache = createMonthPageCache<TransactionListItem[]>();
 
 /**
- * 件数と合計、日ごとの取引の一覧。月を移るときに横に送る部分。
+ * 件数と合計、日ごとの取引の一覧。期間を移るときに横に送る部分。
  */
 const TransactionList = ({
   transactions,
@@ -530,7 +532,7 @@ const TransactionList = ({
   filter: TransactionFilter;
   selectedId: number | undefined;
 }) => {
-  const unreceivedOnly = filter.advance === "unreceived";
+  const yearly = isYearPeriod(filter.period);
   return (
     <div className={styles.TransactionList}>
       <Section label="" gap="none">
@@ -547,15 +549,15 @@ const TransactionList = ({
               key={group.date}
               gap="none"
               // スクロールしても今見ている日付がわかるよう、日付をヘッダーの下に貼り付ける。
-              // 月のバーが出ているときはその下に並べる（未入金の一覧には月のバーがない）
+              // 月のバーが出ているときはその下に並べる（年の一覧には月のバーがない）
               stickyTop={
-                unreceivedOnly
+                yearly
                   ? "var(--header-height)"
                   : "calc(var(--header-height) + var(--month-bar-height))"
               }
               label={
                 <span className={styles.DayLabel}>
-                  {unreceivedOnly ? formatFullDay(group.date) : formatDayOfMonth(group.date)}
+                  {yearly ? formatMonthDay(group.date) : formatDayOfMonth(group.date)}
                 </span>
               }
             >
@@ -579,7 +581,7 @@ const TransactionList = ({
 };
 
 /**
- * 隣の月の仮の中身。前に見た月なら覚えている一覧を、まだ見ていなければ骨組みを出す。
+ * 隣の期間の仮の中身。前に見た期間なら覚えている一覧を、まだ見ていなければ骨組みを出す。
  */
 const NeighborList = ({ href, filter }: { href: string; filter: TransactionFilter }) => {
   const cached = listCache.recall(href);
@@ -617,6 +619,7 @@ const TransactionListSkeleton = () => (
  */
 const TransactionsPage = ({
   filter,
+  currentMonth,
   transactions,
   accounts,
   categories,
@@ -629,16 +632,12 @@ const TransactionsPage = ({
   if (selected !== null && selected !== shown) setShown(selected);
   // サーバーでは画面の幅がわからないので、サイドパネルで描いておく。狭い画面では CSS でパネルの列を隠している
   const sidePanel = useMediaQuery(SIDE_PANEL_MEDIA, true);
-  // 未入金は全期間の一覧なので、月を移るときは絞り込みを外してその月の一覧にする
-  const monthHref = (month: string) =>
-    transactionsHref({
-      ...filter,
-      month,
-      advance: filter.advance === "unreceived" ? undefined : filter.advance,
-    });
-  const unreceivedOnly = filter.advance === "unreceived";
+  // 期間（月か年）を移るときも、絞り込みはそのまま引き継ぐ
+  const periodHref = (period: string) => transactionsHref({ ...filter, period });
+  const yearly = isYearPeriod(filter.period);
+  const year = filter.period.slice(0, 4);
   // 月の見出しがスクロールで隠れたら、ヘッダーの下に月のバーを貼り付ける
-  const { headingRef, hidden: monthHeadingHidden } = useMonthHeadingHidden(!unreceivedOnly);
+  const { headingRef, hidden: monthHeadingHidden } = useMonthHeadingHidden(!yearly);
 
   /**
    * パネルの列が縮みきったら、残しておいた中身を外す。中の要素のトランジションも届くので、列の幅の変化だけを見る。
@@ -648,7 +647,7 @@ const TransactionsPage = ({
     if (event.propertyName === "grid-template-columns" && selected === null) setShown(null);
   };
 
-  // 月を移るときに横に送るのは件数と合計、取引の一覧だけにし、月の見出しと絞り込みは動かさない
+  // 期間を移るときに横に送るのは件数と合計、取引の一覧だけにし、期間の見出しと絞り込みは動かさない
   const list = (
     <TransactionList
       transactions={transactions}
@@ -656,7 +655,7 @@ const TransactionsPage = ({
       selectedId={selected?.transaction.id}
     />
   );
-  const currentHref = monthHref(filter.month);
+  const currentHref = periodHref(filter.period);
   useEffect(() => listCache.remember(currentHref, transactions), [currentHref, transactions]);
 
   return (
@@ -666,15 +665,23 @@ const TransactionsPage = ({
       onTransitionEnd={onTransitionEnd}
     >
       <div className={styles.main}>
-        {!unreceivedOnly && (
-          <StickyMonthBar month={filter.month} hrefOf={monthHref} shown={monthHeadingHidden} />
+        {!yearly && (
+          <StickyMonthBar month={filter.period} hrefOf={periodHref} shown={monthHeadingHidden} />
         )}
         <div className={styles.header}>
           <div className={styles.headingColumn}>
-            {unreceivedOnly ? (
-              <PageTitle>未入金の立替</PageTitle>
+            <PeriodViewSwitch
+              label="一覧の単位"
+              view={yearly ? "year" : "month"}
+              monthHref={periodHref(
+                yearly ? monthForYear(Number(year), currentMonth) : filter.period,
+              )}
+              yearHref={periodHref(year)}
+            />
+            {yearly ? (
+              <YearHeading year={Number(year)} hrefOf={(next) => periodHref(String(next))} />
             ) : (
-              <MonthHeading month={filter.month} hrefOf={monthHref} headingRef={headingRef} />
+              <MonthHeading month={filter.period} hrefOf={periodHref} headingRef={headingRef} />
             )}
           </div>
           {/* 狭い画面ではボタンを上の行に出し、フィルタに全幅を使わせて横に折り返す */}
@@ -702,21 +709,17 @@ const TransactionsPage = ({
             </div>
           </div>
         </div>
-        {unreceivedOnly ? (
-          list
-        ) : (
-          <PeriodPager
-            period={filter.month}
-            previous={shiftMonth(filter.month, -1)}
-            next={shiftMonth(filter.month, 1)}
-            hrefOf={monthHref}
-            placeholder={(neighbor) => (
-              <NeighborList href={monthHref(neighbor)} filter={{ ...filter, month: neighbor }} />
-            )}
-          >
-            {list}
-          </PeriodPager>
-        )}
+        <PeriodPager
+          period={filter.period}
+          previous={shiftPeriod(filter.period, -1)}
+          next={shiftPeriod(filter.period, 1)}
+          hrefOf={periodHref}
+          placeholder={(neighbor) => (
+            <NeighborList href={periodHref(neighbor)} filter={{ ...filter, period: neighbor }} />
+          )}
+        >
+          {list}
+        </PeriodPager>
       </div>
       <div className={styles.panelColumn}>
         {sidePanel && shown !== null && (

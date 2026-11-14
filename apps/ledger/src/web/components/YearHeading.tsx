@@ -1,18 +1,23 @@
 import { Link } from "@void/react";
 import { navigatePeriod } from "@/web/components/PeriodPager";
-import { yearSummaryHref } from "@/web/summaryView";
 import styles from "./PeriodHeading.module.css";
 
 /**
- * 集計の画面が扱う年。年を大きく出し、前後の年へのリンクを添える。
+ * 画面が扱う年。年を大きく出し、前後の年へのリンクを添える。移り先の URL は hrefOf で年から作る。
  *
  * 前後の年へのリンクを押すと、払ったときと同じく年の並び（PeriodPager）を横に送って移る。
  */
-export const YearHeading = ({ year }: { year: number }) => (
+export const YearHeading = ({
+  year,
+  hrefOf,
+}: {
+  year: number;
+  hrefOf: (year: number) => string;
+}) => (
   <div className={styles.PeriodHeading}>
     <div className={styles.links}>
       <Link
-        href={yearSummaryHref(year - 1)}
+        href={hrefOf(year - 1)}
         viewTransition
         onNavigate={navigatePeriod("prev")}
         className={styles.link}
@@ -20,7 +25,7 @@ export const YearHeading = ({ year }: { year: number }) => (
         ← {year - 1}
       </Link>
       <Link
-        href={yearSummaryHref(year + 1)}
+        href={hrefOf(year + 1)}
         viewTransition
         onNavigate={navigatePeriod("next")}
         className={styles.link}

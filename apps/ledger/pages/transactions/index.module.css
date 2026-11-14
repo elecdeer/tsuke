@@ -308,7 +308,12 @@
         align-items: end;
       }
 
+      /* 集計の画面とそろえ、月・年の切り替えを期間の見出しの上に置く */
       > .headingColumn {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+
         @media (width >= 48rem) {
           grid-column: span 3 / span 3;
         }

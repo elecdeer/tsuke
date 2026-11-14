@@ -1,9 +1,11 @@
 import type { NavigationState } from "void/pages-client";
-import { monthSummaryHref } from "./summaryView.ts";
+import { monthSummaryHref, yearSummaryHref } from "./summaryView.ts";
 import { transactionsHref } from "./transactionsHref.ts";
 
 /** クエリの月の形（2026-10） */
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
+/** クエリの年の形（2026） */
+const YEAR_PATTERN = /^\d{4}$/;
 
 /**
  * パスがナビゲーションの項目の下にあれば true を返す。
@@ -28,15 +30,27 @@ export const navPath = (path: string, navigation: NavigationState): string =>
 export const isNavigating = (navigation: NavigationState): boolean => navigation.state !== "idle";
 
 /**
- * ナビゲーションの項目のリンク先を返す。集計（月の表示）と取引の一覧の間では、今見ている月を引き継ぐ。
+ * クエリの期間を返す。年の指定を月より先に見る。どちらもないか形が正しくなければ null を返す。
+ */
+const periodOf = (query: URLSearchParams): string | null => {
+  const year = query.get("year");
+  if (year !== null) return YEAR_PATTERN.test(year) ? year : null;
+  const month = query.get("month");
+  return month !== null && MONTH_PATTERN.test(month) ? month : null;
+};
+
+/**
+ * ナビゲーションの項目のリンク先を返す。集計と取引の一覧の間では、今見ている期間（月か年）を引き継ぐ。
  *
- * 月を指定していない画面（今月）や、年の集計からは、これまでどおり項目の URL のまま移る。
- * 取引の一覧の絞り込みは集計にない条件なので、月のほかは引き継がない。
+ * 期間を指定していない画面（今月）からは、これまでどおり項目の URL のまま移る。
+ * 取引の一覧の絞り込みは集計にない条件なので、期間のほかは引き継がない。
  */
 export const navHref = (href: string, path: string, query: URLSearchParams): string => {
-  const month = query.get("month");
-  if (month === null || !MONTH_PATTERN.test(month)) return href;
-  if (href === "/transactions" && path === "/") return transactionsHref({ month });
-  if (href === "/" && path === "/transactions") return monthSummaryHref(month);
+  const period = periodOf(query);
+  if (period === null) return href;
+  if (href === "/transactions" && path === "/") return transactionsHref({ period });
+  if (href === "/" && path === "/transactions") {
+    return period.length === 4 ? yearSummaryHref(Number(period)) : monthSummaryHref(period);
+  }
   return href;
 };

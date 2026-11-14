@@ -1,5 +1,8 @@
 import { describe, expect, test } from "vite-plus/test";
 import {
+  isYearPeriod,
+  periodRange,
+  shiftPeriod,
   formatMonth,
   isDate,
   isMonth,
@@ -90,5 +93,34 @@ describe("monthsOfYear", () => {
       "2026-11",
       "2026-12",
     ]);
+  });
+});
+
+describe("isYearPeriod", () => {
+  test("YYYY は年、YYYY-MM は月とみなす", () => {
+    expect(isYearPeriod("2026")).toBe(true);
+    expect(isYearPeriod("2026-11")).toBe(false);
+  });
+});
+
+describe("periodRange", () => {
+  test("年はその年の 1 月 1 日から翌年の 1 月 1 日まで", () => {
+    expect(periodRange("2026")).toEqual({ start: "2026-01-01", end: "2027-01-01" });
+  });
+
+  test("月はその月の初日から翌月の初日まで", () => {
+    expect(periodRange("2026-12")).toEqual({ start: "2026-12-01", end: "2027-01-01" });
+  });
+});
+
+describe("shiftPeriod", () => {
+  test("年は年をずらす", () => {
+    expect(shiftPeriod("2026", -1)).toBe("2025");
+    expect(shiftPeriod("2026", 1)).toBe("2027");
+  });
+
+  test("月は年をまたいで月をずらす", () => {
+    expect(shiftPeriod("2026-12", 1)).toBe("2027-01");
+    expect(shiftPeriod("2026-01", -1)).toBe("2025-12");
   });
 });

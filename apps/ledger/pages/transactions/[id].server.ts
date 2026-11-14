@@ -93,7 +93,7 @@ export const actions = {
     return c.redirect(
       transaction === undefined
         ? "/transactions"
-        : transactionsHref({ month: monthOf(transaction.date) }),
+        : transactionsHref({ period: monthOf(transaction.date) }),
     );
   }),
 };

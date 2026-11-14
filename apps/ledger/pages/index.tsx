@@ -8,7 +8,7 @@ import { Section } from "@tsuke/ui/patterns/Section";
 import { SkeletonBlock } from "@/web/components/Skeleton";
 import { SummaryTotals } from "@/web/components/SummaryTotals";
 import { CategoryDetails, CategoryList, GenreRow } from "@/web/components/CategorySummary";
-import { SummaryViewSwitch } from "@/web/components/SummaryViewSwitch";
+import { PeriodViewSwitch } from "@/web/components/PeriodViewSwitch";
 import { YearHeading } from "@/web/components/YearHeading";
 import { YearSummaryBody } from "@/web/components/YearSummary";
 import { monthForYear, monthSummaryHref, yearSummaryHref } from "@/web/summaryView";
@@ -46,7 +46,7 @@ const CategoryRow = ({
             href={
               category.categoryId !== null && genre.genreId !== null
                 ? transactionsHref({
-                    month,
+                    period: month,
                     mode,
                     categoryId: category.categoryId,
                     genreId: genre.genreId,
@@ -59,7 +59,7 @@ const CategoryRow = ({
       {category.categoryId !== null && (
         <li className={styles.item}>
           <Link
-            href={transactionsHref({ month, mode, categoryId: category.categoryId })}
+            href={transactionsHref({ period: month, mode, categoryId: category.categoryId })}
             className={styles.transactionsLink}
           >
             {category.name}の取引 →
@@ -103,7 +103,8 @@ type YearProps = Extract<Props, { view: "year" }>;
  */
 const MonthSummaryHeading = ({ month }: { month: string }) => (
   <>
-    <SummaryViewSwitch
+    <PeriodViewSwitch
+      label="集計の単位"
       view="month"
       monthHref={monthSummaryHref(month)}
       yearHref={yearSummaryHref(Number(month.slice(0, 4)))}
@@ -222,12 +223,13 @@ const MonthSummaryPage = ({ month, summary }: MonthProps) => {
  */
 const YearSummaryHeading = ({ year, currentMonth }: { year: number; currentMonth: string }) => (
   <>
-    <SummaryViewSwitch
+    <PeriodViewSwitch
+      label="集計の単位"
       view="year"
       monthHref={monthSummaryHref(monthForYear(year, currentMonth))}
       yearHref={yearSummaryHref(year)}
     />
-    <YearHeading year={year} />
+    <YearHeading year={year} hrefOf={yearSummaryHref} />
   </>
 );
 

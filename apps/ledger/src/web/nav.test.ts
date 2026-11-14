@@ -64,8 +64,20 @@ describe("navHref", () => {
     ).toBe("/?month=2026-09");
   });
 
-  test("年の集計からは、項目の URL のまま移る", () => {
-    expect(navHref("/transactions", "/", new URLSearchParams("year=2026"))).toBe("/transactions");
+  test("年の集計から取引へ移るときは、その年の一覧にする", () => {
+    expect(navHref("/transactions", "/", new URLSearchParams("year=2026"))).toBe(
+      "/transactions?year=2026",
+    );
+  });
+
+  test("年の取引の一覧から集計へ移るときは、その年の集計にする", () => {
+    expect(navHref("/", "/transactions", new URLSearchParams("year=2026&advance=unreceived"))).toBe(
+      "/?year=2026",
+    );
+  });
+
+  test("形の正しくない年は引き継がない", () => {
+    expect(navHref("/transactions", "/", new URLSearchParams("year=26"))).toBe("/transactions");
   });
 
   test("月を指定していない画面からは、項目の URL のまま移る", () => {

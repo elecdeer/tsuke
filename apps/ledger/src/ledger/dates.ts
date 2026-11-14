@@ -63,3 +63,22 @@ export const formatMonth = (month: string): string => {
   const [year, monthNumber] = month.split("-").map(Number);
   return `${year}年${monthNumber}月`;
 };
+
+/**
+ * 期間が年（YYYY）なら true を返す。期間は月（YYYY-MM）か年（YYYY）の文字列で持つ。
+ */
+export const isYearPeriod = (period: string): boolean => period.length === 4;
+
+/**
+ * 期間の初日と、次の期間の初日を返す。期間は start 以上 end 未満で比べる。
+ */
+export const periodRange = (period: string): { start: string; end: string } =>
+  isYearPeriod(period)
+    ? { start: `${period}-01-01`, end: `${Number(period) + 1}-01-01` }
+    : monthRange(period);
+
+/**
+ * 期間を count 個ずらす。月なら月を、年なら年をずらす。
+ */
+export const shiftPeriod = (period: string, count: number): string =>
+  isYearPeriod(period) ? String(Number(period) + count) : shiftMonth(period, count);

@@ -17,7 +17,7 @@ const TransactionEditPage = (props: Props) => {
   return (
     <div className={styles.TransactionEditPage}>
       <div className={styles.header}>
-        <BackLink href={transactionsHref({ month: monthOf(props.transaction.date) })}>
+        <BackLink href={transactionsHref({ period: monthOf(props.transaction.date) })}>
           ← {Number(props.transaction.date.slice(5, 7))}月の取引
         </BackLink>
         <FavoriteButton
