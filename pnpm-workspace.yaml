@@ -36,6 +36,12 @@ catalog:
   "@tanstack/charts": 1.4.0
   agents: ^0.33.0
   ai: ^7.0.170
+  "@eslint/css": ^2.0.1
+  eslint: ^10.14.0
+  eslint-plugin-css-cev: ^0.1.1
+  eslint-plugin-css-properties-order: ^0.0.1
+  tailwind-csstree: ^0.4.2
+  jiti: ^2.7.0
 
 catalogMode: prefer
 overrides:
@@ -55,4 +61,3 @@ allowBuilds:
   workerd: true
   spawn-sync: false
   core-js-pure: false
-  lefthook: set this to true or false

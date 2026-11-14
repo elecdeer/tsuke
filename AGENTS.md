@@ -41,6 +41,10 @@ vp check
 ```
 
 ```bash
+vp run lint:css
+```
+
+```bash
 vp run -r test
 ```
 

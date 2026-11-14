@@ -9,7 +9,9 @@ export default defineConfig({
     clearMocks: false,
   },
   staged: {
-    "*": "vp check --fix",
+    // グロブごとのタスクは並行に走るので、ESLint と vp check が同じ CSS を同時に書き換えないよう CSS は分けて順に流す
+    "*.css": ["eslint --fix --max-warnings 0", "vp check --fix"],
+    "!(*.css)": "vp check --fix",
   },
   fmt: {
     ignorePatterns: [
