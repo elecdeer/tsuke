@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+    // Temporal の型だけ足す。ない環境では使う側で temporal-polyfill-lite を読み込む
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "DOM.AsyncIterable", "ESNext.Temporal"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,

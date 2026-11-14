@@ -4,8 +4,29 @@ import { buttonStyleProps } from "@tsuke/ui/components/button";
 import { Calendar } from "@tsuke/ui/components/calendar";
 import { Input } from "@tsuke/ui/components/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@tsuke/ui/components/popover";
-import { formatIsoDate, parseIsoDate } from "@tsuke/ui/lib/isoDate";
 import styles from "./DateInput.module.css";
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * YYYY-MM-DD の文字列を、カレンダーが扱うその日の 0 時（その地域の時刻）の Date にする。
+ * 打ちかけや実在しない日なら undefined を返す。
+ */
+const toJsDate = (value: string): Date | undefined => {
+  if (!ISO_DATE_PATTERN.test(value)) return undefined;
+  try {
+    const date = Temporal.PlainDate.from(value, { overflow: "reject" });
+    return new Date(date.year, date.month - 1, date.day);
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * カレンダーで選んだ Date を YYYY-MM-DD の文字列にする。
+ */
+const fromJsDate = (date: Date): string =>
+  new Temporal.PlainDate(date.getFullYear(), date.getMonth() + 1, date.getDate()).toString();
 
 /**
  * 日付の入力欄。YYYY-MM-DD を文字で打つほか、欄の右のボタンからカレンダーを開いて選べる。
@@ -13,6 +34,7 @@ import styles from "./DateInput.module.css";
  *
  * ラベルは持たないので、FormField で囲んで id を渡す。
  * native の date の欄は端末ごとに見た目と操作が大きく違うので使わない。
+ * Temporal を使うので、ない環境（iOS の Safari など）では使う側で polyfill を読み込んでおく。
  */
 export const DateInput = ({
   id,
@@ -30,12 +52,12 @@ export const DateInput = ({
   max?: string;
 }) => {
   const [open, setOpen] = useState(false);
-  const selectedDate = parseIsoDate(value);
-  const maxDate = max === undefined ? undefined : parseIsoDate(max);
+  const selectedDate = toJsDate(value);
+  const maxDate = max === undefined ? undefined : toJsDate(max);
 
   const handleCalendarSelect = (date: Date | undefined) => {
     if (!date) return;
-    onChange(formatIsoDate(date));
+    onChange(fromJsDate(date));
     setOpen(false);
   };
 
