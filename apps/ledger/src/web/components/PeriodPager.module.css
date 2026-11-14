@@ -2,12 +2,15 @@
  * main の左右の余白の分だけ広げ、隣の期間が画面の端まで動いて見えるようにする。
  * relative にして各ページの offsetLeft をこの箱からの位置にし、スクロール位置と比べられるようにする
  * （付けないと中央に寄せた main の外からの位置になり、広い画面で止まったページを見分けられない）
+ *
+ * 縦は hidden ではなく clip にする。hidden だと縦にもスクロールの箱になり、中の日付の見出しの
+ * 縦の sticky が効かない。clip なら横だけのスクロールの箱になる（単一軸のスクロールコンテナ）
  */
 .PeriodPager {
   position: relative;
   display: flex;
   margin-inline: -1rem;
-  overflow: auto hidden;
+  overflow: auto clip;
   overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
