@@ -1,7 +1,15 @@
 /**
  * 取引の入力欄の部品。取引の編集・手入力の登録・レシートの登録の画面で共有する。
  */
-import { ArrowDown, ArrowUp, Ellipsis, MessageSquarePlus, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Ellipsis,
+  MessageSquarePlus,
+  MessageSquareText,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react";
 import {
   useId,
@@ -235,12 +243,15 @@ const ItemTextButton = ({
   id,
   value,
   placeholder,
+  icon,
   onClick,
 }: {
   id: string;
   value: string;
   /** 空のときに薄く出す文字。列の見出しを出さない狭い場所で、何の欄かを示す */
   placeholder?: string;
+  /** 文字の前に出すアイコン。値が入っていても何の欄かが分かるようにする */
+  icon?: ReactNode;
   onClick: () => void;
 }) => (
   <button
@@ -250,6 +261,7 @@ const ItemTextButton = ({
     {...selectTriggerStyleProps({ width: "full" })}
     onClick={onClick}
   >
+    {icon !== undefined && <span className={styles.ItemTextIcon}>{icon}</span>}
     {value === "" && placeholder !== undefined ? (
       <SelectTriggerText placeholder>{placeholder}</SelectTriggerText>
     ) : (
@@ -429,6 +441,8 @@ const ItemFields = ({
           id={ids.memo}
           value={item.memo}
           placeholder="メモ"
+          // 品目名と同じ見た目の欄が並ぶので、入力済みでもメモの欄だと分かるようにする
+          icon={<MessageSquareText aria-hidden="true" />}
           onClick={() => setEditing("memo")}
         />
       </FormField>
