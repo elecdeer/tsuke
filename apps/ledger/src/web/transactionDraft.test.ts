@@ -12,6 +12,7 @@ import {
   itemsTotalOf,
   missingFromAccountError,
   moveItem,
+  setItemsCategory,
   toggleAdvanceTarget,
   toSingleLine,
   updateFromDraft,
@@ -522,5 +523,28 @@ describe("立替の入力", () => {
         }),
       ).toEqual({ ok: false, error: "支出へ充てる額を整数で入れてください" });
     });
+  });
+});
+
+describe("setItemsCategory", () => {
+  const items = [
+    { ...emptyItem(0), category: "g:1:10", name: "牛乳" },
+    { ...emptyItem(1), category: "", name: "パン" },
+    { ...emptyItem(2), category: "g:2:20", name: "洗剤" },
+  ];
+
+  test("選んだ品目のカテゴリだけを置き換える", () => {
+    const changed = setItemsCategory(items, new Set([0, 1]), "g:1:11");
+    expect(changed.map((item) => item.category)).toEqual(["g:1:11", "g:1:11", "g:2:20"]);
+  });
+
+  test("カテゴリ以外の値は変えない", () => {
+    const changed = setItemsCategory(items, new Set([1]), "g:1:11");
+    expect(changed[1]).toEqual({ ...items[1], category: "g:1:11" });
+  });
+
+  test("品目にない key は無視する", () => {
+    const changed = setItemsCategory(items, new Set([99]), "g:1:11");
+    expect(changed).toEqual(items);
   });
 });

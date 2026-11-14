@@ -5,6 +5,7 @@ import {
   ArrowDown,
   ArrowUp,
   Ellipsis,
+  ListChecks,
   MessageSquarePlus,
   MessageSquareText,
   Plus,
@@ -73,10 +74,12 @@ import {
   emptyItem,
   itemsTotal,
   moveItem,
+  setItemsCategory,
   toSingleLine,
   type ItemDraft,
   type TransactionDraft,
 } from "@/web/transactionDraft";
+import { visuallyHiddenClassName } from "@tsuke/ui/lib/a11y";
 import { cn } from "@tsuke/ui/lib/utils";
 import { FormField } from "@tsuke/ui/patterns/FormField";
 import { TotalAmount } from "@tsuke/ui/patterns/TotalAmount";
@@ -522,6 +525,104 @@ export const ItemsTotal = ({
 );
 
 /**
+ * 品目の内訳をまとめて変える操作の帯。選び始める前はボタンだけを出し、選んでいるあいだは
+ * すべて選ぶ印・選んだ件数・変える先の内訳を出す。
+ *
+ * レシートでは同じ内訳の品目が並ぶことが多いので、1 件ずつ選び直さずに済むようにする。
+ */
+const BulkCategoryBar = ({
+  selecting,
+  selectedCount,
+  allSelected,
+  categories,
+  onStart,
+  onSelectAll,
+  onApply,
+  onCancel,
+}: {
+  selecting: boolean;
+  selectedCount: number;
+  allSelected: boolean;
+  categories: CategoryWithGenres[];
+  onStart: () => void;
+  onSelectAll: (checked: boolean) => void;
+  onApply: (category: string) => void;
+  onCancel: () => void;
+}) => {
+  const ids = { category: useId() };
+  // 選び直すたびに前の内訳が残っていると、確かめずに変えてしまうので、選んでいるあいだだけ持つ
+  const [category, setCategory] = useState("");
+  const labels = categoryLabels(categories);
+
+  if (!selecting) {
+    return (
+      <div className={styles.BulkBar}>
+        <Button variant="ghost" tone="muted" size="sm" flush onClick={onStart}>
+          <ListChecks />
+          内訳をまとめて変える
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.BulkBar} data-selecting="">
+      <label className={styles.selectAll}>
+        <input
+          type="checkbox"
+          className={styles.SelectCheckbox}
+          checked={allSelected}
+          onChange={(event) => onSelectAll(event.target.checked)}
+        />
+        すべて
+      </label>
+      <span className={styles.count} aria-live="polite">
+        {selectedCount} 件を
+      </span>
+      <label htmlFor={ids.category} className={visuallyHiddenClassName}>
+        変える先の内訳
+      </label>
+      <Select
+        items={labels}
+        value={category === "" ? null : category}
+        onValueChange={(value) => setCategory(value ?? "")}
+      >
+        <SelectTrigger id={ids.category} size="sm" className={styles.category}>
+          <SelectTriggerText placeholder={category === ""}>
+            {labels[category] ?? "内訳を選ぶ"}
+          </SelectTriggerText>
+        </SelectTrigger>
+        <SelectContent>
+          <CategoryOptions label="支出" categories={categories} />
+        </SelectContent>
+      </Select>
+      <span className={styles.actions}>
+        <Button
+          size="sm"
+          disabled={selectedCount === 0 || category === ""}
+          onClick={() => {
+            onApply(category);
+            setCategory("");
+          }}
+        >
+          変える
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            onCancel();
+            setCategory("");
+          }}
+        >
+          やめる
+        </Button>
+      </span>
+    </div>
+  );
+};
+
+/**
  * 品目の表。支出では品目を足す・並べ替える・消すこともできる。合計は置き場所が画面ごとに違うので、`ItemsTotal` で別に出す。
  *
  * `categories` は取引の種類に合うもの（支出なら支出の、収入なら収入のカテゴリ）を渡す。
@@ -537,37 +638,89 @@ export const ItemsFields = ({
   categories: CategoryWithGenres[];
   onChange: (items: ItemDraft[]) => void;
 }) => {
+  /** まとめて内訳を変えるために選んでいる品目の key。選んでいないあいだは null */
+  const [selectedKeys, setSelectedKeys] = useState<ReadonlySet<number> | null>(null);
+  const selecting = selectedKeys !== null;
+  // 品目を消しても選んだ印が残るので、今ある品目だけを数える
+  const selectedCount = items.filter((item) => selectedKeys?.has(item.key)).length;
+
   const updateItem = (index: number, patch: Partial<ItemDraft>) =>
     onChange(items.map((item, i) => (i === index ? { ...item, ...patch } : item)));
 
+  const toggleSelected = (key: number, checked: boolean) =>
+    setSelectedKeys((keys) => {
+      const next = new Set(keys);
+      if (checked) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+
+  const applyBulkCategory = (category: string) => {
+    if (selectedKeys === null) return;
+    onChange(setItemsCategory(items, selectedKeys, category));
+    setSelectedKeys(null);
+  };
+
   return (
     <>
-      <div
-        aria-hidden="true"
-        className={`${styles.ItemGrid} ${styles.ItemHeader}`}
-        data-mode={mode}
-      >
-        {(mode === "payment" || mode === "income") && (
-          <span>{mode === "payment" ? "内訳" : "カテゴリ"}</span>
-        )}
-        <span>品目名</span>
-        <span>メモ</span>
-        <span className={styles.headerAmount}>金額</span>
+      {/* 品目が 1 件なら行の内訳を変えれば済むので、まとめて変える入口は出さない */}
+      {mode === "payment" && items.length > 1 && (
+        <BulkCategoryBar
+          selecting={selecting}
+          selectedCount={selectedCount}
+          allSelected={selectedCount === items.length}
+          categories={categories}
+          onStart={() => setSelectedKeys(new Set())}
+          onSelectAll={(checked) =>
+            setSelectedKeys(checked ? new Set(items.map((item) => item.key)) : new Set())
+          }
+          onApply={applyBulkCategory}
+          onCancel={() => setSelectedKeys(null)}
+        />
+      )}
+      <div className={styles.SelectableRow} data-selecting={selecting || undefined}>
+        {selecting && <span />}
+        <div
+          aria-hidden="true"
+          className={`${styles.ItemGrid} ${styles.ItemHeader}`}
+          data-mode={mode}
+        >
+          {(mode === "payment" || mode === "income") && (
+            <span>{mode === "payment" ? "内訳" : "カテゴリ"}</span>
+          )}
+          <span>品目名</span>
+          <span>メモ</span>
+          <span className={styles.headerAmount}>金額</span>
+        </div>
       </div>
       {/* 狭いところでは見出しの行を出さないので、表の始まりの線をここで引く */}
       <div className={styles.ItemList}>
         {items.map((item, index) => (
-          <ItemFields
+          <div
             key={item.key}
-            mode={mode}
-            item={item}
-            index={index}
-            count={items.length}
-            categories={categories}
-            onChange={(patch) => updateItem(index, patch)}
-            onMove={(offset) => onChange(moveItem(items, index, offset))}
-            onRemove={() => onChange(items.filter((_, i) => i !== index))}
-          />
+            className={styles.SelectableRow}
+            data-selecting={selecting || undefined}
+          >
+            {selecting && (
+              <input
+                type="checkbox"
+                className={styles.SelectCheckbox}
+                aria-label={`${index + 1} 件目${item.name === "" ? "" : `（${item.name}）`}を選ぶ`}
+                checked={selectedKeys.has(item.key)}
+                onChange={(event) => toggleSelected(item.key, event.target.checked)}
+              />
+            )}
+            <ItemFields
+              mode={mode}
+              item={item}
+              index={index}
+              count={items.length}
+              categories={categories}
+              onChange={(patch) => updateItem(index, patch)}
+              onMove={(offset) => onChange(moveItem(items, index, offset))}
+              onRemove={() => onChange(items.filter((_, i) => i !== index))}
+            />
+          </div>
         ))}
       </div>
       {mode === "payment" && (

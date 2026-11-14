@@ -321,3 +321,12 @@ export const moveItem = <T>(items: T[], index: number, offset: number): T[] => {
   moved.splice(target, 0, item);
   return moved;
 };
+
+/**
+ * keys に含まれる品目のカテゴリ（内訳）を category に置き換えた配列を返す。ほかの品目はそのまま残す。
+ */
+export const setItemsCategory = (
+  items: readonly ItemDraft[],
+  keys: ReadonlySet<number>,
+  category: string,
+): ItemDraft[] => items.map((item) => (keys.has(item.key) ? { ...item, category } : item));
