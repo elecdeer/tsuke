@@ -4,7 +4,10 @@ import { buttonStyleProps } from "@tsuke/ui/components/button";
 import { Calendar } from "@tsuke/ui/components/calendar";
 import { Input } from "@tsuke/ui/components/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@tsuke/ui/components/popover";
+import { cn } from "@tsuke/ui/lib/utils";
 import styles from "./DateInput.module.css";
+
+const triggerStyleProps = buttonStyleProps({ variant: "ghost", size: "icon-sm", tone: "muted" });
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -30,7 +33,7 @@ const fromJsDate = (date: Date): string =>
 
 /**
  * 日付の入力欄。YYYY-MM-DD を文字で打つほか、欄の右のボタンからカレンダーを開いて選べる。
- * カレンダーを開くボタンは、台帳の店舗の欄の地図のボタンと同じく欄の右に置く。
+ * カレンダーを開くボタンは欄の下線の内側、右端に置く（金額の欄の「円」と同じ置き方）。
  *
  * ラベルは持たないので、FormField で囲んで id を渡す。
  * native の date の欄は端末ごとに見た目と操作が大きく違うので使わない。
@@ -77,7 +80,8 @@ export const DateInput = ({
       />
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
-          {...buttonStyleProps({ variant: "ghost", size: "icon-sm", tone: "muted" })}
+          {...triggerStyleProps}
+          className={cn(triggerStyleProps.className, styles.trigger)}
           aria-label="カレンダーを開く"
         >
           <CalendarDaysIcon aria-hidden="true" />

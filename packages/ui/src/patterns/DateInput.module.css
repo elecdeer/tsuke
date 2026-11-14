@@ -1,15 +1,21 @@
 @layer ui {
-  /* 日付の欄と、その右に置くカレンダーを開くボタン（台帳の店舗の欄の地図のボタンと同じ並び） */
+  /* 日付の欄。カレンダーを開くボタンは、金額の欄の「円」と同じく下線の内側の右端に重ねる */
   .DateInput {
-    display: flex;
-    gap: 0.125rem;
-    align-items: center;
+    position: relative;
     min-width: 0;
 
     > .input {
-      flex: 1;
-      min-width: 0;
+      padding-right: 2rem;
       font-variant-numeric: tabular-nums;
+    }
+
+    /* 下線（1px）より上の高さの中で上下の中央に置き、押したときの背景が下線に被らないようにする */
+    > .trigger {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 1px;
+      margin-block: auto;
     }
   }
 }
