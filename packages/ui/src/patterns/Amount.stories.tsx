@@ -36,6 +36,34 @@ export const TotalWithLabel = meta.story({
   ),
 });
 
+/** 読み取った合計と合わないときは、その金額を添えて知らせる */
+export const TotalMismatch = meta.story({
+  args: { amount: 1650, expected: 1782 },
+  render: (args) => (
+    <div style={{ maxWidth: "20rem" }}>
+      <TotalAmount {...args} />
+    </div>
+  ),
+  play: async ({ canvas }) => {
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "読み取った合計 1,782円と合いません",
+    );
+  },
+});
+
+/** 読み取った合計と合っていれば何も添えない */
+export const TotalMatched = meta.story({
+  args: { amount: 1650, expected: 1650 },
+  render: (args) => (
+    <div style={{ maxWidth: "20rem" }}>
+      <TotalAmount {...args} />
+    </div>
+  ),
+  play: async ({ canvas }) => {
+    await expect(canvas.queryByRole("status")).toBeNull();
+  },
+});
+
 /** 金額の入力欄。数字は右揃えにし、「円」を欄の右端に添える */
 export const AmountInput = meta.story({
   render: () => (

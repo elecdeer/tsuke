@@ -6,7 +6,7 @@ export type ExpectedPayment = Partial<Omit<ExtractedPayment, "items">> & {
 };
 
 /** 比べる項目。confidence と reasoning はモデルの判断なので比べない */
-export const EVAL_FIELDS = ["date", "accountId", "placeName", "items"] as const;
+export const EVAL_FIELDS = ["date", "accountId", "placeName", "total", "items"] as const;
 
 export type FieldDiff = { field: string; expected: unknown; actual: unknown };
 

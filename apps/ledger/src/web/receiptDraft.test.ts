@@ -26,6 +26,7 @@ const extracted: ExtractedPayment = {
   accountId: 4,
   placeName: "ミドリマート",
   items: [milk, { name: "洗剤", amount: 328, memo: "詰め替え", genreId: 21 }],
+  total: 576,
   confidence: "high",
   reasoning: "",
 };

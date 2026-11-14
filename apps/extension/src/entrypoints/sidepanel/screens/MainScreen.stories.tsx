@@ -51,6 +51,7 @@ const mockExtracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
     { name: "食パン 6枚切り 国産小麦", amount: 198, memo: "朝食用", genreId: 1001 },
     { name: "卵 10個入り 特売", amount: 298, memo: null, genreId: 1001 },
   ],
+  total: 746,
   confidence: "high",
   reasoning: "レシートの明細から読み取った",
 };

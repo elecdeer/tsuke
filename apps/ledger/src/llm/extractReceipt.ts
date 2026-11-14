@@ -15,6 +15,7 @@ import {
   formatRecentPlacesForPrompt,
   PLACE_NOTES_RULE,
   TAX_ITEM_RULE,
+  TOTAL_RULE,
   type ExtractPaymentContext,
   type PlaceForPrompt,
 } from "./extractPayment.ts";
@@ -82,6 +83,7 @@ export const buildReceiptPrompt = (input: ExtractReceiptContext): StructuredProm
     `- \`accountId\` must be one of the provided account IDs; otherwise null. Infer it from the payment method printed on the receipt (cash, card brand, e-money, QR payment). ${ACCOUNT_NOTES_RULE}`,
     '- `date`: "YYYY-MM-DD". Convert Japanese era years (令和8年 = 2026) and two-digit years; when the year is missing, use the year of "Today".',
     `- \`placeName\`: use a recent store name as is when it clearly fits, else the store name printed on the receipt (include the branch name). When writing a printed name, put one half-width space between the chain name and the branch name (e.g. \`ローソン 新宿西口店\`); use no space when there is no branch. ${PLACE_NOTES_RULE}`,
+    TOTAL_RULE,
     "- `placePhone`: the store's phone number printed on the receipt (TEL, 電話), as printed; null when there is none. Do not use fax numbers.",
     "- `receiptBox`: the bounding box of the whole paper receipt in the image, including its blank margins; no part of the receipt may be outside it, and when the receipt is tilted the box must contain all four corners. Integers ymin, xmin, ymax, xmax normalized to 0-1000 relative to the image (top-left is 0,0; bottom-right is 1000,1000), regardless of the image's size. null when no receipt is visible.",
     "- `confidence`: high/medium/low based on how legible the receipt is.",

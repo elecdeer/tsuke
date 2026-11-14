@@ -14,6 +14,7 @@ import {
   resolvePlaceAlias,
   runExtractPayment,
   TAX_ITEM_RULE,
+  TOTAL_RULE,
   type ExtractPaymentContext,
   type PlaceForPrompt,
 } from "./extractPayment.ts";
@@ -53,6 +54,7 @@ const extracted = {
   accountId: 1,
   placeName: "スーパーA",
   items: [{ name: "牛乳", amount: 200, memo: null, genreId: 10101 }],
+  total: 200,
   confidence: "high",
   reasoning: "receipt",
 };
@@ -102,6 +104,11 @@ describe("buildPrompt", () => {
   test("値引きは値引きの対象と同じ内訳にするよう指示する", () => {
     const { system } = buildPrompt(baseInput());
     expect(system).toContain("A discount item takes the same `genreId` as the item it discounts.");
+  });
+
+  test("合計を品目から計算せず、表示どおりに読むよう指示する", () => {
+    const { system } = buildPrompt(baseInput());
+    expect(system).toContain(TOTAL_RULE);
   });
 
   test("外税の税は品目に配分せず、税の品目として出すよう指示する", () => {

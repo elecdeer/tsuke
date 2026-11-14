@@ -174,6 +174,8 @@ export default function MainScreen({ serverUrl }: Props) {
   const [autofilled, setAutofilled] = useState(false);
   // 自動入力で読み取ったモデル。登録のときに推測の記録へ残す
   const [readModel, setReadModel] = useState<string | null>(null);
+  // 自動入力で読み取った合計。品目の合計と比べて、読み違いに気づけるようにする
+  const [readTotal, setReadTotal] = useState<number | null>(null);
 
   const extractMutation = useMutation({
     mutationFn: async (quality: "fast" | "accurate") => {
@@ -193,6 +195,7 @@ export default function MainScreen({ serverUrl }: Props) {
     onSuccess: ({ extracted, categories }) => {
       setAutofilled(true);
       setReadModel(extracted.model);
+      setReadTotal(extracted.total);
       if (extracted.date !== null) setDate(extracted.date);
       if (extracted.accountId !== null) setAccountId(extracted.accountId);
       if (extracted.placeName !== null) setPlaceName(extracted.placeName);
@@ -242,6 +245,7 @@ export default function MainScreen({ serverUrl }: Props) {
     onSuccess: () => {
       setAutofilled(false);
       setReadModel(null);
+      setReadTotal(null);
       setItems([newItem()]);
       setDate(localDateString());
       setAccountId(null);
@@ -412,7 +416,7 @@ export default function MainScreen({ serverUrl }: Props) {
         )}
 
         <div className={styles.footerRow}>
-          <TotalAmount amount={total} className={styles.total} />
+          <TotalAmount amount={total} expected={readTotal} className={styles.total} />
           <Button
             type="submit"
             size="lg"

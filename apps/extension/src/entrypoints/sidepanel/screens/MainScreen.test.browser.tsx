@@ -343,6 +343,7 @@ describe("MainScreen", () => {
         { name: "おにぎり", amount: 160, memo: "鮭", genreId: 1001 },
         { name: "電車代", amount: 200, memo: null, genreId: 1003 },
       ],
+      total: 360,
       confidence: "high",
       reasoning: "レシートの明細から読み取った",
     };
@@ -421,6 +422,7 @@ describe("MainScreen", () => {
               genreId: 1001,
             },
           ],
+          total: 100,
           confidence: "high",
           reasoning: "",
         };
@@ -462,6 +464,7 @@ describe("MainScreen", () => {
           accountId: null,
           placeName: null,
           items: [{ name: "前の品名", amount: 100, memo: null, genreId: 1001 }],
+          total: 100,
           confidence: "high",
           reasoning: "",
         };
@@ -484,8 +487,8 @@ describe("MainScreen", () => {
     await expect.element(page.getByRole("button", { name: "もう一度読み取る" })).toBeEnabled();
   });
 
-  /** 指定した店舗名を返す自動入力ハンドラー。品目は 1 件（食料品・250 円） */
-  const extractPaymentHandler = (placeName: string) =>
+  /** 指定した店舗名を返す自動入力ハンドラー。品目は 1 件（食料品・250 円）。合計は品目と合わせて 250 円 */
+  const extractPaymentHandler = (placeName: string, total: number | null = 250) =>
     http.post(mockUrl("/api/transactions/extract"), () => {
       const extracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
         model: "test-model",
@@ -493,11 +496,34 @@ describe("MainScreen", () => {
         accountId: 2,
         placeName,
         items: [{ name: "牛乳", amount: 250, memo: null, genreId: 1001 }],
+        total,
         confidence: "high",
         reasoning: "",
       };
       return HttpResponse.json(extracted);
     });
+
+  test("自動入力で読み取った合計が品目の合計と合わなければ知らせる", async ({ worker }) => {
+    worker.use(...commonHandlers, extractPaymentHandler("スーパーA", 270));
+
+    await render(<Default.Component />);
+
+    await page.getByRole("button", { name: "このページから自動入力" }).click();
+    await expect.element(page.getByText("牛乳")).toBeVisible();
+    await expect
+      .element(page.getByRole("status"))
+      .toHaveTextContent("読み取った合計 270円と合いません");
+  });
+
+  test("自動入力で読み取った合計が品目の合計と合えば何も知らせない", async ({ worker }) => {
+    worker.use(...commonHandlers, extractPaymentHandler("スーパーA"));
+
+    await render(<Default.Component />);
+
+    await page.getByRole("button", { name: "このページから自動入力" }).click();
+    await expect.element(page.getByText("牛乳")).toBeVisible();
+    await expect.element(page.getByText("読み取った合計")).not.toBeInTheDocument();
+  });
 
   test("自動入力の店舗が一覧にあれば選択し、店舗名で登録する", async ({ worker }) => {
     const postHandler = vi.fn<(body: PaymentBody) => void>();

@@ -480,14 +480,19 @@ const ItemFields = ({
 export const ItemsTotal = ({
   items,
   ruled = false,
+  expected = null,
   className,
 }: {
   items: ItemDraft[];
   /** まとまりの始まりとして、上に黒の線を引く */
   ruled?: boolean;
+  /** AI が読み取った合計。品目の合計と合わないあいだ知らせる */
+  expected?: number | null;
   /** 並べる側が、合計の置き場所（余白・幅）を決めるときに使う */
   className?: string;
-}) => <TotalAmount amount={itemsTotal(items)} ruled={ruled} className={className} />;
+}) => (
+  <TotalAmount amount={itemsTotal(items)} ruled={ruled} expected={expected} className={className} />
+);
 
 /**
  * 品目の表。支出では品目を足す・並べ替える・消すこともできる。合計は置き場所が画面ごとに違うので、`ItemsTotal` で別に出す。

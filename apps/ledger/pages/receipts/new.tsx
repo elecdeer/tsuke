@@ -430,7 +430,13 @@ const ReceiptReview = ({
           />
         )}
         {/* 写真と最初に見比べる数字なので、フォームをスクロールしていても見えるようにする */}
-        {ready && <ItemsTotal items={draft.items} className={styles.total} />}
+        {ready && (
+          <ItemsTotal
+            items={draft.items}
+            expected={entry.extracted?.total ?? null}
+            className={styles.total}
+          />
+        )}
         <Button
           type="submit"
           form={ids.form}
