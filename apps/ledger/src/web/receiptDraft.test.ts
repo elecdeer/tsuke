@@ -187,33 +187,51 @@ describe("paymentFromDraft", () => {
 });
 
 describe("duplicateCheckFromDraft", () => {
-  test("内訳と金額がそろった品目だけを、フォームの位置と合わせて集める", () => {
+  test("品目の金額の合計と店舗名を集める", () => {
     expect(
       duplicateCheckFromDraft({
         date: "2026-10-27",
+        placeName: "ミドリマート",
         items: [
           { key: 0, category: "g:1:11", name: "", memo: "", amount: "248" },
-          { key: 1, category: "", name: "", memo: "", amount: "100" },
-          { key: 2, category: "g:2:21", name: "", memo: "", amount: "1,328" },
-          { key: 3, category: "g:2:21", name: "", memo: "", amount: "" },
+          { key: 1, category: "", name: "", memo: "", amount: "1,000" },
+          { key: 2, category: "g:2:21", name: "", memo: "", amount: "-48" },
         ],
       }),
-    ).toEqual({
-      input: {
+    ).toEqual({ date: "2026-10-27", amount: 1200, placeName: "ミドリマート" });
+  });
+
+  test("金額も内訳も空の品目は飛ばす", () => {
+    expect(
+      duplicateCheckFromDraft({
         date: "2026-10-27",
+        placeName: "",
         items: [
-          { genreId: 11, amount: 248 },
-          { genreId: 21, amount: 1328 },
+          { key: 0, category: "g:1:11", name: "", memo: "", amount: "248" },
+          { key: 1, category: "", name: "メモだけ", memo: "", amount: "" },
         ],
-      },
-      indexes: [0, 2],
-    });
+      }),
+    ).toEqual({ date: "2026-10-27", amount: 248, placeName: "" });
+  });
+
+  test("金額が整数になっていない品目があれば null を返す", () => {
+    expect(
+      duplicateCheckFromDraft({
+        date: "2026-10-27",
+        placeName: "",
+        items: [
+          { key: 0, category: "g:1:11", name: "", memo: "", amount: "248" },
+          { key: 1, category: "g:2:21", name: "", memo: "", amount: "" },
+        ],
+      }),
+    ).toBeNull();
   });
 
   test("確かめられる品目がなければ null を返す", () => {
     expect(
       duplicateCheckFromDraft({
         date: "2026-10-27",
+        placeName: "",
         items: [{ key: 0, category: "", name: "", memo: "", amount: "" }],
       }),
     ).toBeNull();

@@ -381,34 +381,65 @@ describe("createPayment", () => {
 });
 
 describe("findDuplicates", () => {
-  test("日付が ±1 日で金額と内訳が一致する支出を、品目ごとに返す", async () => {
+  test("日付が ±1 日で、品目の合計金額が一致する支出を返す", async () => {
+    await createPayment(db, payment({ date: "2026-10-25" }));
     await createPayment(db, payment({ date: "2026-10-26" }));
-    await createPayment(db, payment({ date: "2026-10-28", placeName: null }));
+    await createPayment(
+      db,
+      payment({
+        date: "2026-10-28",
+        items: [
+          { genreId: groceryId, name: null, memo: null, amount: 150 },
+          { genreId: cafeId, name: null, memo: null, amount: 50 },
+        ],
+      }),
+    );
     await createPayment(db, payment({ date: "2026-10-29" }));
     await createPayment(
       db,
       payment({ items: [{ genreId: groceryId, name: null, memo: null, amount: 300 }] }),
     );
-    await createPayment(
-      db,
-      payment({ items: [{ genreId: cafeId, name: null, memo: null, amount: 200 }] }),
-    );
 
     const duplicates = await findDuplicates(db, {
       date: "2026-10-27",
-      items: [
-        { genreId: groceryId, amount: 200 },
-        { genreId: cafeId, amount: 999 },
-      ],
+      amount: 200,
+      placeName: "スーパー",
     });
 
     expect(duplicates).toEqual([
-      [
-        { transactionId: 1, date: "2026-10-26", amount: 200, placeName: "スーパー" },
-        { transactionId: 2, date: "2026-10-28", amount: 200, placeName: null },
-      ],
-      [],
+      { transactionId: 2, date: "2026-10-26", amount: 200, placeName: "スーパー" },
+      { transactionId: 3, date: "2026-10-28", amount: 200, placeName: "スーパー" },
     ]);
+  });
+
+  test("店舗名があれば、同じ店舗の支出と店舗のない支出を返す", async () => {
+    await createPayment(db, payment({ placeName: "スーパー" }));
+    await createPayment(db, payment({ placeName: "コンビニ" }));
+    await createPayment(db, payment({ placeName: null }));
+
+    const duplicates = await findDuplicates(db, {
+      date: "2026-10-27",
+      amount: 200,
+      placeName: "スーパー",
+    });
+
+    expect(duplicates).toEqual([
+      { transactionId: 1, date: "2026-10-27", amount: 200, placeName: "スーパー" },
+      { transactionId: 3, date: "2026-10-27", amount: 200, placeName: null },
+    ]);
+  });
+
+  test("店舗名が空なら店舗では絞らない", async () => {
+    await createPayment(db, payment({ placeName: "スーパー" }));
+    await createPayment(db, payment({ placeName: null }));
+
+    const duplicates = await findDuplicates(db, {
+      date: "2026-10-27",
+      amount: 200,
+      placeName: "",
+    });
+
+    expect(duplicates.map((candidate) => candidate.transactionId)).toEqual([1, 2]);
   });
 
   test("支出以外の取引は候補にしない", async () => {
@@ -424,11 +455,8 @@ describe("findDuplicates", () => {
       groceryId,
     );
 
-    expect(
-      await findDuplicates(db, {
-        date: "2026-10-27",
-        items: [{ genreId: groceryId, amount: 200 }],
-      }),
-    ).toEqual([[]]);
+    expect(await findDuplicates(db, { date: "2026-10-27", amount: 200, placeName: null })).toEqual(
+      [],
+    );
   });
 });

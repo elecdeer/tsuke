@@ -34,10 +34,7 @@ interface Props {
   serverUrl: string;
 }
 
-type DuplicateInfo = LedgerOutput<
-  "/api/transactions/duplicates",
-  "POST"
->["duplicates"][number][number];
+type DuplicateInfo = LedgerOutput<"/api/transactions/duplicates", "POST">["duplicates"][number];
 type DuplicateState = "unchecked" | "checking" | "warned";
 
 const newItem = (category: CategorySelection | null = null): Item => ({
@@ -139,7 +136,7 @@ export default function MainScreen({ serverUrl }: Props) {
   const [accountId, setAccountId] = useState<number | null>(null);
   const [placeName, setPlaceName] = useState<string | null>(null);
   const [duplicateState, setDuplicateState] = useState<DuplicateState>("unchecked");
-  const [duplicatesByItemId, setDuplicatesByItemId] = useState<Record<string, DuplicateInfo[]>>({});
+  const [duplicates, setDuplicates] = useState<DuplicateInfo[]>([]);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editFocus, setEditFocus] = useState<ItemEditField>("name");
   const editingItem = items.find((item) => item.id === editingItemId) ?? null;
@@ -162,13 +159,11 @@ export default function MainScreen({ serverUrl }: Props) {
     setItems((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const itemsSignature = items
-    .map((i) => `${i.id}:${i.amount}:${i.category?.genreId ?? ""}`)
-    .join(",");
+  // 重複の判定に使う日付・合計金額・店舗が変わったら、確かめ直す
   useEffect(() => {
     setDuplicateState("unchecked");
-    setDuplicatesByItemId({});
-  }, [date, itemsSignature]);
+    setDuplicates([]);
+  }, [date, total, placeName]);
 
   // 読み直しに失敗しても前の結果はフォームに残るので、読み直せるようボタンを出し続ける
   const [autofilled, setAutofilled] = useState(false);
@@ -247,7 +242,7 @@ export default function MainScreen({ serverUrl }: Props) {
       setAccountId(null);
       setPlaceName(null);
       setDuplicateState("unchecked");
-      setDuplicatesByItemId({});
+      setDuplicates([]);
       toastManager.add({ description: "登録しました" });
       // 新しい店舗が増えたり並び順が変わったりするので取り直す。失敗しても今の一覧を使い続ける
       placesQuery.refetch(serverUrl).catch(() => {});
@@ -266,23 +261,13 @@ export default function MainScreen({ serverUrl }: Props) {
     setDuplicateState("checking");
 
     try {
-      const checkedItems = items.map((item) => {
-        if (!item.category) throw new Error("カテゴリが選択されていません");
-        return { genreId: item.category.genreId, amount: parseInt(item.amount, 10) };
-      });
-      const { duplicates } = await createServerClient(serverUrl)(
+      const { duplicates: found } = await createServerClient(serverUrl)(
         "/api/transactions/duplicates",
         "POST",
-        { body: { date, items: checkedItems } },
+        { body: { date, amount: total, placeName } },
       );
-
-      // duplicates は送った items と同じ順に並ぶ
-      const map = Object.fromEntries(
-        items.map((item, index) => [item.id, duplicates[index] ?? []]),
-      );
-      setDuplicatesByItemId(map);
-      const hasDup = duplicates.some((candidates) => candidates.length > 0);
-      if (hasDup) {
+      setDuplicates(found);
+      if (found.length > 0) {
         setDuplicateState("warned");
       } else {
         setDuplicateState("unchecked");
@@ -290,7 +275,7 @@ export default function MainScreen({ serverUrl }: Props) {
       }
     } catch {
       setDuplicateState("unchecked");
-      setDuplicatesByItemId({});
+      setDuplicates([]);
     }
   };
 
@@ -388,16 +373,12 @@ export default function MainScreen({ serverUrl }: Props) {
             <div className={styles.duplicatesBody}>
               <p>直近で同額の支払いが登録されている可能性があります：</p>
               <ul className={styles.duplicatesList}>
-                {items.flatMap((item) => {
-                  const dups = duplicatesByItemId[item.id] ?? [];
-                  if (dups.length === 0) return [];
-                  return [
-                    <li key={item.id}>
-                      {item.name || "(品目名なし)"} {formatYen(parseInt(item.amount, 10))}（
-                      {dups[0]?.date} に登録済み）
-                    </li>,
-                  ];
-                })}
+                {duplicates.map((candidate) => (
+                  <li key={candidate.transactionId}>
+                    {candidate.date} {candidate.placeName ?? "店舗なし"}{" "}
+                    {formatYen(candidate.amount)}
+                  </li>
+                ))}
               </ul>
             </div>
           </div>

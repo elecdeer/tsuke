@@ -1,4 +1,4 @@
-import { and, asc, between, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, between, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import * as v from "valibot";
 import {
   accounts,
@@ -186,23 +186,16 @@ export const createPayment = async (
     : { ok: true, id: created.id };
 };
 
-/** 重複チェックの入力 */
+/** 重複チェックの入力。amount は品目の金額の合計 */
 export const DuplicateCheckInputSchema = v.object({
   date: v.pipe(v.string(), v.isoDate()),
-  items: v.pipe(
-    v.array(
-      v.object({
-        genreId: v.pipe(v.number(), v.integer()),
-        amount: v.pipe(v.number(), v.safeInteger()),
-      }),
-    ),
-    v.minLength(1),
-    v.maxLength(100),
-  ),
+  amount: v.pipe(v.number(), v.safeInteger()),
+  placeName: TextSchema,
 });
 
 export type DuplicateCheckInput = v.InferOutput<typeof DuplicateCheckInputSchema>;
 
+/** 重複の候補。amount は取引の品目の金額の合計 */
 export type DuplicateCandidate = {
   transactionId: number;
   date: string;
@@ -220,38 +213,39 @@ const shiftDate = (date: string, days: number): string => {
 };
 
 /**
- * 品目ごとに、すでに登録されている支出から重複の候補を探す。
+ * すでに登録されている支出から、重複の候補を探す。
  *
- * 日付が ±1 日で、金額と内訳が一致する品目を持つ取引を候補にする（Zaim API 経由のときと同じ基準）。
- * 戻り値は入力の items と同じ順に並ぶ。
+ * 日付が ±1 日で、品目の金額の合計が一致する取引を候補にする。品目の内訳や数は見ない
+ * （レシートと明細で品目の分け方が違っても、同じ支払いを見つけられるようにする）。
+ * 店舗名が入力されていれば、同じ店舗の取引に加えて店舗のない取引も候補にする。店舗のない取引は明細の取り込みなどで
+ * 店舗が分からなかっただけかもしれないため。店舗名が空なら店舗では絞らない。
  */
 export const findDuplicates = async (
   db: LedgerDb,
   input: DuplicateCheckInput,
-): Promise<DuplicateCandidate[][]> => {
-  const from = shiftDate(input.date, -1);
-  const to = shiftDate(input.date, 1);
-  return Promise.all(
-    input.items.map((item) =>
-      db
-        .selectDistinct({
-          transactionId: transactions.id,
-          date: transactions.date,
-          amount: transactionItems.amount,
-          placeName: places.name,
-        })
-        .from(transactionItems)
-        .innerJoin(transactions, eq(transactions.id, transactionItems.transactionId))
-        .leftJoin(places, eq(places.id, transactions.placeId))
-        .where(
-          and(
-            eq(transactions.mode, "payment"),
-            eq(transactionItems.genreId, item.genreId),
-            eq(transactionItems.amount, item.amount),
-            between(transactions.date, from, to),
-          ),
-        )
-        .orderBy(asc(transactions.date), asc(transactions.id)),
-    ),
-  );
+): Promise<DuplicateCandidate[]> => {
+  const placeName = blankToNull(input.placeName);
+  const total = sql<number>`SUM(${transactionItems.amount})`.mapWith(Number);
+  return db
+    .select({
+      transactionId: transactions.id,
+      date: transactions.date,
+      amount: total,
+      placeName: places.name,
+    })
+    .from(transactions)
+    .innerJoin(transactionItems, eq(transactionItems.transactionId, transactions.id))
+    .leftJoin(places, eq(places.id, transactions.placeId))
+    .where(
+      and(
+        eq(transactions.mode, "payment"),
+        between(transactions.date, shiftDate(input.date, -1), shiftDate(input.date, 1)),
+        placeName === null
+          ? undefined
+          : or(eq(places.name, placeName), isNull(transactions.placeId)),
+      ),
+    )
+    .groupBy(transactions.id)
+    .having(eq(total, input.amount))
+    .orderBy(asc(transactions.date), asc(transactions.id));
 };

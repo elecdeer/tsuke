@@ -1,7 +1,7 @@
 import type { CategoryWithGenres } from "../ledger/masters.ts";
 import type { DuplicateCheckInput, PaymentInput } from "../ledger/payments.ts";
 import type { ExtractedPayment } from "../llm/extractPayment.ts";
-import { categoryValueOf, parseCategoryValue } from "./categoryValue.ts";
+import { categoryValueOf } from "./categoryValue.ts";
 import { placeDetailFor, type PlaceMasters } from "./placeMatching.ts";
 import { emptyItem, updateFromDraft, type TransactionDraft } from "./transactionDraft.ts";
 
@@ -100,25 +100,22 @@ export const paymentFromDraft = (
 };
 
 /**
- * 重複の確かめに使える品目（内訳と整数の金額がそろったもの）だけを集める。1 つもなければ null を返す。
- *
- * 返す品目の `index` は、フォームの品目の位置。
+ * フォームの値から重複の確かめの入力を作る。日付が空のときや、金額が整数になっていない品目があるときは
+ * 合計が決まらないので null を返す。金額も内訳も空の品目は、まだ書いていない行として飛ばす。
  */
 export const duplicateCheckFromDraft = (
-  draft: Pick<TransactionDraft, "date" | "items">,
-): { input: DuplicateCheckInput; indexes: number[] } | null => {
-  const values = draft.items.flatMap((item, index) => {
-    const { genreId } = parseCategoryValue(item.category);
+  draft: Pick<TransactionDraft, "date" | "placeName" | "items">,
+): DuplicateCheckInput | null => {
+  if (draft.date === "") return null;
+  let amount = 0;
+  let counted = 0;
+  for (const item of draft.items) {
     const amountText = item.amount.replaceAll(",", "").trim();
-    if (genreId === null || !/^-?\d+$/.test(amountText)) return [];
-    return [{ index, genreId, amount: Number(amountText) }];
-  });
-  if (values.length === 0 || draft.date === "") return null;
-  return {
-    input: {
-      date: draft.date,
-      items: values.map(({ genreId, amount }) => ({ genreId, amount })),
-    },
-    indexes: values.map(({ index }) => index),
-  };
+    if (amountText === "" && item.category === "") continue;
+    if (!/^-?\d+$/.test(amountText)) return null;
+    amount += Number(amountText);
+    counted += 1;
+  }
+  if (counted === 0) return null;
+  return { date: draft.date, amount, placeName: draft.placeName };
 };

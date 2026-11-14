@@ -20,9 +20,9 @@ describe("createLedgerClient", () => {
   });
 
   test("body を渡すと JSON として送る", async () => {
-    const fetchMock = createFetchMock(Response.json({ duplicates: [[]] }));
+    const fetchMock = createFetchMock(Response.json({ duplicates: [] }));
     const call = createLedgerClient("https://ledger.example.com", fetchMock);
-    const body = { date: "2026-10-27", items: [{ genreId: 1, amount: 200 }] };
+    const body = { date: "2026-10-27", amount: 200, placeName: "スーパー" };
 
     await call("/api/transactions/duplicates", "POST", { body });
 

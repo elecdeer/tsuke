@@ -31,10 +31,10 @@ const recordPayment = (onBody: (body: PaymentBody) => void) =>
     return HttpResponse.json({ id: 999 });
   });
 
-/** 1 品目目に重複の候補を返す */
+/** 重複の候補を 1 件返す */
 const duplicateHandler = http.post(mockUrl("/api/transactions/duplicates"), () => {
   const response: DuplicatesResponse = {
-    duplicates: [[{ transactionId: 1, date: "2024-01-09", amount: 1000, placeName: "スーパーA" }]],
+    duplicates: [{ transactionId: 1, date: "2024-01-09", amount: 1000, placeName: "スーパーA" }],
   };
   return HttpResponse.json(response);
 });
@@ -298,13 +298,13 @@ describe("MainScreen", () => {
     expect(postHandler).toHaveBeenCalledTimes(1);
   });
 
-  test("重複チェックは品目をまとめて 1 回で問い合わせる", async ({ worker }) => {
+  test("重複チェックは品目の合計金額と店舗で 1 回だけ問い合わせる", async ({ worker }) => {
     const checked = vi.fn<(body: unknown) => void>();
     worker.use(
       ...withoutNoDuplicates,
       http.post(mockUrl("/api/transactions/duplicates"), async ({ request }) => {
         checked(await request.json());
-        const response: DuplicatesResponse = { duplicates: [[], []] };
+        const response: DuplicatesResponse = { duplicates: [] };
         return HttpResponse.json(response);
       }),
       http.post(mockUrl("/api/transactions"), () => HttpResponse.json({ id: 999 })),
@@ -323,10 +323,8 @@ describe("MainScreen", () => {
     expect(checked).toHaveBeenCalledTimes(1);
     expect(checked).toHaveBeenCalledWith({
       date: expect.any(String),
-      items: [
-        { genreId: 1001, amount: 1000 },
-        { genreId: 1001, amount: 500 },
-      ],
+      amount: 1500,
+      placeName: null,
     });
   });
 
