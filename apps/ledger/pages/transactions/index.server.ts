@@ -3,7 +3,7 @@ import * as v from "valibot";
 import { defineHandler, defineHead, type InferProps } from "void";
 import { db } from "void/db";
 import { places } from "@schema";
-import { formatMonth, monthOf, todayInTokyo } from "../../src/ledger/dates.ts";
+import { formatMonth, isYearPeriod, monthOf, todayInTokyo } from "../../src/ledger/dates.ts";
 import { listAccounts, listCategories, listChains, listPlaces } from "../../src/ledger/masters.ts";
 import {
   deleteTransaction,
@@ -17,12 +17,14 @@ import {
   setTransactionFavorite,
 } from "../../src/ledger/transactionTemplates.ts";
 import { listTransactions, type TransactionFilter } from "../../src/ledger/transactions.ts";
-import { OptionalIdSchema, OptionalMonthSchema } from "../../src/web/params.ts";
+import { OptionalIdSchema, OptionalMonthSchema, OptionalYearSchema } from "../../src/web/params.ts";
 
 export type Props = InferProps<typeof loader>;
 
 const TransactionsQuerySchema = v.object({
   month: OptionalMonthSchema,
+  /** 年の一覧にするときの年。month より優先する */
+  year: OptionalYearSchema,
   mode: v.optional(v.picklist(["payment", "income", "transfer", "adjustment"])),
   accountId: OptionalIdSchema,
   categoryId: OptionalIdSchema,
@@ -37,11 +39,14 @@ const TransactionsQuerySchema = v.object({
 type TransactionsQuery = v.InferOutput<typeof TransactionsQuerySchema>;
 
 /**
- * クエリから絞り込みの条件を取り出す。月の指定がなければ今月にする。
+ * クエリから絞り込みの条件を取り出す。期間は年の指定があればその年、なければ月にし、どちらもなければ今月にする。
  */
-const filterOf = ({ selected: _selected, ...query }: TransactionsQuery): TransactionFilter => ({
+const filterOf = (
+  { selected: _selected, month, year, ...query }: TransactionsQuery,
+  currentMonth: string,
+): TransactionFilter => ({
   ...query,
-  month: query.month ?? monthOf(todayInTokyo()),
+  period: year === undefined ? (month ?? currentMonth) : String(year),
 });
 
 /**
@@ -68,7 +73,8 @@ export const loader = defineHandler.withValidator({ query: TransactionsQuerySche
   _c,
   { query },
 ) => {
-  const filter = filterOf(query);
+  const currentMonth = monthOf(todayInTokyo());
+  const filter = filterOf(query, currentMonth);
   const [transactions, accounts, paymentCategories, incomeCategories, place, selected, chainNames] =
     await Promise.all([
       listTransactions(db, filter),
@@ -87,6 +93,7 @@ export const loader = defineHandler.withValidator({ query: TransactionsQuerySche
     ]);
   return {
     filter,
+    currentMonth,
     transactions,
     accounts,
     categories: { payment: paymentCategories, income: incomeCategories },
@@ -97,10 +104,7 @@ export const loader = defineHandler.withValidator({ query: TransactionsQuerySche
 });
 
 export const head = defineHead<Props>((_c, props) => ({
-  title:
-    props.filter.advance === "unreceived"
-      ? "未入金の立替"
-      : `${formatMonth(props.filter.month)}の取引`,
+  title: `${isYearPeriod(props.filter.period) ? `${props.filter.period}年` : formatMonth(props.filter.period)}の取引`,
 }));
 
 const SelectedQuerySchema = v.object({

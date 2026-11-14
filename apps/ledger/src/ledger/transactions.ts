@@ -9,15 +9,16 @@ import {
   transactions,
 } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
-import { monthRange } from "./dates.ts";
+import { periodRange } from "./dates.ts";
 import { hasUnreceivedAdvance, linkedAmountSql } from "./reimbursements.ts";
 
 export type TransactionMode = (typeof transactions.$inferSelect)["mode"];
 export type Aggregation = (typeof transactions.$inferSelect)["aggregation"];
 
-/** 取引の一覧の絞り込み。month 以外は省略できる */
+/** 取引の一覧の絞り込み。period 以外は省略できる */
 export type TransactionFilter = {
-  month: string;
+  /** 一覧にする期間。月（YYYY-MM）か年（YYYY） */
+  period: string;
   mode?: TransactionMode | undefined;
   /** 支払元か入金先のどちらかがこの口座の取引 */
   accountId?: number | undefined;
@@ -28,7 +29,7 @@ export type TransactionFilter = {
   placeId?: number | undefined;
   /** このチェーンの店舗の取引 */
   chain?: string | undefined;
-  /** 立替のある支出（any）か、未入金の残りがある支出（unreceived）。unreceived は月をまたいで全期間から探す */
+  /** 立替のある支出（any）か、未入金の残りがある支出（unreceived） */
   advance?: "any" | "unreceived" | undefined;
 };
 
@@ -66,11 +67,9 @@ const toAccounts = alias(accounts, "to_accounts");
  * カテゴリ・内訳は、一覧に出す品目の結合とは別の副問い合わせで絞る。条件に合わない品目も、取引の品目として一覧に出すため。
  */
 const filterConditions = (db: LedgerDb, filter: TransactionFilter): SQL[] => {
-  const { start, end } = monthRange(filter.month);
-  const conditions: SQL[] =
-    filter.advance === "unreceived"
-      ? [hasUnreceivedAdvance]
-      : [gte(transactions.date, start), lt(transactions.date, end)];
+  const { start, end } = periodRange(filter.period);
+  const conditions: SQL[] = [gte(transactions.date, start), lt(transactions.date, end)];
+  if (filter.advance === "unreceived") conditions.push(hasUnreceivedAdvance);
   if (filter.advance === "any") conditions.push(gt(transactions.advanceAmount, 0));
   if (filter.mode !== undefined) conditions.push(eq(transactions.mode, filter.mode));
   if (filter.accountId !== undefined) {
@@ -111,7 +110,7 @@ const filterConditions = (db: LedgerDb, filter: TransactionFilter): SQL[] => {
 };
 
 /**
- * 絞り込みの条件に合う取引を、日付の新しい順に返す。同じ日は ID の新しい順。未入金の絞り込み以外は 1 か月分を返す。
+ * 絞り込みの条件に合う取引を、日付の新しい順に返す。同じ日は ID の新しい順。期間（月か年）の中の取引だけを返す。
  */
 export const listTransactions = async (
   db: LedgerDb,

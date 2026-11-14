@@ -1,5 +1,5 @@
 /* 月・年の切り替え。今の単位はヘッダーのナビと同じ赤の下線で示す */
-.SummaryViewSwitch {
+.PeriodViewSwitch {
   display: flex;
   gap: 1rem;
   font-size: 0.875rem;

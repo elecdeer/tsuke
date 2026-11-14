@@ -122,7 +122,7 @@ describe("listTransactions", () => {
     });
     insertItem(sqlite, sameDay, { categoryId: m.food, genreId: m.eatingOut, amount: 900 });
 
-    expect(await listTransactions(db, { month: "2026-10" })).toEqual([
+    expect(await listTransactions(db, { period: "2026-10" })).toEqual([
       {
         id: sameDay,
         date: "2026-10-20",
@@ -180,7 +180,7 @@ describe("listTransactions", () => {
       amount: 100,
     });
 
-    expect(await listTransactions(db, { month: "2026-10" })).toEqual([]);
+    expect(await listTransactions(db, { period: "2026-10" })).toEqual([]);
   });
 
   test("種類で絞り込む", async () => {
@@ -191,7 +191,7 @@ describe("listTransactions", () => {
       amount: 100,
     });
 
-    const listed = await listTransactions(db, { month: "2026-10", mode: "payment" });
+    const listed = await listTransactions(db, { period: "2026-10", mode: "payment" });
 
     expect(listed.map((transaction) => transaction.id)).toEqual([payment]);
   });
@@ -208,7 +208,7 @@ describe("listTransactions", () => {
     const other = insertTransaction(sqlite, { date: "2026-10-03", mode: "payment", from: m.bank });
     for (const id of [paid, received, other]) insertItem(sqlite, id, { amount: 100 });
 
-    const listed = await listTransactions(db, { month: "2026-10", accountId: m.wallet });
+    const listed = await listTransactions(db, { period: "2026-10", accountId: m.wallet });
 
     expect(listed.map((transaction) => transaction.id)).toEqual([received, paid]);
   });
@@ -224,7 +224,7 @@ describe("listTransactions", () => {
     const elsewhere = insertTransaction(sqlite, { date: "2026-10-02", mode: "payment" });
     for (const id of [atStore, elsewhere]) insertItem(sqlite, id, { amount: 100 });
 
-    const listed = await listTransactions(db, { month: "2026-10", placeId: m.store });
+    const listed = await listTransactions(db, { period: "2026-10", placeId: m.store });
 
     expect(listed.map((transaction) => transaction.id)).toEqual([atStore]);
   });
@@ -250,7 +250,7 @@ describe("listTransactions", () => {
     });
     for (const id of [...inChain, elsewhere]) insertItem(sqlite, id, { amount: 100 });
 
-    const listed = await listTransactions(db, { month: "2026-10", chain: "ローソン" });
+    const listed = await listTransactions(db, { period: "2026-10", chain: "ローソン" });
 
     expect(listed.map((transaction) => transaction.id).sort((a, b) => a - b)).toEqual(inChain);
   });
@@ -264,7 +264,7 @@ describe("listTransactions", () => {
     const other = insertTransaction(sqlite, { date: "2026-10-02", mode: "payment" });
     insertItem(sqlite, other, { categoryId: m.food, genreId: m.eatingOut, amount: 900 });
 
-    const listed = await listTransactions(db, { month: "2026-10", genreId: m.supplies });
+    const listed = await listTransactions(db, { period: "2026-10", genreId: m.supplies });
 
     expect(listed).toHaveLength(1);
     expect(listed[0]?.id).toBe(mixed);
@@ -282,7 +282,7 @@ describe("listTransactions", () => {
     const daily = insertTransaction(sqlite, { date: "2026-10-03", mode: "payment" });
     insertItem(sqlite, daily, { categoryId: m.daily, genreId: m.supplies, amount: 200 });
 
-    const listed = await listTransactions(db, { month: "2026-10", categoryId: m.food });
+    const listed = await listTransactions(db, { period: "2026-10", categoryId: m.food });
 
     expect(listed.map((transaction) => transaction.id)).toEqual([eatingOut, groceries]);
   });
@@ -318,7 +318,7 @@ describe("listTransactions", () => {
       const { db, sqlite } = createTestLedgerDb();
       const id = insertAdvance(sqlite, "2026-10-01", 2400, 1200);
 
-      const listed = await listTransactions(db, { month: "2026-10" });
+      const listed = await listTransactions(db, { period: "2026-10" });
 
       expect(listed.find((transaction) => transaction.id === id)).toMatchObject({
         advanceAmount: 2400,
@@ -335,21 +335,32 @@ describe("listTransactions", () => {
         amount: 100,
       });
 
-      const listed = await listTransactions(db, { month: "2026-10", advance: "any" });
+      const listed = await listTransactions(db, { period: "2026-10", advance: "any" });
 
       expect(listed.map((transaction) => transaction.id)).toEqual([settled]);
     });
 
-    test("未入金の絞り込みは、月をまたいで未入金の残りがある取引だけを返す", async () => {
+    test("未入金の絞り込みは、その期間の未入金の残りがある取引だけを返す", async () => {
       const { db, sqlite } = createTestLedgerDb();
-      const provisional = insertAdvance(sqlite, "2026-08-01", 1000);
+      insertAdvance(sqlite, "2026-08-01", 1000);
       const partial = insertAdvance(sqlite, "2026-10-01", 2400, 1200);
       insertAdvance(sqlite, "2026-10-02", 1000, 1000);
       insertItem(sqlite, insertTransaction(sqlite, { date: "2026-10-03", mode: "payment" }), {
         amount: 100,
       });
 
-      const listed = await listTransactions(db, { month: "2026-11", advance: "unreceived" });
+      const listed = await listTransactions(db, { period: "2026-10", advance: "unreceived" });
+
+      expect(listed.map((transaction) => transaction.id)).toEqual([partial]);
+    });
+
+    test("年の未入金の絞り込みは、その年の月をまたいで未入金の残りがある取引を返す", async () => {
+      const { db, sqlite } = createTestLedgerDb();
+      insertAdvance(sqlite, "2025-12-31", 1000);
+      const provisional = insertAdvance(sqlite, "2026-08-01", 1000);
+      const partial = insertAdvance(sqlite, "2026-10-01", 2400, 1200);
+
+      const listed = await listTransactions(db, { period: "2026", advance: "unreceived" });
 
       expect(listed.map((transaction) => transaction.id)).toEqual([partial, provisional]);
     });

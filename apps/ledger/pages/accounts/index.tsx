@@ -21,7 +21,7 @@ type Balance = Props["balances"][number];
 const BalanceRow = ({ balance, date }: { balance: Balance; date: string }) => (
   <li className={styles.row}>
     <Link
-      href={transactionsHref({ month: monthOf(date), accountId: balance.id })}
+      href={transactionsHref({ period: monthOf(date), accountId: balance.id })}
       className={styles.rowLink}
     >
       <span className={styles.name}>{balance.name}</span>
