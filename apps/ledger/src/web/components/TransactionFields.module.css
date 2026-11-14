@@ -170,3 +170,57 @@
   display: flex;
   color: var(--muted-foreground);
 }
+
+/* 品目の内訳をまとめて変える操作の帯。狭いところでは折り返す */
+.BulkBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+
+  &[data-selecting] {
+    justify-content: flex-start;
+  }
+
+  > .selectAll {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  > .count {
+    color: var(--muted-foreground);
+  }
+
+  > .category {
+    min-width: 10rem;
+  }
+
+  > .actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-left: auto;
+  }
+}
+
+/* まとめて変えるとき、行の頭に選ぶ印を足す。見出しの行も印の幅だけずらして列をそろえる */
+.SelectableRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: 0.75rem;
+  align-items: center;
+
+  &[data-selecting] {
+    grid-template-columns: 1rem minmax(0, 1fr);
+  }
+}
+
+.SelectCheckbox {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--foreground);
+}
