@@ -47,6 +47,7 @@ import {
 } from "@tsuke/ui/components/dropdown-menu";
 import { Input } from "@tsuke/ui/components/input";
 import { AmountInput } from "@tsuke/ui/patterns/AmountInput";
+import { DateInput } from "@tsuke/ui/patterns/DateInput";
 import {
   Select,
   SelectContent,
@@ -739,12 +740,11 @@ export const TransactionDraftFields = ({
       <Section label={heading}>
         <div className={styles.Fields}>
           <FormField label="日付" htmlFor={ids.date}>
-            <Input
+            <DateInput
               id={ids.date}
-              type="date"
               required
               value={draft.date}
-              onChange={(event) => update({ date: event.target.value })}
+              onChange={(date) => update({ date })}
             />
           </FormField>
           <FormField label="集計の設定" htmlFor={ids.aggregation}>

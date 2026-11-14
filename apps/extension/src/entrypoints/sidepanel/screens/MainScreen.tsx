@@ -5,8 +5,9 @@ import { Button } from "@tsuke/ui/components/button";
 import { SelectTriggerText, selectTriggerStyleProps } from "@tsuke/ui/components/select";
 import { AccountCombobox } from "../../../components/AccountCombobox.tsx";
 import { CategoryCombobox, type CategorySelection } from "../../../components/CategoryCombobox.tsx";
-import { DateField } from "../../../components/DateField.tsx";
+import { DateInput } from "@tsuke/ui/patterns/DateInput";
 import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
+import { FormField } from "@tsuke/ui/patterns/FormField";
 import { TotalAmount } from "@tsuke/ui/patterns/TotalAmount";
 import { YenUnit } from "@tsuke/ui/patterns/YenUnit";
 import { ItemEditDialog, type ItemEditField } from "../../../components/ItemEditDialog.tsx";
@@ -134,6 +135,7 @@ const ItemRow = ({ item, serverUrl, onEdit, onCategoryChange, onRemove }: ItemRo
 export default function MainScreen({ serverUrl }: Props) {
   const toastManager = useToastManager();
   const itemsHeadingId = useId();
+  const dateId = useId();
   const [items, setItems] = useState<Item[]>([newItem()]);
   const [date, setDate] = useState(localDateString);
   const [accountId, setAccountId] = useState<number | null>(null);
@@ -351,7 +353,9 @@ export default function MainScreen({ serverUrl }: Props) {
       </div>
 
       <div className={styles.Fields}>
-        <DateField value={date} onChange={setDate} required />
+        <FormField label="日付" htmlFor={dateId}>
+          <DateInput id={dateId} value={date} onChange={setDate} required />
+        </FormField>
         <AccountCombobox serverUrl={serverUrl} value={accountId} onChange={setAccountId} />
         <StoreCombobox serverUrl={serverUrl} value={placeName} onChange={setPlaceName} />
       </div>

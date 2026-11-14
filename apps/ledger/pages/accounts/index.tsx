@@ -1,8 +1,8 @@
 import { Link, useRouter } from "@void/react";
 import { ChevronRight } from "lucide-react";
-import { useId } from "react";
-import { Input } from "@tsuke/ui/components/input";
+import { useId, useState } from "react";
 import { isDate, monthOf } from "@/ledger/dates";
+import { DateInput } from "@tsuke/ui/patterns/DateInput";
 import { FormField } from "@tsuke/ui/patterns/FormField";
 import { PageTitle } from "@tsuke/ui/patterns/PageTitle";
 import { Section } from "@tsuke/ui/patterns/Section";
@@ -48,6 +48,9 @@ const BalanceList = ({ balances, date }: { balances: Balance[]; date: string }) 
 const AccountsPage = ({ date, today, balances }: Props) => {
   const router = useRouter();
   const dateId = useId();
+  // 文字で打ちかけの値は画面に持ち、正しい日付になったときだけ移る。移った先の日付が来たら打ちかけを捨てる
+  const [typedDate, setTypedDate] = useState({ shownFor: date, value: date });
+  if (typedDate.shownFor !== date) setTypedDate({ shownFor: date, value: date });
   const active = balances.filter((balance) => !balance.dormant);
   const dormant = balances.filter((balance) => balance.dormant);
   const total = balances.reduce((sum, balance) => sum + balance.balance, 0);
@@ -58,14 +61,16 @@ const AccountsPage = ({ date, today, balances }: Props) => {
         <div className={styles.titleColumn}>
           <PageTitle>口座の残高</PageTitle>
           <FormField label="日付" htmlFor={dateId} className={styles.dateField}>
-            <Input
+            <DateInput
               id={dateId}
-              type="date"
-              value={date}
+              value={typedDate.value}
               max={today}
-              onChange={(event) => {
-                const next = event.target.value;
-                if (isDate(next)) void router.visit(`/accounts?date=${next}`, { replace: true });
+              onChange={(next) => {
+                setTypedDate({ shownFor: date, value: next });
+                // 文字で打つと max を超えられるので、未来の日には移らない
+                if (isDate(next) && next <= today && next !== date) {
+                  void router.visit(`/accounts?date=${next}`, { replace: true });
+                }
               }}
             />
           </FormField>
