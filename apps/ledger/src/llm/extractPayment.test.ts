@@ -11,6 +11,7 @@ import {
   buildPrompt,
   formatAccountsForPrompt,
   formatRecentPlacesForPrompt,
+  PAYMENT_METHOD_RULE,
   resolvePlaceAlias,
   runExtractPayment,
   TAX_ITEM_RULE,
@@ -51,7 +52,9 @@ const baseInput = (overrides: Partial<ExtractPaymentContext> = {}): ExtractPayme
 
 const extracted = {
   date: "2026-06-01",
+  paymentMethod: "現金",
   accountId: 1,
+  accountMatch: "explicit",
   placeName: "スーパーA",
   items: [{ name: "牛乳", amount: 200, memo: null, genreId: 10101 }],
   total: 200,
@@ -115,6 +118,11 @@ describe("buildPrompt", () => {
     const { system } = buildPrompt(baseInput());
     expect(system).toContain(TAX_ITEM_RULE);
   });
+
+  test("支払い方法の表記と、口座を表記から決めきれたかを答えるよう指示する", () => {
+    const { system } = buildPrompt(baseInput());
+    expect(system).toContain(PAYMENT_METHOD_RULE);
+  });
 });
 
 describe("runExtractPayment", () => {
@@ -148,6 +156,16 @@ describe("runExtractPayment", () => {
     await runExtractPayment({ ai, model: "test-model", input: baseInput() });
 
     expect(calls[0]?.reasoningEffort).toBeUndefined();
+  });
+
+  test("口座の決め方が explicit / inferred / null 以外ならエラーにする", async () => {
+    const { ai } = createFakeModelProvider(() =>
+      JSON.stringify({ ...extracted, accountMatch: "guess" }),
+    );
+
+    await expect(
+      runExtractPayment({ ai, model: "test-model", input: baseInput() }),
+    ).rejects.toThrow();
   });
 
   test("スキーマに合わない出力ならエラーにする", async () => {

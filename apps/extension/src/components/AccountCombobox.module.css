@@ -1,0 +1,16 @@
+/* AI が推測で選んだ口座の知らせ。欄のすぐ下に小さく出す */
+.Note {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+
+  > .icon {
+    flex-shrink: 0;
+    width: 0.875rem;
+    height: 0.875rem;
+    margin-top: 1px;
+  }
+}

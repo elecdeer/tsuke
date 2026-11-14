@@ -4,7 +4,12 @@
 import * as v from "valibot";
 import { describe, expect, test } from "vite-plus/test";
 import { createFakeModelProvider } from "./fakeModelProvider.ts";
-import { ACCOUNT_NOTES_RULE, TAX_ITEM_RULE, TOTAL_RULE } from "./extractPayment.ts";
+import {
+  ACCOUNT_NOTES_RULE,
+  PAYMENT_METHOD_RULE,
+  TAX_ITEM_RULE,
+  TOTAL_RULE,
+} from "./extractPayment.ts";
 import {
   buildReceiptPrompt,
   ReceiptImageSchema,
@@ -29,7 +34,9 @@ const baseInput = (overrides: Partial<ExtractReceiptContext> = {}): ExtractRecei
 
 const extracted = {
   date: "2026-10-27",
+  paymentMethod: "クレジット",
   accountId: 2,
+  accountMatch: "inferred",
   placeName: "スーパーA",
   placePhone: null,
   receiptBox: { ymin: 100, xmin: 200, ymax: 900, xmax: 700 },
@@ -96,6 +103,11 @@ describe("buildReceiptPrompt", () => {
     const { system } = buildReceiptPrompt(baseInput());
     expect(system).toContain(TAX_ITEM_RULE);
     expect(system).not.toContain("add the tax so the items sum");
+  });
+
+  test("支払い方法の表記と、口座を表記から決めきれたかを答えるよう指示する", () => {
+    const { system } = buildReceiptPrompt(baseInput());
+    expect(system).toContain(PAYMENT_METHOD_RULE);
   });
 
   test("読み取った店舗名はチェーン名と支店名を空白で区切るよう指示する", () => {

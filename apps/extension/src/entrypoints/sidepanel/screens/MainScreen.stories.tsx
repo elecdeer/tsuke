@@ -44,7 +44,9 @@ export default meta;
 const mockExtracted: LedgerOutput<"/api/transactions/extract", "POST"> = {
   model: "test-model",
   date: "2026-06-13",
+  paymentMethod: "VISA ****1234",
   accountId: 2,
+  accountMatch: "explicit",
   placeName: "スーパーA",
   items: [
     { name: "牛乳 1L パック", amount: 250, memo: null, genreId: 1001 },
