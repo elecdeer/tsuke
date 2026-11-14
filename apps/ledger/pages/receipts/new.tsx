@@ -21,13 +21,13 @@ import {
 import { Button, buttonStyleProps } from "@tsuke/ui/components/button";
 import { visuallyHiddenClassName } from "@tsuke/ui/lib/a11y";
 import { PageTitle } from "@tsuke/ui/patterns/PageTitle";
-import { Input } from "@tsuke/ui/components/input";
 import { createLedgerClient, LedgerFetchError } from "@/client";
 import type { DuplicateCandidate } from "@/ledger/payments";
 import type { ExtractedPayment } from "@/llm/extractPayment";
 import { ErrorMessage } from "@tsuke/ui/patterns/ErrorMessage";
 import { ReceiptPhoto, ReceiptPhotoThumbnail } from "@/web/components/ReceiptPhoto";
 import { Section } from "@tsuke/ui/patterns/Section";
+import { DateInput } from "@tsuke/ui/patterns/DateInput";
 import { FormField } from "@tsuke/ui/patterns/FormField";
 import {
   AccountSelect,
@@ -504,12 +504,11 @@ const ReceiptReview = ({
             {ready && (
               <div className={styles.fields}>
                 <FormField label="日付" htmlFor={ids.date}>
-                  <Input
+                  <DateInput
                     id={ids.date}
-                    type="date"
                     required
                     value={draft.date}
-                    onChange={(event) => update({ date: event.target.value })}
+                    onChange={(date) => update({ date })}
                   />
                 </FormField>
                 <FormField label="支払元" htmlFor={ids.account}>

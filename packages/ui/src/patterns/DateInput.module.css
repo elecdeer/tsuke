@@ -1,0 +1,21 @@
+@layer ui {
+  /* 日付の欄。カレンダーを開くボタンは、金額の欄の「円」と同じく下線の内側の右端に重ねる */
+  .DateInput {
+    position: relative;
+    min-width: 0;
+
+    > .input {
+      padding-right: 2rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* 下線（1px）より上の高さの中で上下の中央に置き、押したときの背景が下線に被らないようにする */
+    > .trigger {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 1px;
+      margin-block: auto;
+    }
+  }
+}

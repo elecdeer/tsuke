@@ -1,3 +1,5 @@
+// 日付の欄は Temporal を使う。iOS の Safari や Workers（サーバーでの描画）にはまだないので、ないときだけ入れる
+import "temporal-polyfill-lite/global";
 import "../src/styles.css";
 import { Link, useNavigation, useRouter } from "@void/react";
 import { Camera, ChartPie, List, type LucideIcon, Settings, Wallet } from "lucide-react";

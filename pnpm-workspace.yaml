@@ -35,6 +35,7 @@ catalog:
   eslint-plugin-css-cev: ^0.1.1
   eslint-plugin-css-properties-order: ^0.0.1
   jiti: ^2.7.0
+  temporal-polyfill-lite: ^1.0.1
 
 catalogMode: prefer
 overrides:
