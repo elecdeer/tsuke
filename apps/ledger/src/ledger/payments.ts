@@ -9,7 +9,7 @@ import {
   transactionItems,
   transactions,
 } from "../../db/schema.ts";
-import type { LedgerDb } from "../db.ts";
+import { chunkInsertRows, type LedgerDb } from "../db.ts";
 import { PlaceDetailSchema, placeDetailColumns } from "./placeDetail.ts";
 import { PlacePhoneSchema } from "./placePhone.ts";
 import { rememberPlacePhone, upsertPlaceByName } from "./places.ts";
@@ -143,33 +143,29 @@ export const createPayment = async (
       receiptImageKey,
     })
     .returning({ id: transactions.id });
-  const insertItems = db.insert(transactionItems).values(
-    input.items.map((item, index) => ({
-      transactionId: sql`(SELECT MAX(${transactions.id}) FROM ${transactions})`,
-      categoryId: categoryIdByGenre.get(item.genreId) ?? null,
-      genreId: item.genreId,
-      name: blankToNull(item.name),
-      memo: blankToNull(item.memo),
-      amount: item.amount,
-      sort: index,
-    })),
+  const itemRows = input.items.map((item, index) => ({
+    transactionId: sql`(SELECT MAX(${transactions.id}) FROM ${transactions})`,
+    categoryId: categoryIdByGenre.get(item.genreId) ?? null,
+    genreId: item.genreId,
+    name: blankToNull(item.name),
+    memo: blankToNull(item.memo),
+    amount: item.amount,
+    sort: index,
+  }));
+  const insertItems = chunkInsertRows(transactionItems, itemRows).map((rows) =>
+    db.insert(transactionItems).values(rows),
   );
 
-  const inferenceRows = genreInferenceRows(input, placeName);
-  const insertInferences =
-    inferenceRows.length === 0
-      ? []
-      : [
-          db.insert(genreInferences).values(
-            inferenceRows.map((row) => ({
-              ...row,
-              transactionId: sql`(SELECT MAX(${transactions.id}) FROM ${transactions})`,
-            })),
-          ),
-        ];
+  const inferenceRows = genreInferenceRows(input, placeName).map((row) => ({
+    ...row,
+    transactionId: sql`(SELECT MAX(${transactions.id}) FROM ${transactions})`,
+  }));
+  const insertInferences = chunkInsertRows(genreInferences, inferenceRows).map((rows) =>
+    db.insert(genreInferences).values(rows),
+  );
 
   if (placeName === null) {
-    const [[created]] = await db.batch([insertTransaction, insertItems, ...insertInferences]);
+    const [[created]] = await db.batch([insertTransaction, ...insertItems, ...insertInferences]);
     return created === undefined
       ? { ok: false, error: "取引を作れませんでした" }
       : { ok: true, id: created.id };
@@ -178,7 +174,7 @@ export const createPayment = async (
     upsertPlaceByName(db, placeName, input.placeDetail),
     rememberPlacePhone(db, placeName, input.placePhone ?? null),
     insertTransaction,
-    insertItems,
+    ...insertItems,
     ...insertInferences,
   ]);
   return created === undefined

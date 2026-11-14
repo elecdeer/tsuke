@@ -167,7 +167,33 @@ describe("TransactionCreateSchema", () => {
   });
 });
 
+/** D1 の 1 文の変数の上限（100）を超える数の品目 */
+const manyItems = (genreId: number): TransactionUpdate["items"] =>
+  Array.from({ length: 40 }, (_, index) => ({
+    categoryId: null,
+    genreId,
+    name: `品目${index}`,
+    memo: null,
+    amount: index + 1,
+  }));
+
 describe("createTransaction", () => {
+  test("D1 の 1 文の変数の上限を超える数の品目でも、すべての品目を登録する", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+
+    const result = await createTransaction(db, {
+      ...paymentUpdate(m, { items: manyItems(m.groceries) }),
+      mode: "payment",
+    });
+
+    if (!result.ok) throw new Error(result.error);
+    const transaction = await getTransaction(db, result.id);
+    expect(transaction?.items.map((item) => item.name)).toEqual(
+      manyItems(m.groceries).map((item) => item.name),
+    );
+  });
+
   test("支出を手入力の取引として登録し、内訳から親のカテゴリを決め、品目を入力の順に並べる", async () => {
     const { db, sqlite } = createTestLedgerDb();
     const m = seedMasters(sqlite);
@@ -429,6 +455,24 @@ describe("createTransaction", () => {
 });
 
 describe("updateTransaction", () => {
+  test("D1 の 1 文の変数の上限を超える数の品目でも、すべての品目を入れ直す", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+    const id = insertPayment(sqlite, m, "manual");
+
+    const result = await updateTransaction(
+      db,
+      id,
+      paymentUpdate(m, { items: manyItems(m.groceries) }),
+    );
+
+    expect(result).toEqual({ ok: true });
+    const transaction = await getTransaction(db, id);
+    expect(transaction?.items.map((item) => item.name)).toEqual(
+      manyItems(m.groceries).map((item) => item.name),
+    );
+  });
+
   test("取引の項目を書き換え、品目を入れ直す。空白だけの店舗名・品目名は空にする", async () => {
     const { db, sqlite } = createTestLedgerDb();
     const m = seedMasters(sqlite);
