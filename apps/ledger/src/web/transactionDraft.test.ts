@@ -10,6 +10,7 @@ import {
   isDraftEdited,
   itemsTotal,
   itemsTotalOf,
+  missingFromAccountError,
   moveItem,
   toggleAdvanceTarget,
   toSingleLine,
@@ -295,6 +296,16 @@ describe("draftForMode", () => {
       "1200",
       "800",
     ]);
+  });
+});
+
+describe("missingFromAccountError", () => {
+  test("支払元を選んでいれば理由を返さない", () => {
+    expect(missingFromAccountError({ fromAccountId: "4" })).toBeNull();
+  });
+
+  test("支払元を選んでいなければ理由を返す", () => {
+    expect(missingFromAccountError({ fromAccountId: "" })).toBe("支払元を選んでください");
   });
 });
 

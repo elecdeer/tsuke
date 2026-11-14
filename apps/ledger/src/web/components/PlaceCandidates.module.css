@@ -37,9 +37,22 @@
   border-top-width: 1px;
 
   > .hint {
+    display: flex;
+    gap: 0.25rem;
     font-size: 0.75rem;
     line-height: 1rem;
     color: var(--muted-foreground);
+
+    &[data-warn] {
+      color: var(--destructive);
+    }
+
+    > .hintIcon {
+      flex-shrink: 0;
+      width: 0.875rem;
+      height: 0.875rem;
+      margin-top: 1px;
+    }
   }
 
   > .group {

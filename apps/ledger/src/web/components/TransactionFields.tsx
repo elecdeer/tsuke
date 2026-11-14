@@ -83,12 +83,15 @@ export const AccountSelect = ({
   value,
   accounts,
   allowEmpty,
+  invalid = false,
   onChange,
 }: {
   id: string;
   value: string;
   accounts: AccountOption[];
   allowEmpty: boolean;
+  /** 選ばれていないなどで、欄を赤くして直してほしいことを示す */
+  invalid?: boolean;
   onChange: (value: string) => void;
 }) => {
   const unknown = value !== "" && !accounts.some((account) => String(account.id) === value);
@@ -99,7 +102,7 @@ export const AccountSelect = ({
   };
   return (
     <Select items={items} value={value} onValueChange={(next) => onChange(next ?? "")}>
-      <SelectTrigger id={id} width="full">
+      <SelectTrigger id={id} width="full" aria-invalid={invalid || undefined}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -128,6 +131,7 @@ export const PlaceInput = ({
   detail,
   placeNames,
   chainNames,
+  warnNewPlace = false,
   onChange,
 }: {
   id: string;
@@ -135,6 +139,8 @@ export const PlaceInput = ({
   detail: PlaceDetail | null;
   placeNames: string[];
   chainNames: string[];
+  /** 新しい店舗になることを、案内ではなく警告として目立たせる */
+  warnNewPlace?: boolean;
   onChange: (value: string, detail: PlaceDetail | null) => void;
 }) => {
   // 欄に出す文字。打ち込んだだけでは店舗を変えず、候補を選んだときに変える
@@ -207,7 +213,13 @@ export const PlaceInput = ({
         </ComboboxContent>
       </Combobox>
       {detail !== null && (
-        <PlaceCandidates name={value} detail={detail} masters={masters} onChange={onChange} />
+        <PlaceCandidates
+          name={value}
+          detail={detail}
+          masters={masters}
+          warn={warnNewPlace}
+          onChange={onChange}
+        />
       )}
     </div>
   );
@@ -622,11 +634,15 @@ const AccountFields = ({
   mode,
   draft,
   accounts,
+  requireFromAccount,
+  showInvalid,
   update,
 }: {
   mode: TransactionMode;
   draft: TransactionDraft;
   accounts: AccountOption[];
+  requireFromAccount: boolean;
+  showInvalid: boolean;
   update: (patch: Partial<TransactionDraft>) => void;
 }) => {
   const fromId = useId();
@@ -644,7 +660,8 @@ const AccountFields = ({
             id={fromId}
             value={draft.fromAccountId}
             accounts={accounts}
-            allowEmpty={mode === "payment"}
+            allowEmpty={mode === "payment" && !requireFromAccount}
+            invalid={requireFromAccount && showInvalid && draft.fromAccountId === ""}
             onChange={(value) => update({ fromAccountId: value })}
           />
         </FormField>
@@ -675,6 +692,8 @@ export const TransactionDraftFields = ({
   categories,
   placeNames,
   chainNames,
+  requireFromAccount = false,
+  showInvalid = false,
   update,
   onItemsChange,
 }: {
@@ -685,6 +704,13 @@ export const TransactionDraftFields = ({
   categories: { payment: CategoryWithGenres[]; income: CategoryWithGenres[] };
   placeNames: string[];
   chainNames: string[];
+  /**
+   * 支出の支払元を必ず選ばせる。新しく登録する画面で使う。
+   * 編集では、支払元のない取り込んだ支出も保存し直せるよう、空のままにできる
+   */
+  requireFromAccount?: boolean;
+  /** 登録を試みた後など、入力が足りない欄を赤くする */
+  showInvalid?: boolean;
   update: (patch: Partial<TransactionDraft>) => void;
   onItemsChange: (items: ItemDraft[]) => void;
 }) => {
@@ -727,7 +753,14 @@ export const TransactionDraftFields = ({
               </SelectContent>
             </Select>
           </FormField>
-          <AccountFields mode={mode} draft={draft} accounts={accounts} update={update} />
+          <AccountFields
+            mode={mode}
+            draft={draft}
+            accounts={accounts}
+            requireFromAccount={requireFromAccount}
+            showInvalid={showInvalid}
+            update={update}
+          />
           {(mode === "payment" || mode === "income") && (
             <FormField label={mode === "payment" ? "店舗" : "取引先"} htmlFor={ids.place}>
               <PlaceInput

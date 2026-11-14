@@ -164,9 +164,11 @@ describe("paymentFromDraft", () => {
     ]);
   });
 
-  test("口座が空なら null にする", () => {
-    const result = paymentFromDraft({ ...draft, fromAccountId: "" });
-    expect(result.ok && result.input.fromAccountId).toBeNull();
+  test("支払元を選んでいなければ理由を返す", () => {
+    expect(paymentFromDraft({ ...draft, fromAccountId: "" })).toEqual({
+      ok: false,
+      error: "支払元を選んでください",
+    });
   });
 
   test("内訳を選んでいない品目があれば理由を返す", () => {

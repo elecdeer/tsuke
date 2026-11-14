@@ -3,7 +3,7 @@
  *
  * 候補は押されるまで反映しない。押さなければ、入れた名前のまま新しい店舗になる。
  */
-import { LoaderCircle, MapPin, X } from "lucide-react";
+import { LoaderCircle, MapPin, TriangleAlert, X } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { Button } from "@tsuke/ui/components/button";
 import { Input } from "@tsuke/ui/components/input";
@@ -63,11 +63,14 @@ export const PlaceCandidates = ({
   name,
   detail,
   masters,
+  warn = false,
   onChange,
 }: {
   name: string;
   detail: PlaceDetail;
   masters: PlaceMasters;
+  /** 新しい店舗になることを警告として出す。色だけに頼らず、アイコンも付ける */
+  warn?: boolean;
   onChange: (name: string, detail: PlaceDetail | null) => void;
 }) => {
   const chainId = useId();
@@ -78,7 +81,10 @@ export const PlaceCandidates = ({
 
   return (
     <div className={styles.PlaceCandidates}>
-      <p className={styles.hint}>新しい店舗として登録します。同じ店舗があれば選んでください</p>
+      <p className={styles.hint} data-warn={warn || undefined}>
+        {warn && <TriangleAlert className={styles.hintIcon} aria-hidden="true" />}
+        新しい店舗として登録します。同じ店舗があれば選んでください
+      </p>
 
       {similar.length > 0 && (
         <section aria-label="登録済みの似た店舗" className={styles.group}>
