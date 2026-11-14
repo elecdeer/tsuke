@@ -241,6 +241,15 @@ export const allocateReimbursements = (
 };
 
 /**
+ * 支出の支払元を選んでいなければ理由を返す。
+ *
+ * 台帳は支払元のない支出も持てる（Zaim から取り込んだものなど）ので、保存の入力の検証ではなく、新しく登録する画面で確かめる。
+ */
+export const missingFromAccountError = (
+  draft: Pick<TransactionDraft, "fromAccountId">,
+): string | null => (draft.fromAccountId === "" ? "支払元を選んでください" : null);
+
+/**
  * 入力中の値を保存の入力にする。金額が整数でない品目があれば理由を返す。
  *
  * 金額の 3 桁区切りのカンマと前後の空白は取り除く。立替の入力を持たないフォームでは、立替の項目を入れない。

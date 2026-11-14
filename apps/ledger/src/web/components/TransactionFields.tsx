@@ -1,7 +1,15 @@
 /**
  * 取引の入力欄の部品。取引の編集・手入力の登録・レシートの登録の画面で共有する。
  */
-import { ArrowDown, ArrowUp, Ellipsis, MessageSquarePlus, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Ellipsis,
+  MessageSquarePlus,
+  MessageSquareText,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react";
 import {
   useId,
@@ -83,12 +91,15 @@ export const AccountSelect = ({
   value,
   accounts,
   allowEmpty,
+  invalid = false,
   onChange,
 }: {
   id: string;
   value: string;
   accounts: AccountOption[];
   allowEmpty: boolean;
+  /** 選ばれていないなどで、欄を赤くして直してほしいことを示す */
+  invalid?: boolean;
   onChange: (value: string) => void;
 }) => {
   const unknown = value !== "" && !accounts.some((account) => String(account.id) === value);
@@ -99,7 +110,7 @@ export const AccountSelect = ({
   };
   return (
     <Select items={items} value={value} onValueChange={(next) => onChange(next ?? "")}>
-      <SelectTrigger id={id} width="full">
+      <SelectTrigger id={id} width="full" aria-invalid={invalid || undefined}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -119,8 +130,8 @@ export const AccountSelect = ({
  * 店舗（取引先）の入力欄。欄にそのまま打ち込み、過去の店舗から選ぶか、一覧にない名前を追加する。
  * 地図から近くの店舗を選んで、その名前を入れることもできる。
  *
- * 押すと検索の欄を別に開く形は、打ち始めるまでに 2 回押す必要があり、影と角丸の箱がほかの欄（下線だけ）から浮くので、
- * 店舗の欄そのものを入力にし、候補は欄の下に罫線で区切って並べる。
+ * 押すと検索の欄を別に開く形は、打ち始めるまでに 2 回押す必要があるので、店舗の欄そのものを入力にし、
+ * 候補はほかの選択欄と同じ浮く面に並べる。
  */
 export const PlaceInput = ({
   id,
@@ -128,6 +139,7 @@ export const PlaceInput = ({
   detail,
   placeNames,
   chainNames,
+  warnNewPlace = false,
   onChange,
 }: {
   id: string;
@@ -135,6 +147,8 @@ export const PlaceInput = ({
   detail: PlaceDetail | null;
   placeNames: string[];
   chainNames: string[];
+  /** 新しい店舗になることを、案内ではなく警告として目立たせる */
+  warnNewPlace?: boolean;
   onChange: (value: string, detail: PlaceDetail | null) => void;
 }) => {
   // 欄に出す文字。打ち込んだだけでは店舗を変えず、候補を選んだときに変える
@@ -186,9 +200,9 @@ export const PlaceInput = ({
           />
         </ComboboxField>
         <ComboboxContent
-          // 欄の右のボタンまで含めた幅で、欄のすぐ下に出す。箱ではなく欄の続きに見せる（packages/ui/docs/design.md）
+          // 欄の右のボタンまで含めた幅で出す。見た目はほかの選択欄の一覧と揃えて浮く面にする。
+          // 欄の続きに見せる inline は、この欄の一覧だけが違う見た目になるのでやめた
           anchor={anchor}
-          variant="inline"
         >
           <ComboboxEmpty>過去の店舗はありません</ComboboxEmpty>
           <ComboboxList>
@@ -207,7 +221,13 @@ export const PlaceInput = ({
         </ComboboxContent>
       </Combobox>
       {detail !== null && (
-        <PlaceCandidates name={value} detail={detail} masters={masters} onChange={onChange} />
+        <PlaceCandidates
+          name={value}
+          detail={detail}
+          masters={masters}
+          warn={warnNewPlace}
+          onChange={onChange}
+        />
       )}
     </div>
   );
@@ -223,12 +243,15 @@ const ItemTextButton = ({
   id,
   value,
   placeholder,
+  icon,
   onClick,
 }: {
   id: string;
   value: string;
   /** 空のときに薄く出す文字。列の見出しを出さない狭い場所で、何の欄かを示す */
   placeholder?: string;
+  /** 文字の前に出すアイコン。値が入っていても何の欄かが分かるようにする */
+  icon?: ReactNode;
   onClick: () => void;
 }) => (
   <button
@@ -238,6 +261,7 @@ const ItemTextButton = ({
     {...selectTriggerStyleProps({ width: "full" })}
     onClick={onClick}
   >
+    {icon !== undefined && <span className={styles.ItemTextIcon}>{icon}</span>}
     {value === "" && placeholder !== undefined ? (
       <SelectTriggerText placeholder>{placeholder}</SelectTriggerText>
     ) : (
@@ -417,6 +441,8 @@ const ItemFields = ({
           id={ids.memo}
           value={item.memo}
           placeholder="メモ"
+          // 品目名と同じ見た目の欄が並ぶので、入力済みでもメモの欄だと分かるようにする
+          icon={<MessageSquareText aria-hidden="true" />}
           onClick={() => setEditing("memo")}
         />
       </FormField>
@@ -627,11 +653,15 @@ const AccountFields = ({
   mode,
   draft,
   accounts,
+  requireFromAccount,
+  showInvalid,
   update,
 }: {
   mode: TransactionMode;
   draft: TransactionDraft;
   accounts: AccountOption[];
+  requireFromAccount: boolean;
+  showInvalid: boolean;
   update: (patch: Partial<TransactionDraft>) => void;
 }) => {
   const fromId = useId();
@@ -649,7 +679,8 @@ const AccountFields = ({
             id={fromId}
             value={draft.fromAccountId}
             accounts={accounts}
-            allowEmpty={mode === "payment"}
+            allowEmpty={mode === "payment" && !requireFromAccount}
+            invalid={requireFromAccount && showInvalid && draft.fromAccountId === ""}
             onChange={(value) => update({ fromAccountId: value })}
           />
         </FormField>
@@ -680,6 +711,8 @@ export const TransactionDraftFields = ({
   categories,
   placeNames,
   chainNames,
+  requireFromAccount = false,
+  showInvalid = false,
   update,
   onItemsChange,
 }: {
@@ -690,6 +723,13 @@ export const TransactionDraftFields = ({
   categories: { payment: CategoryWithGenres[]; income: CategoryWithGenres[] };
   placeNames: string[];
   chainNames: string[];
+  /**
+   * 支出の支払元を必ず選ばせる。新しく登録する画面で使う。
+   * 編集では、支払元のない取り込んだ支出も保存し直せるよう、空のままにできる
+   */
+  requireFromAccount?: boolean;
+  /** 登録を試みた後など、入力が足りない欄を赤くする */
+  showInvalid?: boolean;
   update: (patch: Partial<TransactionDraft>) => void;
   onItemsChange: (items: ItemDraft[]) => void;
 }) => {
@@ -732,7 +772,14 @@ export const TransactionDraftFields = ({
               </SelectContent>
             </Select>
           </FormField>
-          <AccountFields mode={mode} draft={draft} accounts={accounts} update={update} />
+          <AccountFields
+            mode={mode}
+            draft={draft}
+            accounts={accounts}
+            requireFromAccount={requireFromAccount}
+            showInvalid={showInvalid}
+            update={update}
+          />
           {(mode === "payment" || mode === "income") && (
             <FormField label={mode === "payment" ? "店舗" : "取引先"} htmlFor={ids.place}>
               <PlaceInput

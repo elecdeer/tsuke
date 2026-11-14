@@ -15,6 +15,7 @@ import {
   draftForMode,
   draftFromTemplate,
   isDraftEdited,
+  missingFromAccountError,
   updateFromDraft,
   type TransactionDraft,
 } from "@/web/transactionDraft";
@@ -139,6 +140,8 @@ const TransactionNewPage = ({
   const [formKey, setFormKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // 開いたばかりの空のフォームを赤くしないよう、足りない欄は登録を試みてから示す
+  const [attempted, setAttempted] = useState(false);
 
   const update = (patch: Partial<TransactionDraft>) =>
     setDraft((current) => ({ ...current, ...patch }));
@@ -162,6 +165,12 @@ const TransactionNewPage = ({
     setError(null);
   };
   const register = async () => {
+    setAttempted(true);
+    const accountError = mode === "payment" ? missingFromAccountError(draft) : null;
+    if (accountError !== null) {
+      setError(accountError);
+      return;
+    }
     const parsed = updateFromDraft(draft);
     if (!parsed.ok) {
       setError(parsed.error);
@@ -205,6 +214,8 @@ const TransactionNewPage = ({
           categories={categories}
           placeNames={placeNames}
           chainNames={chainNames}
+          requireFromAccount
+          showInvalid={attempted}
           update={update}
           onItemsChange={(items) => update({ items })}
         />

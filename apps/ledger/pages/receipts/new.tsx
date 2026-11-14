@@ -501,7 +501,9 @@ const ReceiptReview = ({
                     id={ids.account}
                     value={draft.fromAccountId}
                     accounts={accounts}
-                    allowEmpty
+                    allowEmpty={false}
+                    // 読み取れなかったときに選び忘れないよう、登録を試みる前から赤くする
+                    invalid={draft.fromAccountId === ""}
                     onChange={(fromAccountId) => update({ fromAccountId })}
                   />
                 </FormField>
@@ -512,6 +514,8 @@ const ReceiptReview = ({
                     detail={draft.placeDetail}
                     placeNames={placeNames}
                     chainNames={chainNames}
+                    // AI が読んだ名前が登録済みの店舗と少し違うだけでも新しい店舗になるので、目立たせる
+                    warnNewPlace
                     onChange={(placeName, placeDetail) => update({ placeName, placeDetail })}
                   />
                 </FormField>

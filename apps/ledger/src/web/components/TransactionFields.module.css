@@ -164,3 +164,9 @@
 .Total {
   margin-top: 0.75rem;
 }
+
+/* 品目名・メモの欄の頭に出すアイコン。値の文字より目立たないよう薄くする */
+.ItemTextIcon {
+  display: flex;
+  color: var(--muted-foreground);
+}

@@ -3,7 +3,12 @@ import type { DuplicateCheckInput, PaymentInput } from "../ledger/payments.ts";
 import type { ExtractedPayment } from "../llm/extractPayment.ts";
 import { categoryValueOf, parseCategoryValue } from "./categoryValue.ts";
 import { placeDetailFor, type PlaceMasters } from "./placeMatching.ts";
-import { emptyItem, updateFromDraft, type TransactionDraft } from "./transactionDraft.ts";
+import {
+  emptyItem,
+  missingFromAccountError,
+  updateFromDraft,
+  type TransactionDraft,
+} from "./transactionDraft.ts";
 
 /**
  * 写真を撮る前の空のフォーム。日付は今日にしておく。
@@ -64,13 +69,16 @@ export const draftFromExtracted = (
 };
 
 /**
- * フォームの値を支出の登録の入力にする。金額が整数でない品目や、内訳を選んでいない品目があれば理由を返す。
+ * フォームの値を支出の登録の入力にする。支払元を選んでいないときや、金額が整数でない品目、
+ * 内訳を選んでいない品目があれば理由を返す。
  *
  * AI が読み取った品目には、推測の記録のために読み取ったままの値を付ける。
  */
 export const paymentFromDraft = (
   draft: TransactionDraft,
 ): { ok: true; input: PaymentInput } | { ok: false; error: string } => {
+  const accountError = missingFromAccountError(draft);
+  if (accountError !== null) return { ok: false, error: accountError };
   const parsed = updateFromDraft(draft);
   if (!parsed.ok) return parsed;
   const items: PaymentInput["items"] = [];
