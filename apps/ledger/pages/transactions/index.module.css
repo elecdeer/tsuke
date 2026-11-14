@@ -210,30 +210,31 @@
   &[data-closing] {
     opacity: 0;
   }
+}
 
-  > .panelHeader {
-    display: flex;
-    gap: 0.25rem;
-    align-items: center;
+/* サイドパネルとモーダルの上の行。よく使う取引のボタンと、開く・閉じるのリンク */
+.PanelHeader {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
 
-    > .favorite {
-      margin-right: auto;
+  > .favorite {
+    margin-right: auto;
+  }
+
+  > .panelLink {
+    padding: 0.25rem;
+    color: var(--muted-foreground);
+
+    @media (hover: hover) {
+      &:hover {
+        color: var(--foreground);
+      }
     }
 
-    > .panelLink {
-      padding: 0.25rem;
-      color: var(--muted-foreground);
-
-      @media (hover: hover) {
-        &:hover {
-          color: var(--foreground);
-        }
-      }
-
-      > .panelIcon {
-        width: 1rem;
-        height: 1rem;
-      }
+    > .panelIcon {
+      width: 1rem;
+      height: 1rem;
     }
   }
 }

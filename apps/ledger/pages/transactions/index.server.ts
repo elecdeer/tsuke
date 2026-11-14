@@ -30,7 +30,7 @@ const TransactionsQuerySchema = v.object({
   placeId: OptionalIdSchema,
   chain: v.optional(v.pipe(v.string(), v.maxLength(200))),
   advance: v.optional(v.picklist(["any", "unreceived"])),
-  /** 広い画面のサイドパネルで開いている取引 */
+  /** 広い画面のサイドパネルや狭い画面のモーダルで開いている取引 */
   selected: OptionalIdSchema,
 });
 
