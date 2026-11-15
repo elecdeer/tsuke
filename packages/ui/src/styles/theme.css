@@ -61,26 +61,27 @@
  */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
+    /* 真っ黒と真っ白の組み合わせは明暗の差が強すぎて目が疲れるので、背景は濃いグレー、文字は少し落とした白にする */
+    --background: oklch(0.215 0 0);
+    --foreground: oklch(0.93 0 0);
     /* 浮く面は背景より少し明るくする。暗い背景では影が見えにくく、明るさで浮いていることを示す */
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
+    --card: oklch(0.265 0 0);
+    --card-foreground: oklch(0.93 0 0);
+    --popover: oklch(0.265 0 0);
+    --popover-foreground: oklch(0.93 0 0);
     /* 暗い背景で沈んで見えないよう、明るいテーマの赤より少し明るくする */
     --primary: oklch(0.637 0.22 27);
     --primary-foreground: oklch(1 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.3 0 0);
+    --secondary-foreground: oklch(0.93 0 0);
+    --muted: oklch(0.3 0 0);
+    --muted-foreground: oklch(0.72 0 0);
+    --accent: oklch(0.3 0 0);
+    --accent-foreground: oklch(0.93 0 0);
     --destructive: oklch(0.637 0.22 27);
     --border: oklch(1 0 0 / 12%);
     --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.985 0 0 / 22%);
+    --ring: oklch(0.93 0 0 / 22%);
     --popup-shadow: 0 2px 4px -1px oklch(0 0 0 / 53%), 0 9px 22px -6px oklch(0 0 0 / 80%);
     --dialog-shadow: 0 4px 8px -2px oklch(0 0 0 / 53%), 0 22px 46px -12px oklch(0 0 0 / 88%);
     --chart-1: oklch(0.371 0 0);
@@ -88,12 +89,12 @@
     --chart-3: oklch(0.708 0 0);
     --chart-4: oklch(0.8 0 0);
     --chart-5: oklch(0.922 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar: oklch(0.265 0 0);
+    --sidebar-foreground: oklch(0.93 0 0);
     --sidebar-primary: oklch(0.922 0 0);
-    --sidebar-primary-foreground: oklch(0.205 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-primary-foreground: oklch(0.215 0 0);
+    --sidebar-accent: oklch(0.3 0 0);
+    --sidebar-accent-foreground: oklch(0.93 0 0);
     --sidebar-border: oklch(1 0 0 / 12%);
     --sidebar-ring: oklch(0.556 0 0);
   }
