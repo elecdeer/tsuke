@@ -14,7 +14,8 @@ export default defineConfig({
         name: "viewport",
         content: "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover",
       },
-      { name: "theme-color", content: "#ffffff" },
+      // theme-color は置かず、ブラウザの枠の色をページの背景色（OS の明暗で変わる）から決めさせる。
+      // 明暗で 2 つ置くには media 属性が要るが、Void の head は meta の media を出力しないので、白に固定されてしまう
       { name: "apple-mobile-web-app-title", content: "台帳" },
     ],
     // スマートフォンのホーム画面から開けるようにする（PWA）。Service Worker はオフラインで使わないので置かない。
