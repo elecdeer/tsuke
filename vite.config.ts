@@ -1,5 +1,11 @@
 import { defineConfig } from "vite-plus";
 
+/** ラベルで包んだ @tsuke/ui の Checkbox を、入力の部品として扱わせる */
+const labelHasAssociatedControl: ["warn", { controlComponents: string[] }] = [
+  "warn",
+  { controlComponents: ["Checkbox"] },
+];
+
 export default defineConfig({
   test: {
     // Vitest v4 compatibility: preserve mock call history.
@@ -37,6 +43,7 @@ export default defineConfig({
       {
         files: ["apps/extension/**"],
         plugins: ["react", "react-perf", "jsx-a11y", "vitest"],
+        rules: { "jsx-a11y/label-has-associated-control": labelHasAssociatedControl },
       },
       {
         // test.extend で作ったカスタム test を oxlint が認識しないため誤検知を抑制する
@@ -49,6 +56,7 @@ export default defineConfig({
       {
         files: ["apps/ledger/{pages,src}/**/*.tsx"],
         plugins: ["react", "react-perf", "jsx-a11y"],
+        rules: { "jsx-a11y/label-has-associated-control": labelHasAssociatedControl },
       },
       {
         files: ["packages/ui/**/*.{ts,tsx}"],

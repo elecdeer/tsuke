@@ -218,9 +218,3 @@
     grid-template-columns: 1rem minmax(0, 1fr);
   }
 }
-
-.SelectCheckbox {
-  width: 1rem;
-  height: 1rem;
-  accent-color: var(--foreground);
-}

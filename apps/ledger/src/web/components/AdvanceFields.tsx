@@ -2,6 +2,7 @@ import { Link } from "@void/react";
 import { Plus, TriangleAlert, X } from "lucide-react";
 import { useId, useState } from "react";
 import { Button } from "@tsuke/ui/components/button";
+import { Checkbox } from "@tsuke/ui/components/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -28,8 +29,6 @@ import {
   type ReimbursementDraft,
   type TransactionDraft,
 } from "@/web/transactionDraft";
-
-const CHECKBOX_CLASS = styles.Checkbox;
 
 /**
  * 支出の立替額の入力。対象の品目の印と、紐付いた収入も出す。
@@ -86,9 +85,9 @@ export const PaymentAdvanceFields = ({
           <legend className={styles.targetsLegend}>対象の品目（印がなければすべて）</legend>
           {draft.items.map((item, index) => (
             <label key={item.key} className={styles.target}>
-              <input
-                type="checkbox"
-                className={CHECKBOX_CLASS}
+              <Checkbox
+                size="sm"
+                className={styles.Checkbox}
                 checked={item.isAdvanceTarget ?? false}
                 onChange={(event) =>
                   update(toggleAdvanceTarget(draft.items, item.key, event.target.checked))
@@ -250,9 +249,9 @@ const ReimbursementRow = ({
       </p>
       <div className={styles.rowInputs}>
         <label className={styles.expectMore}>
-          <input
-            type="checkbox"
-            className={CHECKBOX_CLASS}
+          <Checkbox
+            size="sm"
+            className={styles.Checkbox}
             checked={expectMore}
             onChange={(event) => onChange({ expectMore: event.target.checked })}
           />

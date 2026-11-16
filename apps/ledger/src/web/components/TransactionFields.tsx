@@ -21,6 +21,7 @@ import {
   type ReactNode,
 } from "react";
 import { Button } from "@tsuke/ui/components/button";
+import { Checkbox } from "@tsuke/ui/components/checkbox";
 import {
   Combobox,
   ComboboxClear,
@@ -568,12 +569,7 @@ const BulkCategoryBar = ({
   return (
     <div className={styles.BulkBar} data-selecting="">
       <label className={styles.selectAll}>
-        <input
-          type="checkbox"
-          className={styles.SelectCheckbox}
-          checked={allSelected}
-          onChange={(event) => onSelectAll(event.target.checked)}
-        />
+        <Checkbox checked={allSelected} onChange={(event) => onSelectAll(event.target.checked)} />
         すべて
       </label>
       <span className={styles.count} aria-live="polite">
@@ -702,9 +698,7 @@ export const ItemsFields = ({
             data-selecting={selecting || undefined}
           >
             {selecting && (
-              <input
-                type="checkbox"
-                className={styles.SelectCheckbox}
+              <Checkbox
                 aria-label={`${index + 1} 件目${item.name === "" ? "" : `（${item.name}）`}を選ぶ`}
                 checked={selectedKeys.has(item.key)}
                 onChange={(event) => toggleSelected(item.key, event.target.checked)}
