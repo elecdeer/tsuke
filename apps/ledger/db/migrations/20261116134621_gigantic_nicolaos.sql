@@ -1,0 +1,1 @@
+ALTER TABLE `accounts` ADD `transfer_as_payment` integer DEFAULT false NOT NULL;

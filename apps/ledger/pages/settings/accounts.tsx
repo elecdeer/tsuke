@@ -33,6 +33,7 @@ const AccountEditor = ({ account, onClose }: { account: Account | null; onClose:
   const hintId = useId();
   const [name, setName] = useState(account?.name ?? "");
   const [aiHint, setAiHint] = useState(account?.aiHint ?? "");
+  const [transferAsPayment, setTransferAsPayment] = useState(account?.transferAsPayment ?? false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -48,8 +49,10 @@ const AccountEditor = ({ account, onClose }: { account: Account | null; onClose:
   const save = () =>
     run(() =>
       account === null
-        ? action("/settings/accounts?create", { data: { name, aiHint } })
-        : action("/settings/accounts?update", { data: { id: account.id, name, aiHint } }),
+        ? action("/settings/accounts?create", { data: { name, aiHint, transferAsPayment } })
+        : action("/settings/accounts?update", {
+            data: { id: account.id, name, aiHint, transferAsPayment },
+          }),
     );
 
   return (
@@ -80,6 +83,20 @@ const AccountEditor = ({ account, onClose }: { account: Account | null; onClose:
             placeholder="例: レシートに VISA 下 4 桁 1234 とあればこのカード"
             onChange={(event) => setAiHint(event.target.value)}
           />
+        </div>
+        <div className={styles.TransferAsPayment}>
+          <label className={styles.toggle}>
+            <input
+              type="checkbox"
+              className={styles.checkbox}
+              checked={transferAsPayment}
+              onChange={(event) => setTransferAsPayment(event.target.checked)}
+            />
+            この口座への振替を支出として集計する
+          </label>
+          <p className={styles.note}>
+            仕送りのように、口座間の移動でも出ていくお金を支出に数えます
+          </p>
         </div>
         {error !== null && <ErrorMessage message={error} />}
         <div className={settings.actions}>
@@ -132,6 +149,9 @@ const AccountRow = ({
         <span className={settings.rowName}>{account.name}</span>
         {account.archived && <span className={settings.badge}>アーカイブ済み</span>}
       </span>
+      {account.transferAsPayment && (
+        <span className={settings.RowNote}>この口座への振替を支出として集計</span>
+      )}
       {account.aiHint !== null && <span className={settings.RowNote}>{account.aiHint}</span>}
     </button>
     {!account.archived && (
@@ -147,7 +167,8 @@ const AccountRow = ({
 );
 
 /**
- * 口座の管理の画面。追加・名前の変更・並び替え・アーカイブと、AI の読み取りに渡すヒントの編集ができる。
+ * 口座の管理の画面。追加・名前の変更・並び替え・アーカイブと、AI の読み取りに渡すヒント、
+ * 振替を支出として集計するかどうかの編集ができる。
  */
 const AccountsPage = ({ accounts }: Props) => {
   const [editing, setEditing] = useState<number | "new" | null>(null);

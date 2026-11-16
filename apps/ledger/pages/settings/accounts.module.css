@@ -21,3 +21,32 @@
     }
   }
 }
+
+/* 編集のダイアログの、振替を支出として集計するかどうかのチェックボックスと、その説明 */
+.TransferAsPayment {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+
+  > .toggle {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    cursor: pointer;
+
+    > .checkbox {
+      flex-shrink: 0;
+      width: 0.875rem;
+      height: 0.875rem;
+      accent-color: var(--foreground);
+    }
+  }
+
+  > .note {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+  }
+}

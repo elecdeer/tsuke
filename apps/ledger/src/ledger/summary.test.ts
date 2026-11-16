@@ -11,14 +11,21 @@ type Item = { categoryId: number | null; genreId: number | null; amount: number 
  */
 const insertTransaction = (
   sqlite: DatabaseSync,
-  params: { date: string; mode: string; aggregation?: string; items: Item[] },
+  params: {
+    date: string;
+    mode: string;
+    aggregation?: string;
+    toAccountId?: number;
+    items: Item[];
+  },
 ): number => {
   const id = insert(
     sqlite,
-    "INSERT INTO transactions (date, mode, aggregation, source) VALUES (?, ?, ?, 'manual')",
+    "INSERT INTO transactions (date, mode, aggregation, to_account_id, source) VALUES (?, ?, ?, ?, 'manual')",
     params.date,
     params.mode,
     params.aggregation ?? "always",
+    params.toAccountId ?? null,
   );
   params.items.forEach((item, index) => {
     insert(
@@ -203,6 +210,108 @@ describe("summarizeMonth", () => {
       payment: { total: 0, categories: [] },
       income: { total: 0, categories: [] },
     });
+  });
+});
+
+describe("summarizeMonth の振替", () => {
+  /** 口座を入れる。transferAsPayment なら、その口座への振替を支出として集計する */
+  const insertAccount = (sqlite: DatabaseSync, name: string, transferAsPayment: boolean): number =>
+    insert(
+      sqlite,
+      "INSERT INTO accounts (name, transfer_as_payment) VALUES (?, ?)",
+      name,
+      transferAsPayment ? 1 : 0,
+    );
+
+  test("振替を支出として集計する口座への振替は、支出に入れる", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const m = seedMasters(sqlite);
+    const family = insertAccount(sqlite, "実家の口座", true);
+    insertTransaction(sqlite, {
+      date: "2026-10-05",
+      mode: "transfer",
+      toAccountId: family,
+      items: [{ categoryId: null, genreId: null, amount: 30000 }],
+    });
+    insertTransaction(sqlite, {
+      date: "2026-10-06",
+      mode: "transfer",
+      toAccountId: family,
+      items: [{ categoryId: m.food, genreId: m.groceries, amount: 2000 }],
+    });
+    insertTransaction(sqlite, {
+      date: "2026-10-07",
+      mode: "payment",
+      items: [{ categoryId: m.food, genreId: m.groceries, amount: 500 }],
+    });
+
+    const summary = await summarizeMonth(db, "2026-10");
+
+    expect(summary.payment).toEqual({
+      total: 32500,
+      categories: [
+        {
+          categoryId: null,
+          name: "未分類",
+          amount: 30000,
+          genres: [{ genreId: null, name: "内訳なし", amount: 30000 }],
+        },
+        {
+          categoryId: m.food,
+          name: "食費",
+          amount: 2500,
+          genres: [{ genreId: m.groceries, name: "食料品", amount: 2500 }],
+        },
+      ],
+    });
+    expect(summary.income).toEqual({ total: 0, categories: [] });
+  });
+
+  test("ほかの口座への振替と、集計に含めない振替は入れない", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    seedMasters(sqlite);
+    const family = insertAccount(sqlite, "実家の口座", true);
+    const savings = insertAccount(sqlite, "貯金", false);
+    const item = { categoryId: null, genreId: null, amount: 10000 };
+    insertTransaction(sqlite, {
+      date: "2026-10-05",
+      mode: "transfer",
+      toAccountId: savings,
+      items: [item],
+    });
+    insertTransaction(sqlite, {
+      date: "2026-10-05",
+      mode: "transfer",
+      toAccountId: family,
+      aggregation: "never",
+      items: [item],
+    });
+    insertTransaction(sqlite, {
+      date: "2026-10-05",
+      mode: "adjustment",
+      toAccountId: family,
+      items: [item],
+    });
+
+    expect((await summarizeMonth(db, "2026-10")).payment).toEqual({ total: 0, categories: [] });
+  });
+
+  test("年の集計にも、月ごとの支出として入れる", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    seedMasters(sqlite);
+    const family = insertAccount(sqlite, "実家の口座", true);
+    insertTransaction(sqlite, {
+      date: "2026-03-05",
+      mode: "transfer",
+      toAccountId: family,
+      aggregation: "yearly_only",
+      items: [{ categoryId: null, genreId: null, amount: 10000 }],
+    });
+
+    const summary = await summarizeYear(db, 2026);
+
+    expect(summary.payment.total).toBe(10000);
+    expect(summary.months[2]).toEqual({ month: "2026-03", payment: 10000, income: 0 });
   });
 });
 

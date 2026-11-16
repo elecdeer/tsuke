@@ -16,6 +16,8 @@ import {
 export const AccountUpdateSchema = v.object({
   name: masterNameSchema("口座名"),
   aiHint: v.pipe(v.string(), v.trim(), v.maxLength(500)),
+  /** この口座への振替を支出として集計するかどうか */
+  transferAsPayment: v.boolean(),
 });
 
 export type AccountUpdate = v.InferOutput<typeof AccountUpdateSchema>;
@@ -54,13 +56,14 @@ export const createAccount = async (
   await db.insert(accounts).values({
     name: input.name,
     aiHint: input.aiHint === "" ? null : input.aiHint,
+    transferAsPayment: input.transferAsPayment,
     sort: (last?.sort ?? -1) + 1,
   });
   return { ok: true };
 };
 
 /**
- * 口座の名前と、AI の読み取りに渡すヒントを書き換える。ヒントが空なら消す。
+ * 口座の名前と、AI の読み取りに渡すヒントと、振替を支出として集計するかどうかを書き換える。ヒントが空なら消す。
  *
  * 取引は口座を ID で参照するので、名前を変えても書き換えなくて済む。
  */
@@ -73,7 +76,11 @@ export const updateAccount = async (
   if (conflict !== null) return { ok: false, status: 409, error: conflict };
   const updated = await db
     .update(accounts)
-    .set({ name: input.name, aiHint: input.aiHint === "" ? null : input.aiHint })
+    .set({
+      name: input.name,
+      aiHint: input.aiHint === "" ? null : input.aiHint,
+      transferAsPayment: input.transferAsPayment,
+    })
     .where(eq(accounts.id, id))
     .returning({ id: accounts.id });
   return updated.length === 0 ? NOT_FOUND : { ok: true };
