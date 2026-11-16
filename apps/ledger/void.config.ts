@@ -38,6 +38,9 @@ export default defineConfig({
     routes: [],
     observability: {
       logs: { enabled: true, invocation_logs: true },
+      // どこに時間がかかっているかを D1 や fetch の span で見るため。
+      // 個人用でリクエストが少なく Free の取り込み枠 (0.5 GB/日) に収まるので、サンプリングせず全リクエストを記録する
+      traces: { enabled: true },
     },
   },
 });
