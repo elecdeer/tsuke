@@ -3,6 +3,7 @@ import { defineHandler, defineHead, type InferProps } from "void";
 import { db } from "void/db";
 import {
   CategoryNameSchema,
+  changeGenreCategory,
   createCategory,
   createGenre,
   GenreNameSchema,
@@ -93,6 +94,14 @@ export const actions = {
     body: v.object({ id: IdSchema, offset: MoveOffsetSchema }),
   })(async (c, { body }) => {
     const result = await moveGenre(db, body.id, body.offset);
+    if (!result.ok) return c.json({ error: result.error }, result.status);
+    return undefined;
+  }),
+
+  changeGenreCategory: defineHandler.withValidator({
+    body: v.object({ id: IdSchema, categoryId: IdSchema }),
+  })(async (c, { body }) => {
+    const result = await changeGenreCategory(db, body.id, body.categoryId);
     if (!result.ok) return c.json({ error: result.error }, result.status);
     return undefined;
   }),

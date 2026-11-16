@@ -1,6 +1,6 @@
-import { and, asc, eq, max } from "drizzle-orm";
+import { and, asc, eq, max, sql } from "drizzle-orm";
 import * as v from "valibot";
-import { categories, genres } from "../../db/schema.ts";
+import { categories, genres, transactionItems } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
 import type { CategoryMode } from "./masters.ts";
 import {
@@ -226,5 +226,48 @@ export const moveGenre = async (
     db.update(genres).set({ sort }).where(eq(genres.id, genreId)),
   );
   if (first !== undefined) await db.batch([first, ...rest]);
+  return { ok: true };
+};
+
+/**
+ * 内訳を別のカテゴリへ移す。移した先の並びの最後に置き、その内訳の品目のカテゴリも書き換える。
+ *
+ * 品目は (genre_id, category_id) を複合外部キーで内訳に結んでいるので、内訳と品目のどちらを先に書き換えても
+ * 文ごとの検証で失敗する。batch のトランザクションの中で検証をコミットまで遅らせ、両方を書き換えてから確かめる。
+ * 外部キーに ON UPDATE CASCADE を足す案は、SQLite では品目の表を作り直すマイグレーションになるので採らない。
+ */
+export const changeGenreCategory = async (
+  db: LedgerDb,
+  id: number,
+  categoryId: number,
+): Promise<MasterEditResult> => {
+  const [genre] = await db
+    .select({ categoryId: genres.categoryId, name: genres.name })
+    .from(genres)
+    .where(eq(genres.id, id));
+  if (genre === undefined) return GENRE_NOT_FOUND;
+  if (genre.categoryId === categoryId) return { ok: true };
+  const [category] = await db
+    .select({ mode: categories.mode })
+    .from(categories)
+    .where(eq(categories.id, categoryId));
+  if (category === undefined) return CATEGORY_NOT_FOUND;
+  if (category.mode !== "payment") {
+    return { ok: false, status: 400, error: "収入のカテゴリには内訳を移せません" };
+  }
+  const conflict = await findGenreConflict(db, categoryId, genre.name, id);
+  if (conflict !== null) return { ok: false, status: 409, error: conflict };
+  const [last] = await db
+    .select({ sort: max(genres.sort) })
+    .from(genres)
+    .where(eq(genres.categoryId, categoryId));
+  await db.batch([
+    db.run(sql`PRAGMA defer_foreign_keys = ON`),
+    db
+      .update(genres)
+      .set({ categoryId, sort: (last?.sort ?? -1) + 1 })
+      .where(eq(genres.id, id)),
+    db.update(transactionItems).set({ categoryId }).where(eq(transactionItems.genreId, id)),
+  ]);
   return { ok: true };
 };

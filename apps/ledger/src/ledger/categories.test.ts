@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 import { createTestLedgerDb, insert } from "../../db/testing.ts";
 import {
+  changeGenreCategory,
   createCategory,
   createGenre,
   moveCategory,
@@ -180,5 +181,109 @@ describe("moveGenre", () => {
     const [foodCategory, funCategory] = await listCategories(db, "payment");
     expect(foodCategory?.genres.map((genre) => genre.id)).toEqual([b, a]);
     expect(funCategory?.genres.map((genre) => genre.id)).toEqual([other]);
+  });
+});
+
+describe("changeGenreCategory", () => {
+  test("内訳を移した先の並びの最後に置き、その内訳の品目のカテゴリも書き換える", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const food = insert(sqlite, "INSERT INTO categories (mode, name) VALUES ('payment', '食費')");
+    const hobby = insert(sqlite, "INSERT INTO categories (mode, name) VALUES ('payment', '趣味')");
+    const cafe = insert(
+      sqlite,
+      "INSERT INTO genres (category_id, name) VALUES (?, 'カフェ')",
+      food,
+    );
+    const lunch = insert(sqlite, "INSERT INTO genres (category_id, name) VALUES (?, '昼食')", food);
+    const books = insert(
+      sqlite,
+      "INSERT INTO genres (category_id, name, sort) VALUES (?, '本', 3)",
+      hobby,
+    );
+    const transactionId = insert(
+      sqlite,
+      "INSERT INTO transactions (date, mode, source) VALUES ('2026-11-01', 'payment', 'manual')",
+    );
+    for (const genreId of [cafe, lunch]) {
+      insert(
+        sqlite,
+        "INSERT INTO transaction_items (transaction_id, category_id, genre_id, amount) VALUES (?, ?, ?, 500)",
+        transactionId,
+        food,
+        genreId,
+      );
+    }
+
+    expect(await changeGenreCategory(db, cafe, hobby)).toEqual({ ok: true });
+
+    expect(await listCategories(db, "payment")).toEqual([
+      { id: food, name: "食費", genres: [{ id: lunch, name: "昼食" }] },
+      {
+        id: hobby,
+        name: "趣味",
+        genres: [
+          { id: books, name: "本" },
+          { id: cafe, name: "カフェ" },
+        ],
+      },
+    ]);
+    expect(
+      sqlite.prepare("SELECT genre_id, category_id FROM transaction_items ORDER BY genre_id").all(),
+    ).toEqual([
+      { genre_id: cafe, category_id: hobby },
+      { genre_id: lunch, category_id: food },
+    ]);
+  });
+
+  test("今のカテゴリを指すと何もしない", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const food = insert(sqlite, "INSERT INTO categories (mode, name) VALUES ('payment', '食費')");
+    const cafe = insert(
+      sqlite,
+      "INSERT INTO genres (category_id, name) VALUES (?, 'カフェ')",
+      food,
+    );
+
+    expect(await changeGenreCategory(db, cafe, food)).toEqual({ ok: true });
+    expect(await listCategories(db, "payment")).toEqual([
+      { id: food, name: "食費", genres: [{ id: cafe, name: "カフェ" }] },
+    ]);
+  });
+
+  test("移した先に同じ名前の内訳があれば移さない", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const food = insert(sqlite, "INSERT INTO categories (mode, name) VALUES ('payment', '食費')");
+    const hobby = insert(sqlite, "INSERT INTO categories (mode, name) VALUES ('payment', '趣味')");
+    const cafe = insert(
+      sqlite,
+      "INSERT INTO genres (category_id, name) VALUES (?, 'カフェ')",
+      food,
+    );
+    insert(
+      sqlite,
+      "INSERT INTO genres (category_id, name, archived) VALUES (?, 'カフェ', 1)",
+      hobby,
+    );
+
+    expect(await changeGenreCategory(db, cafe, hobby)).toEqual({
+      ok: false,
+      status: 409,
+      error: "「カフェ」はアーカイブ済みです。元に戻して使ってください",
+    });
+  });
+
+  test("収入のカテゴリへは移せず、内訳かカテゴリがなければ 404 を返す", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const food = insert(sqlite, "INSERT INTO categories (mode, name) VALUES ('payment', '食費')");
+    const salary = insert(sqlite, "INSERT INTO categories (mode, name) VALUES ('income', '給与')");
+    const cafe = insert(
+      sqlite,
+      "INSERT INTO genres (category_id, name) VALUES (?, 'カフェ')",
+      food,
+    );
+
+    expect(await changeGenreCategory(db, cafe, salary)).toMatchObject({ ok: false, status: 400 });
+    expect(await changeGenreCategory(db, cafe, 999)).toMatchObject({ ok: false, status: 404 });
+    expect(await changeGenreCategory(db, 999, food)).toMatchObject({ ok: false, status: 404 });
   });
 });
