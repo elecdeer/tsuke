@@ -1,9 +1,6 @@
+/* 品目名が折り返しても、印は行の中央に置く */
 .Checkbox {
-  flex-shrink: 0;
   align-self: center;
-  width: 0.875rem;
-  height: 0.875rem;
-  accent-color: var(--foreground);
 }
 
 /* 支出の立替の欄 */

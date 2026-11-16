@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { beforeEach, describe, expect, test } from "vite-plus/test";
 import { createTestLedgerDb, insert } from "../../db/testing.ts";
 import type { LedgerDb } from "../db.ts";
-import { createPayment, findDuplicates, type PaymentInput } from "./payments.ts";
+import { createPayment, findDuplicates, overwritePayment, type PaymentInput } from "./payments.ts";
 
 let db: LedgerDb;
 let sqlite: DatabaseSync;
@@ -409,6 +409,210 @@ describe("createPayment", () => {
 
     expect(result).toEqual({ ok: false, error: "口座が見つかりません" });
     expect(dumpTransactions()).toEqual([]);
+  });
+});
+
+describe("overwritePayment", () => {
+  /** 明細の取り込みで入ったような、店舗と品名の分からない支出を入れる */
+  const insertStatementPayment = (): number => {
+    const batchId = insert(
+      sqlite,
+      "INSERT INTO import_batches (source, file_name, row_count) VALUES ('statement_csv', 'card.csv', 1)",
+    );
+    const id = insert(
+      sqlite,
+      `INSERT INTO transactions (date, mode, from_account_id, aggregation, source, import_batch_id, is_favorite)
+       VALUES ('2026-10-28', 'payment', ?, 'yearly_only', 'statement_csv', ?, 1)`,
+      walletId,
+      batchId,
+    );
+    insert(
+      sqlite,
+      "INSERT INTO transaction_items (transaction_id, genre_id, name, amount) VALUES (?, ?, 'ｽｰﾊﾟｰ', 350)",
+      id,
+      groceryId,
+    );
+    return id;
+  };
+
+  const detailed = (overrides: Partial<PaymentInput> = {}): PaymentInput =>
+    payment({
+      items: [
+        { genreId: groceryId, name: "牛乳", memo: null, amount: 200 },
+        { genreId: cafeId, name: "コーヒー", memo: "店内", amount: 150 },
+      ],
+      ...overrides,
+    });
+
+  test("日付・支払元・店舗・品目を置き換え、取り込み元や集計の扱いは残す", async () => {
+    const id = insertStatementPayment();
+    const cardId = insert(sqlite, "INSERT INTO accounts (name) VALUES ('カード')");
+
+    const result = await overwritePayment(db, id, detailed({ fromAccountId: cardId }));
+
+    expect(result).toEqual({ ok: true, id, replacedReceiptImageKey: null });
+    expect(dumpTransactions()).toEqual([
+      {
+        id,
+        date: "2026-10-27",
+        mode: "payment",
+        fromAccountId: cardId,
+        place: "スーパー",
+        source: "statement_csv",
+        aggregation: "yearly_only",
+        categoryId: null,
+        genreId: groceryId,
+        name: "牛乳",
+        memo: null,
+        amount: 200,
+        sort: 0,
+      },
+      {
+        id,
+        date: "2026-10-27",
+        mode: "payment",
+        fromAccountId: cardId,
+        place: "スーパー",
+        source: "statement_csv",
+        aggregation: "yearly_only",
+        categoryId: null,
+        genreId: cafeId,
+        name: "コーヒー",
+        memo: "店内",
+        amount: 150,
+        sort: 1,
+      },
+    ]);
+    expect(
+      sqlite
+        .prepare("SELECT import_batch_id IS NOT NULL AS b, is_favorite AS f FROM transactions")
+        .get(),
+    ).toEqual({ b: 1, f: 1 });
+  });
+
+  test("写真のキーを渡せば差し替え、前のキーを返す。渡さなければ今の写真を残す", async () => {
+    const created = await createPayment(db, payment(), "receipts/old.jpeg");
+    if (!created.ok) throw new Error(created.error);
+    const { id } = created;
+
+    expect(await overwritePayment(db, id, payment())).toEqual({
+      ok: true,
+      id,
+      replacedReceiptImageKey: null,
+    });
+    expect(await overwritePayment(db, id, payment(), "receipts/new.jpeg")).toEqual({
+      ok: true,
+      id,
+      replacedReceiptImageKey: "receipts/old.jpeg",
+    });
+    expect(
+      sqlite.prepare("SELECT receipt_image_key AS k FROM transactions WHERE id = ?").get(id),
+    ).toEqual({ k: "receipts/new.jpeg" });
+  });
+
+  test("前の推測の記録は残し、新しい推測の記録を足す", async () => {
+    const id = insertStatementPayment();
+    insert(
+      sqlite,
+      `INSERT INTO genre_inferences (transaction_id, source, model, item_name, amount, inferred_genre_id, genre_id)
+       VALUES (?, 'statement_csv', 'csv-model', 'ｽｰﾊﾟｰ', 350, ?, ?)`,
+      id,
+      groceryId,
+      groceryId,
+    );
+
+    await overwritePayment(
+      db,
+      id,
+      payment({
+        aiRead: { source: "receipt", model: "receipt-model" },
+        items: [
+          {
+            genreId: groceryId,
+            name: "牛乳",
+            memo: null,
+            amount: 350,
+            aiGuess: { genreId: groceryId, name: "牛乳" },
+          },
+        ],
+      }),
+    );
+
+    expect(dumpInferences()).toEqual([
+      {
+        transactionId: id,
+        source: "statement_csv",
+        model: "csv-model",
+        placeName: null,
+        itemName: "ｽｰﾊﾟｰ",
+        amount: 350,
+        inferredGenreId: groceryId,
+        genreId: groceryId,
+      },
+      {
+        transactionId: id,
+        source: "receipt",
+        model: "receipt-model",
+        placeName: "スーパー",
+        itemName: "牛乳",
+        amount: 350,
+        inferredGenreId: groceryId,
+        genreId: groceryId,
+      },
+    ]);
+  });
+
+  test("読み取った電話番号を店舗に覚えさせる", async () => {
+    const id = insertStatementPayment();
+
+    await overwritePayment(db, id, detailed({ placePhone: "0312345678" }));
+
+    expect(sqlite.prepare("SELECT name, phone FROM places").all()).toEqual([
+      { name: "スーパー", phone: "0312345678" },
+    ]);
+  });
+
+  test("立替額が新しい品目の合計を超えるなら上書きしない", async () => {
+    const id = insertStatementPayment();
+    sqlite.prepare("UPDATE transactions SET advance_amount = 350 WHERE id = ?").run(id);
+    const before = dumpTransactions();
+
+    const result = await overwritePayment(db, id, payment());
+
+    expect(result).toMatchObject({ ok: false, status: 400 });
+    expect(dumpTransactions()).toEqual(before);
+  });
+
+  test("支出でない取引や、ない取引は上書きしない", async () => {
+    const transferId = insert(
+      sqlite,
+      "INSERT INTO transactions (date, mode, source) VALUES ('2026-10-27', 'transfer', 'manual')",
+    );
+
+    expect(await overwritePayment(db, transferId, payment())).toEqual({
+      ok: false,
+      status: 400,
+      error: "上書きできるのは支出だけです",
+    });
+    expect(await overwritePayment(db, 999, payment())).toEqual({
+      ok: false,
+      status: 404,
+      error: "取引が見つかりません",
+    });
+  });
+
+  test("存在しない内訳を含むと、何も書き換えない", async () => {
+    const id = insertStatementPayment();
+    const before = dumpTransactions();
+
+    const result = await overwritePayment(
+      db,
+      id,
+      payment({ items: [{ genreId: salaryId, name: null, memo: null, amount: 350 }] }),
+    );
+
+    expect(result).toMatchObject({ ok: false, status: 400 });
+    expect(dumpTransactions()).toEqual(before);
   });
 });
 

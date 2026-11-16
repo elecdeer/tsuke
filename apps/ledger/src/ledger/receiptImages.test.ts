@@ -151,6 +151,52 @@ describe("registerPayment", () => {
     });
     expect(transactionCount()).toBe(0);
   });
+
+  test("上書きでは取引を増やさず、新しい写真に差し替えて前の写真を消す", async () => {
+    const { objects, bucket } = createBucket();
+    await registerPayment(db, bucket, payment({ receiptImage: IMAGE }));
+    const [oldKey] = [...objects.keys()];
+
+    const result = await registerPayment(
+      db,
+      bucket,
+      payment({ receiptImage: IMAGE, overwriteTransactionId: 1 }),
+    );
+
+    expect(result).toEqual({ ok: true, id: 1 });
+    expect(transactionCount()).toBe(1);
+    const [newKey] = [...objects.keys()];
+    expect(objects.size).toBe(1);
+    expect(newKey).not.toBe(oldKey);
+    expect(storedKey(1)).toBe(newKey);
+  });
+
+  test("写真のない上書きでは、今の写真を残す", async () => {
+    const { objects, bucket } = createBucket();
+    await registerPayment(db, bucket, payment({ receiptImage: IMAGE }));
+    const [oldKey] = [...objects.keys()];
+
+    expect(await registerPayment(db, bucket, payment({ overwriteTransactionId: 1 }))).toEqual({
+      ok: true,
+      id: 1,
+    });
+    expect(storedKey(1)).toBe(oldKey);
+    expect(objects.size).toBe(1);
+  });
+
+  test("上書きする取引がなければ 404 を返し、写真を残さない", async () => {
+    const { objects, bucket } = createBucket();
+
+    const result = await registerPayment(
+      db,
+      bucket,
+      payment({ receiptImage: IMAGE, overwriteTransactionId: 999 }),
+    );
+
+    expect(result).toEqual({ ok: false, status: 404, error: "取引が見つかりません" });
+    expect(objects.size).toBe(0);
+    expect(transactionCount()).toBe(0);
+  });
 });
 
 describe("readReceiptImage", () => {

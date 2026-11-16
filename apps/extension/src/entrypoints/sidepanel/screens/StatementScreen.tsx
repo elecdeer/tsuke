@@ -1,6 +1,7 @@
 import { CircleCheckIcon, ScanTextIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@tsuke/ui/components/button";
+import { Checkbox } from "@tsuke/ui/components/checkbox";
 import { useToastManager } from "@tsuke/ui/components/toast";
 import { AccountCombobox } from "../../../components/AccountCombobox.tsx";
 import { CategoryCombobox, type CategorySelection } from "../../../components/CategoryCombobox.tsx";
@@ -57,8 +58,7 @@ const StatementRowItem = ({
   const placeLabel = row.place || "(利用先不明)";
   return (
     <li className={styles.StatementRow} data-unselected={!row.selected || undefined}>
-      <input
-        type="checkbox"
+      <Checkbox
         className={styles.checkbox}
         checked={row.selected}
         onChange={(e) => onSelectedChange(e.target.checked)}
