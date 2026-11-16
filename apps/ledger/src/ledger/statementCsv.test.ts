@@ -109,7 +109,8 @@ describe("履歴 CSV の登録", () => {
         fromId: bank,
         toId: null,
         place: "スーパーA",
-        categoryId: paymentCategory,
+        // カテゴリは内訳の親から引くので、品目には内訳だけを入れる
+        categoryId: null,
         genreId: genre,
         amount: 1000,
       },

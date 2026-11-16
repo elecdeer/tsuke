@@ -11,6 +11,7 @@ import {
 import type { LedgerDb } from "../db.ts";
 import { periodRange } from "./dates.ts";
 import { hasUnreceivedAdvance, linkedAmountSql } from "./reimbursements.ts";
+import { itemCategoryId, itemGenreJoin } from "./itemCategory.ts";
 
 export type TransactionMode = (typeof transactions.$inferSelect)["mode"];
 export type Aggregation = (typeof transactions.$inferSelect)["aggregation"];
@@ -91,7 +92,7 @@ const filterConditions = (db: LedgerDb, filter: TransactionFilter): SQL[] => {
 
   const itemConditions: SQL[] = [];
   if (filter.categoryId !== undefined) {
-    itemConditions.push(eq(transactionItems.categoryId, filter.categoryId));
+    itemConditions.push(eq(itemCategoryId, filter.categoryId));
   }
   if (filter.genreId !== undefined)
     itemConditions.push(eq(transactionItems.genreId, filter.genreId));
@@ -102,6 +103,7 @@ const filterConditions = (db: LedgerDb, filter: TransactionFilter): SQL[] => {
         db
           .select({ id: transactionItems.transactionId })
           .from(transactionItems)
+          .leftJoin(genres, itemGenreJoin)
           .where(and(...itemConditions)),
       ),
     );
@@ -139,8 +141,8 @@ export const listTransactions = async (
     .leftJoin(fromAccounts, eq(fromAccounts.id, transactions.fromAccountId))
     .leftJoin(toAccounts, eq(toAccounts.id, transactions.toAccountId))
     .leftJoin(places, eq(places.id, transactions.placeId))
-    .leftJoin(categories, eq(categories.id, transactionItems.categoryId))
-    .leftJoin(genres, eq(genres.id, transactionItems.genreId))
+    .leftJoin(genres, itemGenreJoin)
+    .leftJoin(categories, eq(categories.id, itemCategoryId))
     .where(and(...filterConditions(db, filter)))
     .orderBy(
       desc(transactions.date),

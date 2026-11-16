@@ -111,3 +111,10 @@
     }
   }
 }
+
+/* 内訳の編集で、移す先のカテゴリの選択と移すボタンを横に並べる */
+.MoveGenre {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}

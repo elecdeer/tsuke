@@ -208,7 +208,7 @@ describe("createPayment", () => {
     expect(dumpInferences()).toEqual([]);
   });
 
-  test("取引と品目をまとめて登録し、カテゴリは内訳の親から決める", async () => {
+  test("取引と品目をまとめて登録し、品目には内訳だけを入れる", async () => {
     const result = await createPayment(
       db,
       payment({
@@ -229,7 +229,7 @@ describe("createPayment", () => {
       place: "スーパー",
       source: "manual",
       aggregation: "always",
-      categoryId: foodId,
+      categoryId: null,
     };
     expect(dumpTransactions()).toEqual([
       { ...base, genreId: groceryId, name: "牛乳", memo: "特売", amount: 200, sort: 0 },
@@ -428,9 +428,8 @@ describe("overwritePayment", () => {
     );
     insert(
       sqlite,
-      "INSERT INTO transaction_items (transaction_id, category_id, genre_id, name, amount) VALUES (?, ?, ?, 'ｽｰﾊﾟｰ', 350)",
+      "INSERT INTO transaction_items (transaction_id, genre_id, name, amount) VALUES (?, ?, 'ｽｰﾊﾟｰ', 350)",
       id,
-      foodId,
       groceryId,
     );
     return id;
@@ -461,7 +460,7 @@ describe("overwritePayment", () => {
         place: "スーパー",
         source: "statement_csv",
         aggregation: "yearly_only",
-        categoryId: foodId,
+        categoryId: null,
         genreId: groceryId,
         name: "牛乳",
         memo: null,
@@ -476,7 +475,7 @@ describe("overwritePayment", () => {
         place: "スーパー",
         source: "statement_csv",
         aggregation: "yearly_only",
-        categoryId: foodId,
+        categoryId: null,
         genreId: cafeId,
         name: "コーヒー",
         memo: "店内",
@@ -686,9 +685,8 @@ describe("findDuplicates", () => {
     );
     insert(
       sqlite,
-      "INSERT INTO transaction_items (transaction_id, category_id, genre_id, amount) VALUES (?, ?, ?, 200)",
+      "INSERT INTO transaction_items (transaction_id, genre_id, amount) VALUES (?, ?, 200)",
       txId,
-      foodId,
       groceryId,
     );
 

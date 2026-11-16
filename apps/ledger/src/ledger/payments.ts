@@ -95,20 +95,20 @@ const genreInferenceRows = (
 };
 
 /**
- * 支出の内訳と口座が台帳にあるかを確かめ、内訳から親のカテゴリを引く表を返す。合わなければ理由を返す。
+ * 支出の内訳と口座が台帳にあるかを確かめ、合わなければ理由を返す。
  */
 const resolvePaymentRefs = async (
   db: LedgerDb,
   input: PaymentInput,
-): Promise<{ ok: true; categoryIdByGenre: Map<number, number> } | { ok: false; error: string }> => {
+): Promise<{ ok: true } | { ok: false; error: string }> => {
   const genreIds = [...new Set(input.items.map((item) => item.genreId))];
   const genreRows = await db
-    .select({ id: genres.id, categoryId: genres.categoryId })
+    .select({ id: genres.id })
     .from(genres)
     .innerJoin(categories, eq(categories.id, genres.categoryId))
     .where(and(inArray(genres.id, genreIds), eq(categories.mode, "payment")));
-  const categoryIdByGenre = new Map(genreRows.map((genre) => [genre.id, genre.categoryId]));
-  const unknownGenres = genreIds.filter((id) => !categoryIdByGenre.has(id));
+  const knownGenres = new Set(genreRows.map((genre) => genre.id));
+  const unknownGenres = genreIds.filter((id) => !knownGenres.has(id));
   if (unknownGenres.length > 0) {
     return { ok: false, error: `支出の内訳が見つかりません: ${unknownGenres.join(", ")}` };
   }
@@ -120,20 +120,15 @@ const resolvePaymentRefs = async (
       .where(eq(accounts.id, input.fromAccountId));
     if (account === undefined) return { ok: false, error: "口座が見つかりません" };
   }
-  return { ok: true, categoryIdByGenre };
+  return { ok: true };
 };
 
 /**
- * 支出の品目を transaction_items の行にする。並び順は入力の順。
+ * 支出の品目を transaction_items の行にする。並び順は入力の順。カテゴリは内訳の親から引くので持たせない。
  */
-const paymentItemRows = (
-  transactionId: number | SQL,
-  input: PaymentInput,
-  categoryIdByGenre: ReadonlyMap<number, number>,
-) =>
+const paymentItemRows = (transactionId: number | SQL, input: PaymentInput) =>
   input.items.map((item, index) => ({
     transactionId,
-    categoryId: categoryIdByGenre.get(item.genreId) ?? null,
     genreId: item.genreId,
     name: blankToNull(item.name),
     memo: blankToNull(item.memo),
@@ -181,7 +176,7 @@ export const createPayment = async (
     .returning({ id: transactions.id });
   const insertItems = chunkInsertRows(
     transactionItems,
-    paymentItemRows(lastTransactionId, input, refs.categoryIdByGenre),
+    paymentItemRows(lastTransactionId, input),
   ).map((rows) => db.insert(transactionItems).values(rows));
 
   const inferenceRows = genreInferenceRows(input, placeName).map((row) => ({
@@ -273,10 +268,9 @@ export const overwritePayment = async (
     })
     .where(eq(transactions.id, id));
   const deleteItems = db.delete(transactionItems).where(eq(transactionItems.transactionId, id));
-  const insertItems = chunkInsertRows(
-    transactionItems,
-    paymentItemRows(id, input, refs.categoryIdByGenre),
-  ).map((rows) => db.insert(transactionItems).values(rows));
+  const insertItems = chunkInsertRows(transactionItems, paymentItemRows(id, input)).map((rows) =>
+    db.insert(transactionItems).values(rows),
+  );
   const inferenceRows = genreInferenceRows(input, placeName).map((row) => ({
     ...row,
     transactionId: id,

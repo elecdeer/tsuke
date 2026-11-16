@@ -12,28 +12,28 @@ INSERT INTO places (id, name) VALUES (1, 'スーパーみどり'), (2, 'コン�
 
 -- 9 月
 INSERT INTO transactions (id, date, mode, from_account_id, place_id, source) VALUES (1, '2026-09-03', 'payment', 1, 1, 'manual');
-INSERT INTO transaction_items (transaction_id, category_id, genre_id, name, amount, sort) VALUES (1, 1, 1, '野菜', 1280, 0), (1, 2, 4, '洗剤', 398, 1);
+INSERT INTO transaction_items (transaction_id, genre_id, name, amount, sort) VALUES (1, 1, '野菜', 1280, 0), (1, 4, '洗剤', 398, 1);
 INSERT INTO transactions (id, date, mode, from_account_id, place_id, source) VALUES (2, '2026-09-12', 'payment', 3, 3, 'zaim_csv');
-INSERT INTO transaction_items (transaction_id, category_id, genre_id, name, amount, sort) VALUES (2, 1, 3, 'ブレンド', 520, 0);
+INSERT INTO transaction_items (transaction_id, genre_id, name, amount, sort) VALUES (2, 3, 'ブレンド', 520, 0);
 INSERT INTO transactions (id, date, mode, from_account_id, place_id, source) VALUES (3, '2026-09-27', 'payment', 2, NULL, 'zaim_csv');
-INSERT INTO transaction_items (transaction_id, category_id, genre_id, name, amount, sort) VALUES (3, 4, 6, NULL, 85000, 0);
+INSERT INTO transaction_items (transaction_id, genre_id, name, amount, sort) VALUES (3, 6, NULL, 85000, 0);
 INSERT INTO transactions (id, date, mode, to_account_id, place_id, source) VALUES (4, '2026-09-25', 'income', 2, 4, 'zaim_csv');
 INSERT INTO transaction_items (transaction_id, category_id, amount, sort) VALUES (4, 11, 280000, 0);
 
 -- 10 月
 INSERT INTO transactions (id, date, mode, from_account_id, place_id, source) VALUES (5, '2026-10-02', 'payment', 1, 1, 'manual');
-INSERT INTO transaction_items (transaction_id, category_id, genre_id, name, memo, amount, sort) VALUES
-  (5, 1, 1, '牛乳', NULL, 238, 0), (5, 1, 1, '卵', '10 個入り', 268, 1), (5, 1, 1, '値引き', NULL, -50, 2), (5, 2, 4, 'ティッシュ', NULL, 358, 3);
+INSERT INTO transaction_items (transaction_id, genre_id, name, memo, amount, sort) VALUES
+  (5, 1, '牛乳', NULL, 238, 0), (5, 1, '卵', '10 個入り', 268, 1), (5, 1, '値引き', NULL, -50, 2), (5, 4, 'ティッシュ', NULL, 358, 3);
 INSERT INTO transactions (id, date, mode, from_account_id, place_id, source) VALUES (6, '2026-10-05', 'payment', 3, 2, 'manual');
-INSERT INTO transaction_items (transaction_id, category_id, genre_id, name, amount, sort) VALUES (6, 1, 2, 'お弁当', 598, 0);
+INSERT INTO transaction_items (transaction_id, genre_id, name, amount, sort) VALUES (6, 2, 'お弁当', 598, 0);
 INSERT INTO transactions (id, date, mode, from_account_id, place_id, source) VALUES (7, '2026-10-09', 'payment', 3, 3, 'manual');
-INSERT INTO transaction_items (transaction_id, category_id, genre_id, name, amount, sort) VALUES (7, 1, 3, 'カフェラテ', 560, 0);
+INSERT INTO transaction_items (transaction_id, genre_id, name, amount, sort) VALUES (7, 3, 'カフェラテ', 560, 0);
 INSERT INTO transactions (id, date, mode, from_account_id, place_id, source) VALUES (8, '2026-10-14', 'payment', 2, NULL, 'manual');
-INSERT INTO transaction_items (transaction_id, category_id, genre_id, name, amount, sort) VALUES (8, 3, 5, '定期券', 12340, 0);
+INSERT INTO transaction_items (transaction_id, genre_id, name, amount, sort) VALUES (8, 5, '定期券', 12340, 0);
 INSERT INTO transactions (id, date, mode, from_account_id, place_id, aggregation, source) VALUES (9, '2026-10-18', 'payment', 3, 1, 'never', 'manual');
-INSERT INTO transaction_items (transaction_id, category_id, genre_id, name, memo, amount, sort) VALUES (9, 1, 1, '立て替え分', '後で精算', 3000, 0);
+INSERT INTO transaction_items (transaction_id, genre_id, name, memo, amount, sort) VALUES (9, 1, '立て替え分', '後で精算', 3000, 0);
 INSERT INTO transactions (id, date, mode, from_account_id, place_id, source) VALUES (10, '2026-10-27', 'payment', 2, NULL, 'manual');
-INSERT INTO transaction_items (transaction_id, category_id, genre_id, name, amount, sort) VALUES (10, 4, 6, NULL, 85000, 0);
+INSERT INTO transaction_items (transaction_id, genre_id, name, amount, sort) VALUES (10, 6, NULL, 85000, 0);
 INSERT INTO transactions (id, date, mode, to_account_id, place_id, source) VALUES (11, '2026-10-24', 'income', 2, 4, 'manual');
 INSERT INTO transaction_items (transaction_id, category_id, amount, sort) VALUES (11, 11, 280000, 0);
 INSERT INTO transactions (id, date, mode, to_account_id, source) VALUES (12, '2026-10-20', 'income', 1, 'manual');

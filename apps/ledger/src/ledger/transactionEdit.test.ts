@@ -48,9 +48,8 @@ const insertPayment = (
   );
   insert(
     sqlite,
-    "INSERT INTO transaction_items (transaction_id, category_id, genre_id, name, amount) VALUES (?, ?, ?, '牛乳', 200)",
+    "INSERT INTO transaction_items (transaction_id, genre_id, name, amount) VALUES (?, ?, '牛乳', 200)",
     id,
-    m.food,
     m.groceries,
   );
   return id;
@@ -824,9 +823,8 @@ describe("立替", () => {
     );
     insert(
       sqlite,
-      "INSERT INTO transaction_items (transaction_id, category_id, genre_id, amount) VALUES (?, ?, ?, 3600)",
+      "INSERT INTO transaction_items (transaction_id, genre_id, amount) VALUES (?, ?, 3600)",
       id,
-      m.food,
       m.groceries,
     );
     return id;

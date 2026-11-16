@@ -23,6 +23,7 @@ import {
   type ReimbursementInput,
 } from "./reimbursements.ts";
 import type { Aggregation, TransactionMode } from "./transactions.ts";
+import { itemCategoryId, itemGenreJoin, storedCategoryId } from "./itemCategory.ts";
 
 export type TransactionDetail = {
   id: number;
@@ -80,7 +81,7 @@ export const getTransaction = async (
   const [items, linkedIncomes, linkedPayments] = await Promise.all([
     db
       .select({
-        categoryId: transactionItems.categoryId,
+        categoryId: itemCategoryId,
         genreId: transactionItems.genreId,
         name: transactionItems.name,
         memo: transactionItems.memo,
@@ -88,6 +89,7 @@ export const getTransaction = async (
         isAdvanceTarget: transactionItems.isAdvanceTarget,
       })
       .from(transactionItems)
+      .leftJoin(genres, itemGenreJoin)
       .where(eq(transactionItems.transactionId, id))
       .orderBy(asc(transactionItems.sort), asc(transactionItems.id)),
     columns.mode === "payment" ? getLinkedIncomes(db, id) : [],
@@ -209,10 +211,10 @@ export const checkModeRules = (mode: TransactionMode, input: TransactionUpdate):
 };
 
 /**
- * 品目のカテゴリ・内訳を確かめ、内訳から親のカテゴリを決めた品目を返す。合わなければ理由を返す。
+ * 品目のカテゴリ・内訳を確かめ、保存する形にした品目を返す。合わなければ理由を返す。
  *
- * 内訳があればカテゴリは内訳の親にする（入力のカテゴリは見ない）。内訳がなければ入力のカテゴリをそのまま使う。
- * カテゴリは取引の種類（支出・収入）と同じ種類のものに限る。
+ * 内訳があればカテゴリは内訳の親から引くので持たせない（入力のカテゴリは見ない）。内訳がなければ入力のカテゴリを
+ * そのまま使う。カテゴリは取引の種類（支出・収入）と同じ種類のものに限る。
  */
 const resolveItemCategories = async (
   db: LedgerDb,
@@ -228,28 +230,20 @@ const resolveItemCategories = async (
     genreIds.length === 0
       ? []
       : await db
-          .select({ id: genres.id, categoryId: genres.categoryId })
+          .select({ id: genres.id })
           .from(genres)
           .innerJoin(categories, eq(categories.id, genres.categoryId))
           .where(and(inArray(genres.id, genreIds), eq(categories.mode, mode)));
-  const categoryIdByGenre = new Map(genreRows.map((genre) => [genre.id, genre.categoryId]));
-  const unknownGenres = genreIds.filter((id) => !categoryIdByGenre.has(id));
+  const knownGenres = new Set(genreRows.map((genre) => genre.id));
+  const unknownGenres = genreIds.filter((id) => !knownGenres.has(id));
   if (unknownGenres.length > 0) {
     return { ok: false, error: `内訳が見つかりません: ${unknownGenres.join(", ")}` };
   }
 
-  const resolved = items.map((item) => ({
-    ...item,
-    categoryId:
-      item.genreId === null ? item.categoryId : (categoryIdByGenre.get(item.genreId) ?? null),
-  }));
+  const resolved = items.map((item) => ({ ...item, categoryId: storedCategoryId(item) }));
 
   const categoryIds = [
-    ...new Set(
-      resolved.flatMap((item) =>
-        item.genreId === null && item.categoryId !== null ? [item.categoryId] : [],
-      ),
-    ),
+    ...new Set(resolved.flatMap((item) => (item.categoryId === null ? [] : [item.categoryId]))),
   ];
   if (categoryIds.length > 0) {
     const categoryRows = await db

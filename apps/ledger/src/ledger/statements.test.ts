@@ -103,7 +103,7 @@ describe("findRegisteredPayments", () => {
     );
     sqlite
       .prepare(
-        "INSERT INTO transaction_items (transaction_id, category_id, genre_id, amount) SELECT ?, category_id, id, 1000 FROM genres WHERE id = ?",
+        "INSERT INTO transaction_items (transaction_id, genre_id, amount) VALUES (?, ?, 1000)",
       )
       .run(transferId, groceryId);
     await createPayment(db, {

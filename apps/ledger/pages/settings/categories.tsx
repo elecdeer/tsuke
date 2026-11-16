@@ -11,6 +11,7 @@ import {
 } from "@tsuke/ui/components/dialog";
 import { Input } from "@tsuke/ui/components/input";
 import { Label } from "@tsuke/ui/components/label";
+import { NativeSelect, NativeSelectOption } from "@tsuke/ui/components/native-select";
 import { cn } from "@tsuke/ui/lib/utils";
 import { type ActionResult, actionErrorMessage } from "@/web/actionError";
 import { ArchiveButton } from "@/web/components/ArchiveButton";
@@ -32,7 +33,7 @@ type Editing =
   | { kind: "newCategory"; mode: Mode }
   | { kind: "category"; category: Category }
   | { kind: "newGenre"; category: Category }
-  | { kind: "genre"; genre: Genre };
+  | { kind: "genre"; genre: Genre; category: Category };
 
 const MODE_LABELS: Record<Mode, string> = { payment: "支出", income: "収入" };
 
@@ -87,10 +88,28 @@ const toggleArchived = (
       });
 
 /**
- * カテゴリか内訳の名前を編集するダイアログの中身。
+ * 内訳を移せる先のカテゴリを返す。今のカテゴリと、アーカイブ済みのカテゴリは除く。
  */
-const NameEditor = ({ editing, onClose }: { editing: Editing; onClose: () => void }) => {
+const genreDestinations = (categories: Category[], current: Category): Category[] =>
+  categories.filter((category) => category.id !== current.id && !category.archived);
+
+/**
+ * カテゴリか内訳の名前を編集するダイアログの中身。内訳のときは、別のカテゴリへ移す操作も出す。
+ */
+const NameEditor = ({
+  editing,
+  paymentCategories,
+  onClose,
+}: {
+  editing: Editing;
+  paymentCategories: Category[];
+  onClose: () => void;
+}) => {
   const nameId = useId();
+  const destinationId = useId();
+  const destinations =
+    editing.kind === "genre" ? genreDestinations(paymentCategories, editing.category) : [];
+  const [destination, setDestination] = useState<number | null>(destinations[0]?.id ?? null);
   const { title, field } = labelsOf(editing);
   const [name, setName] = useState(
     editing.kind === "category"
@@ -135,6 +154,39 @@ const NameEditor = ({ editing, onClose }: { editing: Editing; onClose: () => voi
           </Button>
         </div>
       </form>
+      {editing.kind === "genre" && destinations.length > 0 && destination !== null && (
+        <form
+          className={settings.EditorSection}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void run(() =>
+              action("/settings/categories?changeGenreCategory", {
+                data: { id: editing.genre.id, categoryId: destination },
+              }),
+            );
+          }}
+        >
+          <Label htmlFor={destinationId}>別のカテゴリへ移す</Label>
+          <div className={styles.MoveGenre}>
+            <NativeSelect
+              id={destinationId}
+              width="full"
+              value={destination}
+              onChange={(event) => setDestination(Number(event.target.value))}
+            >
+              {destinations.map((category) => (
+                <NativeSelectOption key={category.id} value={category.id}>
+                  {category.name}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <Button type="submit" variant="outline" disabled={pending}>
+              移す
+            </Button>
+          </div>
+          <p className={settings.note}>これまでの取引の品目も、移した先のカテゴリで集計されます</p>
+        </form>
+      )}
       {(editing.kind === "category" || editing.kind === "genre") && (
         <div className={settings.EditorSection}>
           <ArchiveButton
@@ -222,7 +274,7 @@ const CategoryBlock = ({
               <li key={genre.id} className={styles.genre}>
                 <button
                   type="button"
-                  onClick={() => onEdit({ kind: "genre", genre })}
+                  onClick={() => onEdit({ kind: "genre", genre, category })}
                   className={cn(styles.genreSelect, settings.RowTitle)}
                 >
                   <span className={settings.rowName}>{genre.name}</span>
@@ -330,7 +382,13 @@ const CategoriesPage = ({ payment, income }: Props) => {
         }}
       >
         <DialogContent>
-          {editing !== null && <NameEditor editing={editing} onClose={() => setEditing(null)} />}
+          {editing !== null && (
+            <NameEditor
+              editing={editing}
+              paymentCategories={payment}
+              onClose={() => setEditing(null)}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

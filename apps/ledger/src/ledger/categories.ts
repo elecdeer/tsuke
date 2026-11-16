@@ -228,3 +228,39 @@ export const moveGenre = async (
   if (first !== undefined) await db.batch([first, ...rest]);
   return { ok: true };
 };
+
+/**
+ * 内訳を別のカテゴリへ移し、移した先の並びの最後に置く。品目はカテゴリを内訳の親から引くので、
+ * これまでの品目も移した先のカテゴリで集計される。
+ */
+export const changeGenreCategory = async (
+  db: LedgerDb,
+  id: number,
+  categoryId: number,
+): Promise<MasterEditResult> => {
+  const [genre] = await db
+    .select({ categoryId: genres.categoryId, name: genres.name })
+    .from(genres)
+    .where(eq(genres.id, id));
+  if (genre === undefined) return GENRE_NOT_FOUND;
+  if (genre.categoryId === categoryId) return { ok: true };
+  const [category] = await db
+    .select({ mode: categories.mode })
+    .from(categories)
+    .where(eq(categories.id, categoryId));
+  if (category === undefined) return CATEGORY_NOT_FOUND;
+  if (category.mode !== "payment") {
+    return { ok: false, status: 400, error: "収入のカテゴリには内訳を移せません" };
+  }
+  const conflict = await findGenreConflict(db, categoryId, genre.name, id);
+  if (conflict !== null) return { ok: false, status: 409, error: conflict };
+  const [last] = await db
+    .select({ sort: max(genres.sort) })
+    .from(genres)
+    .where(eq(genres.categoryId, categoryId));
+  await db
+    .update(genres)
+    .set({ categoryId, sort: (last?.sort ?? -1) + 1 })
+    .where(eq(genres.id, id));
+  return { ok: true };
+};
