@@ -2,6 +2,7 @@ import { action } from "@void/react";
 import { Plus } from "lucide-react";
 import { useId, useState } from "react";
 import { Button } from "@tsuke/ui/components/button";
+import { Checkbox } from "@tsuke/ui/components/checkbox";
 import {
   Dialog,
   DialogClose,
@@ -86,9 +87,8 @@ const AccountEditor = ({ account, onClose }: { account: Account | null; onClose:
         </div>
         <div className={styles.TransferAsPayment}>
           <label className={styles.toggle}>
-            <input
-              type="checkbox"
-              className={styles.checkbox}
+            <Checkbox
+              size="sm"
               checked={transferAsPayment}
               onChange={(event) => setTransferAsPayment(event.target.checked)}
             />

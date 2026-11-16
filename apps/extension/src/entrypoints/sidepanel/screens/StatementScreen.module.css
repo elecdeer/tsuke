@@ -10,11 +10,9 @@
     color: var(--muted-foreground);
   }
 
+  /* 印を利用先の 1 行目にそろえる */
   > .checkbox {
-    width: 1rem;
-    height: 1rem;
     margin-top: 0.25rem;
-    accent-color: var(--primary);
   }
 
   > .main {

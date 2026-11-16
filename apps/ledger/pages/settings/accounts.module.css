@@ -35,13 +35,6 @@
     font-size: 0.875rem;
     line-height: 1.25rem;
     cursor: pointer;
-
-    > .checkbox {
-      flex-shrink: 0;
-      width: 0.875rem;
-      height: 0.875rem;
-      accent-color: var(--foreground);
-    }
   }
 
   > .note {

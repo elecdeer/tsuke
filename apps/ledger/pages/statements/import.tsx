@@ -2,6 +2,7 @@ import { Link, useRouter } from "@void/react";
 import { ChevronRight, CircleCheck, FileUp, LoaderCircle, TriangleAlert } from "lucide-react";
 import { memo, useCallback, useId, useState, type ChangeEvent } from "react";
 import { Button, buttonStyleProps } from "@tsuke/ui/components/button";
+import { Checkbox } from "@tsuke/ui/components/checkbox";
 import { visuallyHiddenClassName } from "@tsuke/ui/lib/a11y";
 import { PageTitle } from "@tsuke/ui/patterns/PageTitle";
 import { Input } from "@tsuke/ui/components/input";
@@ -215,8 +216,7 @@ const DraftRow = memo(function DraftRow({
   const onChange = (next: StatementCsvDraft) => onDraftChange(index, next);
   return (
     <li className={styles.DraftRow} data-unselected={!draft.selected || undefined}>
-      <input
-        type="checkbox"
+      <Checkbox
         aria-label={`${formatDay(draft.date)} ${draft.description} を登録する`}
         className={styles.checkbox}
         checked={draft.selected}
