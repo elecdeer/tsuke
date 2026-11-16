@@ -9,7 +9,7 @@ import * as v from "valibot";
 import { transactions } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
 import { ReceiptImageSchema } from "../llm/extractReceipt.ts";
-import { createPayment, PaymentInputSchema } from "./payments.ts";
+import { createPayment, overwritePayment, PaymentInputSchema } from "./payments.ts";
 
 /** 使う R2 の操作だけに絞った型。テストでは Map で置き換える */
 export type ReceiptImageBucket = {
@@ -26,10 +26,15 @@ export type ReceiptImageBucket = {
   delete: (key: string) => Promise<unknown>;
 };
 
-/** 支出の登録の入力。レシートの写真から登録するときだけ写真（data URL）が付く */
+/**
+ * 支出の登録の入力。レシートの写真から登録するときだけ写真（data URL）が付く。
+ *
+ * overwriteTransactionId を付けると、新しい取引を作らずにその支出を上書きする（`overwritePayment`）。
+ */
 export const RegisterPaymentSchema = v.object({
   ...PaymentInputSchema.entries,
   receiptImage: v.optional(ReceiptImageSchema),
+  overwriteTransactionId: v.optional(v.pipe(v.number(), v.safeInteger())),
 });
 
 export type RegisterPaymentInput = v.InferOutput<typeof RegisterPaymentSchema>;
@@ -69,19 +74,38 @@ export const removeReceiptImage = async (
 };
 
 /**
- * 支出を登録し、写真が付いていれば取引に結びつけて保存する。
+ * 支出を作るか、overwriteTransactionId の支出を上書きする。結果の形を揃える。
+ */
+const savePayment = async (
+  db: LedgerDb,
+  { overwriteTransactionId, ...payment }: Omit<RegisterPaymentInput, "receiptImage">,
+  receiptImageKey: string | null,
+): Promise<
+  | { ok: true; id: number; replacedReceiptImageKey: string | null }
+  | { ok: false; status: 400 | 404; error: string }
+> => {
+  if (overwriteTransactionId !== undefined) {
+    return overwritePayment(db, overwriteTransactionId, payment, receiptImageKey);
+  }
+  const result = await createPayment(db, payment, receiptImageKey);
+  return result.ok ? { ...result, replacedReceiptImageKey: null } : { ...result, status: 400 };
+};
+
+/**
+ * 支出を登録し、写真が付いていれば取引に結びつけて保存する。overwriteTransactionId があれば、その支出を上書きする。
  *
  * 取引が存在しない写真を指さないよう、先に写真を保存する。登録に失敗したら写真を消す。
  * 写真を保存できなければ登録もしない。写真は端末のキューに残っているので、登録し直せる。
+ * 上書きで写真を差し替えたら、前の写真は取引から外れるので消す。
  */
 export const registerPayment = async (
   db: LedgerDb,
   bucket: Pick<ReceiptImageBucket, "put" | "delete">,
   { receiptImage, ...payment }: RegisterPaymentInput,
-): Promise<{ ok: true; id: number } | { ok: false; status: 400 | 502; error: string }> => {
+): Promise<{ ok: true; id: number } | { ok: false; status: 400 | 404 | 502; error: string }> => {
   if (receiptImage === undefined) {
-    const result = await createPayment(db, payment);
-    return result.ok ? result : { ...result, status: 400 };
+    const result = await savePayment(db, payment, null);
+    return result.ok ? { ok: true, id: result.id } : result;
   }
 
   const { bytes, contentType, extension } = decodeReceiptImage(receiptImage);
@@ -95,15 +119,21 @@ export const registerPayment = async (
     return { ok: false, status: 502, error: "レシートの写真を保存できませんでした" };
   }
 
+  let result: Awaited<ReturnType<typeof savePayment>>;
   try {
-    const result = await createPayment(db, payment, key);
-    if (result.ok) return result;
-    await removeReceiptImage(bucket, key);
-    return { ...result, status: 400 };
+    result = await savePayment(db, payment, key);
   } catch (error) {
     await removeReceiptImage(bucket, key);
     throw error;
   }
+  if (!result.ok) {
+    await removeReceiptImage(bucket, key);
+    return result;
+  }
+  if (result.replacedReceiptImageKey !== null) {
+    await removeReceiptImage(bucket, result.replacedReceiptImageKey);
+  }
+  return { ok: true, id: result.id };
 };
 
 /**

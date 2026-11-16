@@ -5,6 +5,7 @@ import {
   ImagePlus,
   Info,
   LoaderCircle,
+  Replace,
   RotateCw,
   Trash2,
   TriangleAlert,
@@ -107,29 +108,58 @@ const useDuplicates = ({
 };
 
 /**
- * 重複の候補の警告。色だけに頼らず、アイコンと文言を付ける。
+ * 重複の候補を、日付・店舗・金額で表す。
  */
-const DuplicateWarning = ({ candidates }: { candidates: DuplicateCandidate[] }) => {
+const candidateLabel = (candidate: DuplicateCandidate): string =>
+  `${formatDay(candidate.date)} ${candidate.placeName ?? "店舗なし"} ${formatYen(candidate.amount)}`;
+
+/**
+ * 重複の候補の警告。色だけに頼らず、アイコンと文言を付ける。
+ *
+ * 候補が明細の取り込みなどで入った同じ支払いなら、新しく登録せずにレシートの内容で上書きできる。
+ */
+const DuplicateWarning = ({
+  candidates,
+  disabled,
+  onOverwrite,
+}: {
+  candidates: DuplicateCandidate[];
+  disabled: boolean;
+  onOverwrite: (candidate: DuplicateCandidate) => void;
+}) => {
   if (candidates.length === 0) return null;
   return (
     <div className={styles.DuplicateWarning}>
       <TriangleAlert className={styles.warningIcon} aria-hidden="true" />
       <div className={styles.warningBody}>
         <p>
-          合計金額が同じ支出が前後の日にすでにあります。二重に登録していないか確かめてください。
+          合計金額が同じ支出が前後の日にすでにあります。二重に登録していないか確かめてください。同じ支払いなら、レシートの内容で上書きできます。
         </p>
         <ul className={styles.candidates}>
-          {candidates.map((candidate) => (
-            <li key={candidate.transactionId} className={styles.candidate}>
-              <Link
-                href={`/transactions/${candidate.transactionId}`}
-                className={styles.candidateLink}
-              >
-                {formatDay(candidate.date)} {candidate.placeName ?? "店舗なし"}{" "}
-                {formatYen(candidate.amount)}
-              </Link>
-            </li>
-          ))}
+          {candidates.map((candidate) => {
+            const label = candidateLabel(candidate);
+            return (
+              <li key={candidate.transactionId} className={styles.candidate}>
+                <Link
+                  href={`/transactions/${candidate.transactionId}`}
+                  className={styles.candidateLink}
+                >
+                  {label}
+                </Link>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={disabled}
+                  aria-label={`${label} をレシートの内容で上書き`}
+                  onClick={() => onOverwrite(candidate)}
+                >
+                  <Replace />
+                  上書き
+                </Button>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </div>
@@ -392,7 +422,8 @@ const ReceiptReview = ({
   onRetry: () => void;
   onReread: () => void;
   onDiscard: () => void;
-  onRegistered: (transactionId: number) => void;
+  /** overwritten は既存の取引を上書きしたとき true */
+  onRegistered: (transactionId: number, overwritten: boolean) => void;
 }) => {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -402,7 +433,10 @@ const ReceiptReview = ({
 
   const update = (patch: Partial<TransactionDraft>) => onChange({ ...draft, ...patch });
 
-  const register = async () => {
+  /**
+   * 支出を登録する。overwriteTransactionId を渡すと、新しく作らずにその支出を上書きする。
+   */
+  const register = async (overwriteTransactionId?: number) => {
     const parsed = paymentFromDraft(draft);
     if (!parsed.ok) {
       setError(parsed.error);
@@ -418,12 +452,25 @@ const ReceiptReview = ({
           placePhone: entry.extracted?.placePhone ?? null,
           receiptImage: image,
           ...(model !== undefined && { aiRead: { source: "receipt" as const, model } }),
+          ...(overwriteTransactionId !== undefined && { overwriteTransactionId }),
         },
       });
-      onRegistered(id);
+      onRegistered(id, overwriteTransactionId !== undefined);
     } catch (registerError) {
       setError(registerErrorMessage(registerError));
       setPending(false);
+    }
+  };
+
+  const overwrite = (candidate: DuplicateCandidate) => {
+    // 元の取引の店舗や品目は戻せないので、置き換える相手を見せて確かめる
+    const target = candidateLabel(candidate);
+    if (
+      window.confirm(
+        `${target} の取引を、このレシートの日付・支払元・店舗・品目で上書きしますか？元の品目は残りません。`,
+      )
+    ) {
+      void register(candidate.transactionId);
     }
   };
 
@@ -434,7 +481,9 @@ const ReceiptReview = ({
 
   const footer = (
     <div className={styles.Footer}>
-      {ready && <DuplicateWarning candidates={duplicates} />}
+      {ready && (
+        <DuplicateWarning candidates={duplicates} disabled={pending} onOverwrite={overwrite} />
+      )}
       {error !== null && <ErrorMessage message={error} />}
       <div className={styles.footerRow}>
         {/* 広い画面では写真を隣に並べているので、見本は狭い画面だけに出す */}
@@ -590,12 +639,18 @@ const ReceiptReview = ({
 /**
  * 登録できたことの知らせ。登録した取引を開いて直せるよう、取引への入口を付ける。
  */
-const RegisteredNotice = ({ transactionId }: { transactionId: number }) => (
+const RegisteredNotice = ({
+  transactionId,
+  overwritten,
+}: {
+  transactionId: number;
+  overwritten: boolean;
+}) => (
   <output className={styles.RegisteredNotice}>
     <CircleCheck className={styles.noticeIcon} aria-hidden="true" />
-    登録しました。
+    {overwritten ? "既存の取引を上書きしました。" : "登録しました。"}
     <Link href={`/transactions/${transactionId}`} className={styles.noticeLink}>
-      登録した取引を開く
+      {overwritten ? "上書きした取引を開く" : "登録した取引を開く"}
     </Link>
   </output>
 );
@@ -619,7 +674,10 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }:
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
-  const [registeredId, setRegisteredId] = useState<number | null>(null);
+  const [registered, setRegistered] = useState<{
+    transactionId: number;
+    overwritten: boolean;
+  } | null>(null);
   const selected = selectedEntry(queue.entries, selectedId);
   const unconfirmed = queue.entries.length;
 
@@ -704,8 +762,13 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }:
             </span>
           )}
           {addError !== null && <ErrorMessage message={addError} />}
-          {registeredId !== null && <RegisteredNotice transactionId={registeredId} />}
-          {queue.loaded && unconfirmed === 0 && registeredId === null && (
+          {registered !== null && (
+            <RegisteredNotice
+              transactionId={registered.transactionId}
+              overwritten={registered.overwritten}
+            />
+          )}
+          {queue.loaded && unconfirmed === 0 && registered === null && (
             <p className={styles.hint}>
               レシートを撮ると AI が読み取ります。続けて何枚でも撮れます。
             </p>
@@ -741,8 +804,8 @@ const ReceiptNewPage = ({ accounts, categories, placeNames, chainNames, today }:
             onRetry={() => queue.retry(selected.id)}
             onReread={() => reread(selected)}
             onDiscard={() => removeSelected(selected.id)}
-            onRegistered={(transactionId) => {
-              setRegisteredId(transactionId);
+            onRegistered={(transactionId, overwritten) => {
+              setRegistered({ transactionId, overwritten });
               removeSelected(selected.id);
             }}
           />

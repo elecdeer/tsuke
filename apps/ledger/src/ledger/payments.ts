@@ -1,4 +1,4 @@
-import { and, asc, between, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, between, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import * as v from "valibot";
 import {
   accounts,
@@ -95,19 +95,12 @@ const genreInferenceRows = (
 };
 
 /**
- * 支出を 1 件の取引として登録する。
- *
- * 店舗の作成・取引・品目を 1 回の batch で入れるので、途中で失敗しても一部の品目だけが残ることはない。
- * batch の中では作った行の ID を受け渡せないので、取引は店舗を名前で、品目は直前に入れた取引を MAX(id) で
- * 参照する（batch はトランザクションで流れ、AUTOINCREMENT なので直前の取引の ID が最大になる）。
- * receiptImageKey には、先に保存したレシートの写真のキーを渡す。
- * AI が読み取った品目は、推測した内訳と確定した内訳を同じ batch で記録する（プロンプトの改善に使う）。
+ * 支出の内訳と口座が台帳にあるかを確かめ、内訳から親のカテゴリを引く表を返す。合わなければ理由を返す。
  */
-export const createPayment = async (
+const resolvePaymentRefs = async (
   db: LedgerDb,
   input: PaymentInput,
-  receiptImageKey: string | null = null,
-): Promise<{ ok: true; id: number } | { ok: false; error: string }> => {
+): Promise<{ ok: true; categoryIdByGenre: Map<number, number> } | { ok: false; error: string }> => {
   const genreIds = [...new Set(input.items.map((item) => item.genreId))];
   const genreRows = await db
     .select({ id: genres.id, categoryId: genres.categoryId })
@@ -127,24 +120,19 @@ export const createPayment = async (
       .where(eq(accounts.id, input.fromAccountId));
     if (account === undefined) return { ok: false, error: "口座が見つかりません" };
   }
+  return { ok: true, categoryIdByGenre };
+};
 
-  const placeName = blankToNull(input.placeName);
-  const insertTransaction = db
-    .insert(transactions)
-    .values({
-      date: input.date,
-      mode: "payment",
-      fromAccountId: input.fromAccountId,
-      placeId:
-        placeName === null
-          ? null
-          : sql`(SELECT ${places.id} FROM ${places} WHERE ${places.name} = ${placeName})`,
-      source: "manual",
-      receiptImageKey,
-    })
-    .returning({ id: transactions.id });
-  const itemRows = input.items.map((item, index) => ({
-    transactionId: sql`(SELECT MAX(${transactions.id}) FROM ${transactions})`,
+/**
+ * 支出の品目を transaction_items の行にする。並び順は入力の順。
+ */
+const paymentItemRows = (
+  transactionId: number | SQL,
+  input: PaymentInput,
+  categoryIdByGenre: ReadonlyMap<number, number>,
+) =>
+  input.items.map((item, index) => ({
+    transactionId,
     categoryId: categoryIdByGenre.get(item.genreId) ?? null,
     genreId: item.genreId,
     name: blankToNull(item.name),
@@ -152,13 +140,53 @@ export const createPayment = async (
     amount: item.amount,
     sort: index,
   }));
-  const insertItems = chunkInsertRows(transactionItems, itemRows).map((rows) =>
-    db.insert(transactionItems).values(rows),
-  );
+
+/**
+ * 店舗名から取引の place_id の値を作る。同じ batch で作る店舗も引けるよう、ID ではなく名前で参照する。
+ */
+const placeIdOf = (placeName: string | null): SQL | null =>
+  placeName === null
+    ? null
+    : sql`(SELECT ${places.id} FROM ${places} WHERE ${places.name} = ${placeName})`;
+
+/**
+ * 支出を 1 件の取引として登録する。
+ *
+ * 店舗の作成・取引・品目を 1 回の batch で入れるので、途中で失敗しても一部の品目だけが残ることはない。
+ * batch の中では作った行の ID を受け渡せないので、取引は店舗を名前で、品目は直前に入れた取引を MAX(id) で
+ * 参照する（batch はトランザクションで流れ、AUTOINCREMENT なので直前の取引の ID が最大になる）。
+ * receiptImageKey には、先に保存したレシートの写真のキーを渡す。
+ * AI が読み取った品目は、推測した内訳と確定した内訳を同じ batch で記録する（プロンプトの改善に使う）。
+ */
+export const createPayment = async (
+  db: LedgerDb,
+  input: PaymentInput,
+  receiptImageKey: string | null = null,
+): Promise<{ ok: true; id: number } | { ok: false; error: string }> => {
+  const refs = await resolvePaymentRefs(db, input);
+  if (!refs.ok) return refs;
+
+  const placeName = blankToNull(input.placeName);
+  const lastTransactionId = sql`(SELECT MAX(${transactions.id}) FROM ${transactions})`;
+  const insertTransaction = db
+    .insert(transactions)
+    .values({
+      date: input.date,
+      mode: "payment",
+      fromAccountId: input.fromAccountId,
+      placeId: placeIdOf(placeName),
+      source: "manual",
+      receiptImageKey,
+    })
+    .returning({ id: transactions.id });
+  const insertItems = chunkInsertRows(
+    transactionItems,
+    paymentItemRows(lastTransactionId, input, refs.categoryIdByGenre),
+  ).map((rows) => db.insert(transactionItems).values(rows));
 
   const inferenceRows = genreInferenceRows(input, placeName).map((row) => ({
     ...row,
-    transactionId: sql`(SELECT MAX(${transactions.id}) FROM ${transactions})`,
+    transactionId: lastTransactionId,
   }));
   const insertInferences = chunkInsertRows(genreInferences, inferenceRows).map((rows) =>
     db.insert(genreInferences).values(rows),
@@ -180,6 +208,109 @@ export const createPayment = async (
   return created === undefined
     ? { ok: false, error: "取引を作れませんでした" }
     : { ok: true, id: created.id };
+};
+
+export type OverwritePaymentResult =
+  | {
+      ok: true;
+      id: number;
+      /** 新しい写真で置き換えた前の写真のキー。呼び出し側で `removeReceiptImage` に渡す */
+      replacedReceiptImageKey: string | null;
+    }
+  | { ok: false; status: 400 | 404; error: string };
+
+/**
+ * 登録済みの支出を、読み取った支出で上書きする。明細の取り込みなどで店舗や品目が分からなかった取引に、
+ * レシートの詳細を入れるのに使う。
+ *
+ * 日付・支払元・店舗・品目は入力で置き換える。取引の ID は変えないので、取り込み元（source）・取り込みの記録・
+ * 立替とその紐付け・集計の扱い・お気に入りはそのまま残る。品目を入れ直すので立替の対象の印は外れ、
+ * 全品目が対象になる。そのとき立替額が品目の合計を超えるなら上書きしない。
+ * receiptImageKey を渡したときだけ写真を差し替え、渡さなければ今の写真を残す。
+ * 前の取引の推測の記録は、そのときの読み取りの記録として残し、新しい推測の記録を足す。
+ */
+export const overwritePayment = async (
+  db: LedgerDb,
+  id: number,
+  input: PaymentInput,
+  receiptImageKey: string | null = null,
+): Promise<OverwritePaymentResult> => {
+  const [current] = await db
+    .select({
+      mode: transactions.mode,
+      placeName: places.name,
+      advanceAmount: transactions.advanceAmount,
+      receiptImageKey: transactions.receiptImageKey,
+    })
+    .from(transactions)
+    .leftJoin(places, eq(places.id, transactions.placeId))
+    .where(eq(transactions.id, id));
+  if (current === undefined) return { ok: false, status: 404, error: "取引が見つかりません" };
+  if (current.mode !== "payment") {
+    return { ok: false, status: 400, error: "上書きできるのは支出だけです" };
+  }
+
+  const refs = await resolvePaymentRefs(db, input);
+  if (!refs.ok) return { ...refs, status: 400 };
+  const total = input.items.reduce((sum, item) => sum + item.amount, 0);
+  if (current.advanceAmount > total) {
+    return {
+      ok: false,
+      status: 400,
+      error:
+        "立替額が品目の合計を超えるので上書きできません。先に取引の画面で立替額を直してください",
+    };
+  }
+
+  const placeName = blankToNull(input.placeName);
+  const updateTransactionRow = db
+    .update(transactions)
+    .set({
+      date: input.date,
+      fromAccountId: input.fromAccountId,
+      placeId: placeIdOf(placeName),
+      ...(receiptImageKey !== null && { receiptImageKey }),
+    })
+    .where(eq(transactions.id, id));
+  const deleteItems = db.delete(transactionItems).where(eq(transactionItems.transactionId, id));
+  const insertItems = chunkInsertRows(
+    transactionItems,
+    paymentItemRows(id, input, refs.categoryIdByGenre),
+  ).map((rows) => db.insert(transactionItems).values(rows));
+  const inferenceRows = genreInferenceRows(input, placeName).map((row) => ({
+    ...row,
+    transactionId: id,
+  }));
+  const insertInferences = chunkInsertRows(genreInferences, inferenceRows).map((rows) =>
+    db.insert(genreInferences).values(rows),
+  );
+  const writes = [deleteItems, ...insertItems, ...insertInferences];
+
+  // 店舗を変えていないときは作らない。アーカイブ済みの店舗が元に戻らないようにするため（取引の編集と同じ）
+  if (placeName === null) {
+    await db.batch([updateTransactionRow, ...writes]);
+  } else if (placeName === current.placeName) {
+    await db.batch([
+      rememberPlacePhone(db, placeName, input.placePhone ?? null),
+      updateTransactionRow,
+      ...writes,
+    ]);
+  } else {
+    await db.batch([
+      upsertPlaceByName(db, placeName, input.placeDetail),
+      rememberPlacePhone(db, placeName, input.placePhone ?? null),
+      updateTransactionRow,
+      ...writes,
+    ]);
+  }
+  return {
+    ok: true,
+    id,
+    replacedReceiptImageKey:
+      receiptImageKey !== null && current.receiptImageKey !== receiptImageKey
+        ? current.receiptImageKey
+        : null,
+  };
 };
 
 /** 重複チェックの入力。amount は品目の金額の合計 */

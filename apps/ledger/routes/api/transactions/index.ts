@@ -5,6 +5,7 @@ import { registerPayment, RegisterPaymentSchema } from "../../../src/ledger/rece
 
 /**
  * 支出を登録する。レシートの写真が付いていれば、取引に結びつけて保存する。
+ * overwriteTransactionId が付いていれば、新しく作らずにその支出を上書きする。
  *
  * 作成でも 200 を返す（Void では c.status(201) を指定しても値を返すと 200 になり、
  * c.json(x, 201) にするとレスポンスの型が推論されなくなるため）。
