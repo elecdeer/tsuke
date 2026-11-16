@@ -1,14 +1,5 @@
 import { sql } from "void/db";
-import {
-  foreignKey,
-  index,
-  integer,
-  real,
-  sqliteTable,
-  text,
-  unique,
-  uniqueIndex,
-} from "void/schema-d1";
+import { check, index, integer, real, sqliteTable, text, unique } from "void/schema-d1";
 import type { ColumnMapping } from "../src/import/statementCsvEvents.ts";
 
 /**
@@ -67,11 +58,7 @@ export const genres = sqliteTable(
     ...masterColumns(),
     ...timestamps(),
   },
-  (t) => [
-    unique("genres_category_name_unique").on(t.categoryId, t.name),
-    // 品目の (genre_id, category_id) を複合外部キーで参照し、内訳と親カテゴリの組み合わせを DB で保証するため
-    uniqueIndex("genres_id_category_unique").on(t.id, t.categoryId),
-  ],
+  (t) => [unique("genres_category_name_unique").on(t.categoryId, t.name)],
 );
 
 /**
@@ -159,6 +146,9 @@ export const transactions = sqliteTable(
 /**
  * 品目。金額は符号付きで、レシート内の値引きは負の品目として持つ。
  *
+ * 分類は内訳かカテゴリのどちらか一方だけを持つ。内訳のある品目のカテゴリは内訳の親から引くので、
+ * 内訳を別のカテゴリへ移しても品目を書き換えずに済む。内訳のない品目（収入など）はカテゴリだけを持つ。
+ *
  * is_advance_target は立替の対象の印。取引のどの品目にも印がなければ、全品目が対象になる。
  */
 export const transactionItems = sqliteTable(
@@ -169,7 +159,7 @@ export const transactionItems = sqliteTable(
       .notNull()
       .references(() => transactions.id, { onDelete: "cascade" }),
     categoryId: integer("category_id").references(() => categories.id, { onDelete: "restrict" }),
-    genreId: integer("genre_id"),
+    genreId: integer("genre_id").references(() => genres.id, { onDelete: "restrict" }),
     name: text("name"),
     memo: text("memo"),
     amount: integer("amount").notNull(),
@@ -179,12 +169,7 @@ export const transactionItems = sqliteTable(
   (t) => [
     index("transaction_items_transaction_idx").on(t.transactionId),
     index("transaction_items_genre_idx").on(t.genreId),
-    // genre_id が null のときは照合されないので、内訳のない品目はカテゴリだけを持てる
-    foreignKey({
-      name: "transaction_items_genre_fk",
-      columns: [t.genreId, t.categoryId],
-      foreignColumns: [genres.id, genres.categoryId],
-    }).onDelete("restrict"),
+    check("transaction_items_genre_or_category", sql`"genre_id" IS NULL OR "category_id" IS NULL`),
   ],
 );
 

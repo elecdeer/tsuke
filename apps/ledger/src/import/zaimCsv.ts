@@ -284,8 +284,11 @@ const accountRef = (name: string | null): string =>
 const placeRef = (name: string | null): string =>
   name === null ? "NULL" : `(SELECT id FROM places WHERE name = ${quote(name)})`;
 
+/**
+ * 品目のカテゴリの参照。内訳のある品目はカテゴリを内訳の親から引くので持たせない。
+ */
 const categoryRef = (category: ZaimRow["category"]): string =>
-  category === null
+  category === null || category.genre !== null
     ? "NULL"
     : `(SELECT id FROM categories WHERE mode = ${quote(category.mode)} AND name = ${quote(category.name)})`;
 

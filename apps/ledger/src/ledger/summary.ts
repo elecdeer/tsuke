@@ -4,6 +4,7 @@ import type { LedgerDb } from "../db.ts";
 import { advanceSharesOf } from "./advance.ts";
 import { monthRange, monthsOfYear } from "./dates.ts";
 import type { CategoryMode } from "./masters.ts";
+import { itemCategoryId, itemGenreJoin } from "./itemCategory.ts";
 
 /** カテゴリのない品目をまとめる名前 */
 export const UNCATEGORIZED_NAME = "未分類";
@@ -109,13 +110,14 @@ const sumAdvanceShares = async (
       transactionId: transactions.id,
       date: transactions.date,
       advanceAmount: transactions.advanceAmount,
-      categoryId: transactionItems.categoryId,
+      categoryId: itemCategoryId,
       genreId: transactionItems.genreId,
       amount: transactionItems.amount,
       isAdvanceTarget: transactionItems.isAdvanceTarget,
     })
     .from(transactionItems)
     .innerJoin(transactions, eq(transactions.id, transactionItems.transactionId))
+    .leftJoin(genres, itemGenreJoin)
     .where(
       and(
         gte(transactions.date, start),
@@ -159,7 +161,7 @@ const summarizeByMonth = async (
       .select({
         month: monthOfDate,
         mode: transactions.mode,
-        categoryId: transactionItems.categoryId,
+        categoryId: itemCategoryId,
         categoryName: categories.name,
         genreId: transactionItems.genreId,
         genreName: genres.name,
@@ -167,8 +169,8 @@ const summarizeByMonth = async (
       })
       .from(transactionItems)
       .innerJoin(transactions, eq(transactions.id, transactionItems.transactionId))
-      .leftJoin(categories, eq(categories.id, transactionItems.categoryId))
-      .leftJoin(genres, eq(genres.id, transactionItems.genreId))
+      .leftJoin(genres, itemGenreJoin)
+      .leftJoin(categories, eq(categories.id, itemCategoryId))
       .where(
         and(
           gte(transactions.date, scope.start),
@@ -177,12 +179,7 @@ const summarizeByMonth = async (
           inArray(transactions.aggregation, scope.aggregations),
         ),
       )
-      .groupBy(
-        monthOfDate,
-        transactions.mode,
-        transactionItems.categoryId,
-        transactionItems.genreId,
-      ),
+      .groupBy(monthOfDate, transactions.mode, itemCategoryId, transactionItems.genreId),
     sumAdvanceShares(db, scope),
   ]);
 

@@ -318,8 +318,8 @@ describe("buildImportSql", () => {
            LEFT JOIN accounts fa ON fa.id = t.from_account_id
            LEFT JOIN accounts ta ON ta.id = t.to_account_id
            LEFT JOIN places p ON p.id = t.place_id
-           LEFT JOIN categories c ON c.id = i.category_id
            LEFT JOIN genres g ON g.id = i.genre_id
+           LEFT JOIN categories c ON c.id = coalesce(i.category_id, g.category_id)
            ORDER BY t.id, i.sort`,
         )
         .all(),

@@ -37,7 +37,20 @@ describe("台帳のスキーマ", () => {
     ).toThrow(/UNIQUE/);
   });
 
-  test("品目は内訳とその親カテゴリを持てる", () => {
+  test("品目は内訳だけを持てる", () => {
+    const txId = insertPayment();
+
+    expect(() =>
+      insert(
+        db,
+        "INSERT INTO transaction_items (transaction_id, genre_id, amount) VALUES (?, ?, 500)",
+        txId,
+        groceryId,
+      ),
+    ).not.toThrow();
+  });
+
+  test("品目は内訳とカテゴリを両方は持てない", () => {
     const txId = insertPayment();
 
     expect(() =>
@@ -48,19 +61,17 @@ describe("台帳のスキーマ", () => {
         foodId,
         groceryId,
       ),
-    ).not.toThrow();
+    ).toThrow(/CHECK/);
   });
 
-  test("品目の内訳と親カテゴリが食い違っていたら入れられない", () => {
+  test("品目の内訳は台帳にあるものに限る", () => {
     const txId = insertPayment();
 
     expect(() =>
       insert(
         db,
-        "INSERT INTO transaction_items (transaction_id, category_id, genre_id, amount) VALUES (?, ?, ?, 500)",
+        "INSERT INTO transaction_items (transaction_id, genre_id, amount) VALUES (?, 999, 500)",
         txId,
-        salaryId,
-        groceryId,
       ),
     ).toThrow(/FOREIGN KEY/);
   });
@@ -176,6 +187,45 @@ describe("マイグレーション", () => {
       { account_id: bank },
       { account_id: null },
       { account_id: null },
+    ]);
+  });
+
+  test("内訳のある品目のカテゴリを外し、内訳のない品目のカテゴリは残す", () => {
+    const db = createDb();
+    const files = migrationFiles();
+    const target = files.findIndex((name) => name.endsWith("_solid_tyrannus.sql"));
+    applyMigrations(db, files.slice(0, target));
+    const food = insert(db, "INSERT INTO categories (mode, name) VALUES ('payment', '食費')");
+    const grocery = insert(db, "INSERT INTO genres (category_id, name) VALUES (?, '食料品')", food);
+    const salary = insert(db, "INSERT INTO categories (mode, name) VALUES ('income', '給与')");
+    const payment = insert(
+      db,
+      "INSERT INTO transactions (date, mode, source) VALUES ('2026-10-27', 'payment', 'manual')",
+    );
+    const income = insert(
+      db,
+      "INSERT INTO transactions (date, mode, source) VALUES ('2026-10-25', 'income', 'manual')",
+    );
+    const addItem = (transactionId: number, categoryId: number | null, genreId: number | null) =>
+      insert(
+        db,
+        "INSERT INTO transaction_items (transaction_id, category_id, genre_id, amount) VALUES (?, ?, ?, 100)",
+        transactionId,
+        categoryId,
+        genreId,
+      );
+    addItem(payment, food, grocery);
+    addItem(payment, food, null);
+    addItem(income, salary, null);
+
+    applyMigrations(db, files.slice(target));
+
+    expect(
+      db.prepare("SELECT category_id, genre_id FROM transaction_items ORDER BY id").all(),
+    ).toEqual([
+      { category_id: null, genre_id: grocery },
+      { category_id: food, genre_id: null },
+      { category_id: salary, genre_id: null },
     ]);
   });
 

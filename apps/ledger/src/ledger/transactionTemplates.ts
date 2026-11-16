@@ -2,6 +2,7 @@ import { asc, desc, eq } from "drizzle-orm";
 import { categories, genres, places, transactionItems, transactions } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
 import type { Aggregation, TransactionMode } from "./transactions.ts";
+import { itemCategoryId, itemGenreJoin } from "./itemCategory.ts";
 
 /** 手入力の登録で雛形にする、よく使う取引 */
 export type TransactionTemplate = {
@@ -76,7 +77,7 @@ export const listTransactionTemplates = async (db: LedgerDb): Promise<Transactio
     db
       .select({
         transactionId: transactionItems.transactionId,
-        categoryId: transactionItems.categoryId,
+        categoryId: itemCategoryId,
         genreId: transactionItems.genreId,
         categoryName: categories.name,
         genreName: genres.name,
@@ -86,8 +87,8 @@ export const listTransactionTemplates = async (db: LedgerDb): Promise<Transactio
       })
       .from(transactionItems)
       .innerJoin(transactions, eq(transactions.id, transactionItems.transactionId))
-      .leftJoin(categories, eq(categories.id, transactionItems.categoryId))
-      .leftJoin(genres, eq(genres.id, transactionItems.genreId))
+      .leftJoin(genres, itemGenreJoin)
+      .leftJoin(categories, eq(categories.id, itemCategoryId))
       .where(eq(transactions.isFavorite, true))
       .orderBy(asc(transactionItems.sort), asc(transactionItems.id)),
   ]);

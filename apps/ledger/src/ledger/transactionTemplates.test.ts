@@ -104,9 +104,8 @@ describe("listTransactionTemplates", () => {
     );
     insert(
       sqlite,
-      "INSERT INTO transaction_items (transaction_id, category_id, genre_id, amount) VALUES (?, ?, ?, 500)",
+      "INSERT INTO transaction_items (transaction_id, genre_id, amount) VALUES (?, ?, 500)",
       id,
-      food,
       groceries,
     );
     await setTransactionFavorite(db, id, true);

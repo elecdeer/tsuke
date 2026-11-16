@@ -110,12 +110,12 @@ export const createPayment = async (
 ): Promise<{ ok: true; id: number } | { ok: false; error: string }> => {
   const genreIds = [...new Set(input.items.map((item) => item.genreId))];
   const genreRows = await db
-    .select({ id: genres.id, categoryId: genres.categoryId })
+    .select({ id: genres.id })
     .from(genres)
     .innerJoin(categories, eq(categories.id, genres.categoryId))
     .where(and(inArray(genres.id, genreIds), eq(categories.mode, "payment")));
-  const categoryIdByGenre = new Map(genreRows.map((genre) => [genre.id, genre.categoryId]));
-  const unknownGenres = genreIds.filter((id) => !categoryIdByGenre.has(id));
+  const knownGenres = new Set(genreRows.map((genre) => genre.id));
+  const unknownGenres = genreIds.filter((id) => !knownGenres.has(id));
   if (unknownGenres.length > 0) {
     return { ok: false, error: `支出の内訳が見つかりません: ${unknownGenres.join(", ")}` };
   }
@@ -145,7 +145,6 @@ export const createPayment = async (
     .returning({ id: transactions.id });
   const itemRows = input.items.map((item, index) => ({
     transactionId: sql`(SELECT MAX(${transactions.id}) FROM ${transactions})`,
-    categoryId: categoryIdByGenre.get(item.genreId) ?? null,
     genreId: item.genreId,
     name: blankToNull(item.name),
     memo: blankToNull(item.memo),

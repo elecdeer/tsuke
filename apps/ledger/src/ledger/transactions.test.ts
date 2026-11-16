@@ -74,7 +74,8 @@ const insertItem = (
     sqlite,
     "INSERT INTO transaction_items (transaction_id, category_id, genre_id, name, memo, amount, sort) VALUES (?, ?, ?, ?, ?, ?, ?)",
     transactionId,
-    item.categoryId ?? null,
+    // 内訳のある品目はカテゴリを内訳の親から引くので持たせない
+    item.genreId === undefined ? (item.categoryId ?? null) : null,
     item.genreId ?? null,
     item.name ?? null,
     item.memo ?? null,

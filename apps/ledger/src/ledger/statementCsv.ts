@@ -103,30 +103,30 @@ const placeNameOf = (row: RegisterRow): string | null =>
   row.mode === "transfer" ? null : blankToNull(row.placeName);
 
 /**
- * 入力の内訳・カテゴリ・口座が台帳にあるかを確かめ、なければ理由を返す。あれば内訳の親カテゴリを返す。
+ * 入力の内訳・カテゴリ・口座が台帳にあるかを確かめ、なければ理由を返す。
  *
  * 行ごとの ID を IN で聞くと D1 のバインド数の上限に当たりうるので、マスタを丸ごと読んで照らし合わせる。
  */
 const resolveMasters = async (
   db: LedgerDb,
   input: StatementCsvRegisterInput,
-): Promise<{ ok: true; categoryIdByGenre: Map<number, number> } | { ok: false; error: string }> => {
+): Promise<{ ok: true } | { ok: false; error: string }> => {
   const [genreRows, incomeRows, accountRows] = await Promise.all([
     db
-      .select({ id: genres.id, categoryId: genres.categoryId })
+      .select({ id: genres.id })
       .from(genres)
       .innerJoin(categories, eq(categories.id, genres.categoryId))
       .where(eq(categories.mode, "payment")),
     db.select({ id: categories.id }).from(categories).where(eq(categories.mode, "income")),
     db.select({ id: accounts.id }).from(accounts),
   ]);
-  const categoryIdByGenre = new Map(genreRows.map((genre) => [genre.id, genre.categoryId]));
+  const paymentGenreIds = new Set(genreRows.map((genre) => genre.id));
   const incomeIds = new Set(incomeRows.map((category) => category.id));
   const accountIds = new Set(accountRows.map((account) => account.id));
 
   if (!accountIds.has(input.accountId)) return { ok: false, error: "口座が見つかりません" };
   for (const row of input.rows) {
-    if (row.mode === "payment" && !categoryIdByGenre.has(row.genreId)) {
+    if (row.mode === "payment" && !paymentGenreIds.has(row.genreId)) {
       return { ok: false, error: `支出の内訳が見つかりません: ${row.genreId}` };
     }
     if (row.mode === "income" && row.categoryId !== null && !incomeIds.has(row.categoryId)) {
@@ -141,7 +141,7 @@ const resolveMasters = async (
       }
     }
   }
-  return { ok: true, categoryIdByGenre };
+  return { ok: true };
 };
 
 /**
@@ -279,12 +279,8 @@ export const registerStatementCsv = async (
       }),
       db.insert(transactionItems).values({
         transactionId: lastTransactionId,
-        categoryId:
-          row.mode === "payment"
-            ? (masters.categoryIdByGenre.get(row.genreId) ?? null)
-            : row.mode === "income"
-              ? row.categoryId
-              : null,
+        // 支出は内訳だけを持ち、カテゴリは内訳の親から引く
+        categoryId: row.mode === "income" ? row.categoryId : null,
         genreId: row.mode === "payment" ? row.genreId : null,
         name: blankToNull(row.name),
         amount: row.amount,

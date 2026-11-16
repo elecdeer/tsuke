@@ -12,6 +12,7 @@ import {
   setGenreArchived,
 } from "./categories.ts";
 import { listCategories, listManagedCategories } from "./masters.ts";
+import { summarizeMonth } from "./summary.ts";
 
 describe("createCategory", () => {
   test("同じ種類の並びの最後に追加する", async () => {
@@ -185,7 +186,7 @@ describe("moveGenre", () => {
 });
 
 describe("changeGenreCategory", () => {
-  test("内訳を移した先の並びの最後に置き、その内訳の品目のカテゴリも書き換える", async () => {
+  test("内訳を移した先の並びの最後に置き、これまでの品目も移した先のカテゴリで集計される", async () => {
     const { db, sqlite } = createTestLedgerDb();
     const food = insert(sqlite, "INSERT INTO categories (mode, name) VALUES ('payment', '食費')");
     const hobby = insert(sqlite, "INSERT INTO categories (mode, name) VALUES ('payment', '趣味')");
@@ -207,9 +208,8 @@ describe("changeGenreCategory", () => {
     for (const genreId of [cafe, lunch]) {
       insert(
         sqlite,
-        "INSERT INTO transaction_items (transaction_id, category_id, genre_id, amount) VALUES (?, ?, ?, 500)",
+        "INSERT INTO transaction_items (transaction_id, genre_id, amount) VALUES (?, ?, 500)",
         transactionId,
-        food,
         genreId,
       );
     }
@@ -227,11 +227,12 @@ describe("changeGenreCategory", () => {
         ],
       },
     ]);
+    const { payment } = await summarizeMonth(db, "2026-11");
     expect(
-      sqlite.prepare("SELECT genre_id, category_id FROM transaction_items ORDER BY genre_id").all(),
+      payment.categories.map((category) => ({ id: category.categoryId, amount: category.amount })),
     ).toEqual([
-      { genre_id: cafe, category_id: hobby },
-      { genre_id: lunch, category_id: food },
+      { id: food, amount: 500 },
+      { id: hobby, amount: 500 },
     ]);
   });
 

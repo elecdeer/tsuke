@@ -1,6 +1,6 @@
-import { and, asc, eq, max, sql } from "drizzle-orm";
+import { and, asc, eq, max } from "drizzle-orm";
 import * as v from "valibot";
-import { categories, genres, transactionItems } from "../../db/schema.ts";
+import { categories, genres } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
 import type { CategoryMode } from "./masters.ts";
 import {
@@ -230,11 +230,8 @@ export const moveGenre = async (
 };
 
 /**
- * 内訳を別のカテゴリへ移す。移した先の並びの最後に置き、その内訳の品目のカテゴリも書き換える。
- *
- * 品目は (genre_id, category_id) を複合外部キーで内訳に結んでいるので、内訳と品目のどちらを先に書き換えても
- * 文ごとの検証で失敗する。batch のトランザクションの中で検証をコミットまで遅らせ、両方を書き換えてから確かめる。
- * 外部キーに ON UPDATE CASCADE を足す案は、SQLite では品目の表を作り直すマイグレーションになるので採らない。
+ * 内訳を別のカテゴリへ移し、移した先の並びの最後に置く。品目はカテゴリを内訳の親から引くので、
+ * これまでの品目も移した先のカテゴリで集計される。
  */
 export const changeGenreCategory = async (
   db: LedgerDb,
@@ -261,13 +258,9 @@ export const changeGenreCategory = async (
     .select({ sort: max(genres.sort) })
     .from(genres)
     .where(eq(genres.categoryId, categoryId));
-  await db.batch([
-    db.run(sql`PRAGMA defer_foreign_keys = ON`),
-    db
-      .update(genres)
-      .set({ categoryId, sort: (last?.sort ?? -1) + 1 })
-      .where(eq(genres.id, id)),
-    db.update(transactionItems).set({ categoryId }).where(eq(transactionItems.genreId, id)),
-  ]);
+  await db
+    .update(genres)
+    .set({ categoryId, sort: (last?.sort ?? -1) + 1 })
+    .where(eq(genres.id, id));
   return { ok: true };
 };
