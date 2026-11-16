@@ -29,6 +29,12 @@ export const accounts = sqliteTable("accounts", {
   name: text("name").notNull().unique(),
   /** AI の読み取りに渡す、この口座についての補足 */
   aiHint: text("ai_hint"),
+  /**
+   * この口座への振替を支出として集計するかどうか。口座の残高には関係しない。
+   *
+   * 家族の口座への仕送りのように、口座間の移動の形でも手元から出ていくお金を支出に数えるために使う。
+   */
+  transferAsPayment: integer("transfer_as_payment", { mode: "boolean" }).notNull().default(false),
   ...masterColumns(),
   ...timestamps(),
 });

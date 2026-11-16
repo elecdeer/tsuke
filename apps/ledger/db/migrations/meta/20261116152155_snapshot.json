@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "65baed49-5ff6-438c-85d3-f94703af5ae7",
-  "prevId": "a879a6f4-064f-467c-a0b3-685023da9ac0",
+  "id": "d12e8ac0-c511-4ef5-a31b-c38c784e43f4",
+  "prevId": "c4f5e6db-b484-411f-973a-026712998f50",
   "tables": {
     "accounts": {
       "name": "accounts",
@@ -27,6 +27,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "transfer_as_payment": {
+          "name": "transfer_as_payment",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "sort": {
           "name": "sort",

@@ -193,7 +193,7 @@ describe("マイグレーション", () => {
   test("内訳のある品目のカテゴリを外し、内訳のない品目のカテゴリは残す", () => {
     const db = createDb();
     const files = migrationFiles();
-    const target = files.findIndex((name) => name.endsWith("_solid_tyrannus.sql"));
+    const target = files.findIndex((name) => name.endsWith("_freezing_donald_blake.sql"));
     applyMigrations(db, files.slice(0, target));
     const food = insert(db, "INSERT INTO categories (mode, name) VALUES ('payment', '食費')");
     const grocery = insert(db, "INSERT INTO genres (category_id, name) VALUES (?, '食料品')", food);

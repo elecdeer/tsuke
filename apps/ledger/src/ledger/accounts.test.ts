@@ -16,7 +16,11 @@ describe("updateAccount", () => {
     const id = insert(sqlite, "INSERT INTO accounts (name) VALUES ('楽天カード')");
 
     expect(
-      await updateAccount(db, id, { name: "楽天カード", aiHint: "VISA 1234 はこのカード" }),
+      await updateAccount(db, id, {
+        name: "楽天カード",
+        aiHint: "VISA 1234 はこのカード",
+        transferAsPayment: false,
+      }),
     ).toEqual({ ok: true });
 
     expect(await listAccountsWithHint(db)).toEqual([
@@ -28,7 +32,9 @@ describe("updateAccount", () => {
     const { db, sqlite } = createTestLedgerDb();
     const id = insert(sqlite, "INSERT INTO accounts (name, ai_hint) VALUES ('財布', '現金のとき')");
 
-    expect(await updateAccount(db, id, { name: "財布", aiHint: "" })).toEqual({ ok: true });
+    expect(
+      await updateAccount(db, id, { name: "財布", aiHint: "", transferAsPayment: false }),
+    ).toEqual({ ok: true });
 
     expect(await listAccountsWithHint(db)).toEqual([{ id, name: "財布", aiHint: null }]);
   });
@@ -36,7 +42,9 @@ describe("updateAccount", () => {
   test("口座がなければ 404 を返す", async () => {
     const { db } = createTestLedgerDb();
 
-    expect(await updateAccount(db, 1, { name: "財布", aiHint: "ヒント" })).toEqual({
+    expect(
+      await updateAccount(db, 1, { name: "財布", aiHint: "ヒント", transferAsPayment: false }),
+    ).toEqual({
       ok: false,
       status: 404,
       error: "口座が見つかりません",
@@ -46,23 +54,64 @@ describe("updateAccount", () => {
 
 describe("AccountUpdateSchema", () => {
   test("空の口座名は受け付けない", () => {
-    expect(v.safeParse(AccountUpdateSchema, { name: "  ", aiHint: "" }).success).toBe(false);
+    expect(
+      v.safeParse(AccountUpdateSchema, { name: "  ", aiHint: "", transferAsPayment: false })
+        .success,
+    ).toBe(false);
   });
 
   test("ヒントの前後の空白を取り除く", () => {
-    expect(v.parse(AccountUpdateSchema, { name: " 財布 ", aiHint: "  ヒント \n" })).toEqual({
-      name: "財布",
-      aiHint: "ヒント",
-    });
+    expect(
+      v.parse(AccountUpdateSchema, {
+        name: " 財布 ",
+        aiHint: "  ヒント \n",
+        transferAsPayment: false,
+      }),
+    ).toEqual({ name: "財布", aiHint: "ヒント", transferAsPayment: false });
   });
 
   test("500 文字を超えるヒントは受け付けない", () => {
     expect(
-      v.safeParse(AccountUpdateSchema, { name: "財布", aiHint: "あ".repeat(500) }).success,
+      v.safeParse(AccountUpdateSchema, {
+        name: "財布",
+        aiHint: "あ".repeat(500),
+        transferAsPayment: false,
+      }).success,
     ).toBe(true);
     expect(
-      v.safeParse(AccountUpdateSchema, { name: "財布", aiHint: "あ".repeat(501) }).success,
+      v.safeParse(AccountUpdateSchema, {
+        name: "財布",
+        aiHint: "あ".repeat(501),
+        transferAsPayment: false,
+      }).success,
     ).toBe(false);
+  });
+});
+
+describe("振替を支出として集計する設定", () => {
+  test("追加と編集で保存し、管理画面の一覧に含める", async () => {
+    const { db } = createTestLedgerDb();
+
+    expect(
+      await createAccount(db, { name: "実家の口座", aiHint: "", transferAsPayment: true }),
+    ).toEqual({ ok: true });
+    const [created] = await listManagedAccounts(db);
+    expect(created).toMatchObject({ name: "実家の口座", transferAsPayment: true });
+
+    expect(
+      await updateAccount(db, created?.id ?? 0, {
+        name: "実家の口座",
+        aiHint: "",
+        transferAsPayment: false,
+      }),
+    ).toEqual({ ok: true });
+    expect(await listManagedAccounts(db)).toEqual([
+      expect.objectContaining({ name: "実家の口座", transferAsPayment: false }),
+    ]);
+  });
+
+  test("振替の設定がない入力は受け付けない", () => {
+    expect(v.safeParse(AccountUpdateSchema, { name: "財布", aiHint: "" }).success).toBe(false);
   });
 });
 
@@ -92,7 +141,9 @@ describe("createAccount", () => {
     const { db, sqlite } = createTestLedgerDb();
     insert(sqlite, "INSERT INTO accounts (name, sort) VALUES ('財布', 3)");
 
-    expect(await createAccount(db, { name: "新しいカード", aiHint: "" })).toEqual({ ok: true });
+    expect(
+      await createAccount(db, { name: "新しいカード", aiHint: "", transferAsPayment: false }),
+    ).toEqual({ ok: true });
 
     expect(await listAccountsWithHint(db)).toEqual([
       expect.objectContaining({ name: "財布" }),
@@ -104,22 +155,26 @@ describe("createAccount", () => {
     const { db, sqlite } = createTestLedgerDb();
     insert(sqlite, "INSERT INTO accounts (name) VALUES ('財布')");
 
-    expect(await createAccount(db, { name: "財布", aiHint: "" })).toEqual({
-      ok: false,
-      status: 409,
-      error: "「財布」はすでにあります",
-    });
+    expect(await createAccount(db, { name: "財布", aiHint: "", transferAsPayment: false })).toEqual(
+      {
+        ok: false,
+        status: 409,
+        error: "「財布」はすでにあります",
+      },
+    );
   });
 
   test("同じ名前の口座がアーカイブ済みなら、元に戻すよう案内する", async () => {
     const { db, sqlite } = createTestLedgerDb();
     insert(sqlite, "INSERT INTO accounts (name, archived) VALUES ('財布', 1)");
 
-    expect(await createAccount(db, { name: "財布", aiHint: "" })).toEqual({
-      ok: false,
-      status: 409,
-      error: "「財布」はアーカイブ済みです。元に戻して使ってください",
-    });
+    expect(await createAccount(db, { name: "財布", aiHint: "", transferAsPayment: false })).toEqual(
+      {
+        ok: false,
+        status: 409,
+        error: "「財布」はアーカイブ済みです。元に戻して使ってください",
+      },
+    );
   });
 });
 
@@ -128,8 +183,12 @@ describe("updateAccount の名前の変更", () => {
     const { db, sqlite } = createTestLedgerDb();
     const id = insert(sqlite, "INSERT INTO accounts (name) VALUES ('財布')");
 
-    expect(await updateAccount(db, id, { name: "財布", aiHint: "" })).toEqual({ ok: true });
-    expect(await updateAccount(db, id, { name: "現金", aiHint: "" })).toEqual({ ok: true });
+    expect(
+      await updateAccount(db, id, { name: "財布", aiHint: "", transferAsPayment: false }),
+    ).toEqual({ ok: true });
+    expect(
+      await updateAccount(db, id, { name: "現金", aiHint: "", transferAsPayment: false }),
+    ).toEqual({ ok: true });
 
     expect(await listAccounts(db)).toEqual([{ id, name: "現金" }]);
   });
@@ -139,7 +198,9 @@ describe("updateAccount の名前の変更", () => {
     insert(sqlite, "INSERT INTO accounts (name) VALUES ('財布')");
     const id = insert(sqlite, "INSERT INTO accounts (name) VALUES ('銀行')");
 
-    expect(await updateAccount(db, id, { name: "財布", aiHint: "" })).toMatchObject({
+    expect(
+      await updateAccount(db, id, { name: "財布", aiHint: "", transferAsPayment: false }),
+    ).toMatchObject({
       ok: false,
       status: 409,
     });
@@ -167,7 +228,7 @@ describe("setAccountArchived", () => {
     expect(await setAccountArchived(db, id, true)).toEqual({ ok: true });
     expect(await listAccounts(db)).toEqual([]);
     expect(await listManagedAccounts(db)).toEqual([
-      { id, name: "解約するカード", aiHint: null, archived: true },
+      { id, name: "解約するカード", aiHint: null, transferAsPayment: false, archived: true },
     ]);
 
     expect(await setAccountArchived(db, id, false)).toEqual({ ok: true });
