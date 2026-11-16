@@ -1,5 +1,5 @@
-import { and, asc, eq, gt, gte, inArray, lt, sql, sum } from "drizzle-orm";
-import { categories, genres, transactionItems, transactions } from "../../db/schema.ts";
+import { and, asc, eq, gt, gte, inArray, lt, or, sql, sum } from "drizzle-orm";
+import { accounts, categories, genres, transactionItems, transactions } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
 import { advanceSharesOf } from "./advance.ts";
 import { monthRange, monthsOfYear } from "./dates.ts";
@@ -95,6 +95,9 @@ type SummaryScope = { start: string; end: string; aggregations: Aggregation[] };
 /** 取引の日付が属する月（YYYY-MM） */
 const monthOfDate = sql<string>`substr(${transactions.date}, 1, 7)`;
 
+/** 集計での取引の種類。支出として集計する振替は支出にまとめる */
+const summaryMode = sql<string>`case when ${transactions.mode} = 'transfer' then 'payment' else ${transactions.mode} end`;
+
 /**
  * 期間の支出の立替の按分額を、月とカテゴリと内訳ごとに合計する。
  *
@@ -149,6 +152,7 @@ type MonthlySummaryRow = SummaryRow & { month: string };
  *
  * 品目の金額は符号付きなので、値引きの品目はそのまま差し引かれる。
  * 支出は立替の按分額を引いた負担額で合計し、負担額が 0 になった組み合わせは出さない。
+ * 振替先の口座が「振替を支出として集計する」になっている振替は、支出として合計する。
  */
 const summarizeByMonth = async (
   db: LedgerDb,
@@ -158,7 +162,7 @@ const summarizeByMonth = async (
     db
       .select({
         month: monthOfDate,
-        mode: transactions.mode,
+        mode: summaryMode,
         categoryId: transactionItems.categoryId,
         categoryName: categories.name,
         genreId: transactionItems.genreId,
@@ -169,20 +173,19 @@ const summarizeByMonth = async (
       .innerJoin(transactions, eq(transactions.id, transactionItems.transactionId))
       .leftJoin(categories, eq(categories.id, transactionItems.categoryId))
       .leftJoin(genres, eq(genres.id, transactionItems.genreId))
+      .leftJoin(accounts, eq(accounts.id, transactions.toAccountId))
       .where(
         and(
           gte(transactions.date, scope.start),
           lt(transactions.date, scope.end),
-          inArray(transactions.mode, ["payment", "income"]),
+          or(
+            inArray(transactions.mode, ["payment", "income"]),
+            and(eq(transactions.mode, "transfer"), eq(accounts.transferAsPayment, true)),
+          ),
           inArray(transactions.aggregation, scope.aggregations),
         ),
       )
-      .groupBy(
-        monthOfDate,
-        transactions.mode,
-        transactionItems.categoryId,
-        transactionItems.genreId,
-      ),
+      .groupBy(monthOfDate, summaryMode, transactionItems.categoryId, transactionItems.genreId),
     sumAdvanceShares(db, scope),
   ]);
 

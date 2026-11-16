@@ -28,7 +28,7 @@ export const listAccountsWithHint = async (db: LedgerDb): Promise<AccountWithHin
     .where(eq(accounts.archived, false))
     .orderBy(asc(accounts.sort), asc(accounts.id));
 
-export type ManagedAccount = AccountWithHint & { archived: boolean };
+export type ManagedAccount = AccountWithHint & { transferAsPayment: boolean; archived: boolean };
 
 /**
  * 管理画面に出す口座を返す。アーカイブ済みの口座は並び順の後ろに続ける。
@@ -39,6 +39,7 @@ export const listManagedAccounts = async (db: LedgerDb): Promise<ManagedAccount[
       id: accounts.id,
       name: accounts.name,
       aiHint: accounts.aiHint,
+      transferAsPayment: accounts.transferAsPayment,
       archived: accounts.archived,
     })
     .from(accounts)
