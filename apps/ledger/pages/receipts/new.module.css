@@ -27,6 +27,11 @@
       color: var(--foreground);
 
       > .candidate {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+
         > .candidateLink {
           text-decoration-line: underline;
           text-underline-offset: 4px;
