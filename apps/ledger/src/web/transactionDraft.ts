@@ -209,6 +209,16 @@ export const hasAdvanceInput = (
 ): boolean => (draft.advanceAmount ?? "").trim() !== "" || (draft.reimbursements ?? []).length > 0;
 
 /**
+ * 立替の対象の品目の合計を返す。印がなければ全品目を対象にする。
+ *
+ * 立替額に入れられる上限でもあるので、「全額」で立替額にそのまま入れる。
+ */
+export const advanceTargetTotalOf = (items: readonly ItemDraft[]): number => {
+  const targets = items.filter((item) => item.isAdvanceTarget);
+  return itemsTotalOf(targets.length === 0 ? items : targets);
+};
+
+/**
  * 品目の立替の対象の印を変え、対象の品目の合計を立替額に入れる。印がなくなったら立替額を空にする。
  */
 export const toggleAdvanceTarget = (

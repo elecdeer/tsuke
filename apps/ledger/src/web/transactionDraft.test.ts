@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 import type { TransactionTemplate } from "../ledger/transactionTemplates.ts";
 import {
+  advanceTargetTotalOf,
   draftForMode,
   allocateReimbursements,
   draftFromTemplate,
@@ -447,6 +448,18 @@ describe("立替の入力", () => {
           reimbursements: [{ payment: payment(1, 2000), amount: "", expectMore: false }],
         }),
       ).toBe(true);
+    });
+  });
+
+  describe("advanceTargetTotalOf", () => {
+    test("印がなければ全品目の合計を返す", () => {
+      expect(advanceTargetTotalOf([item(0, "1000"), item(1, "2,000")])).toBe(3000);
+    });
+
+    test("印があれば印の付いた品目の合計だけを返す", () => {
+      expect(
+        advanceTargetTotalOf([item(0, "1000", true), item(1, "2,000"), item(2, "500", true)]),
+      ).toBe(1500);
     });
   });
 

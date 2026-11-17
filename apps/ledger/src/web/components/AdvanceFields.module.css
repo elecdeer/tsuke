@@ -3,6 +3,13 @@
   align-self: center;
 }
 
+/* 立替額の入力欄と、右に並べる「全額」 */
+.AmountInput {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 /* 支出の立替の欄 */
 .PaymentAdvance {
   display: flex;

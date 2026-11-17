@@ -22,6 +22,7 @@ import styles from "./AdvanceFields.module.css";
 import { formatAmount, formatDay } from "@/web/format";
 import { ADVANCE_STATUS_LABELS } from "@/web/labels";
 import {
+  advanceTargetTotalOf,
   allocateReimbursements,
   draftAmountOf,
   itemsTotalOf,
@@ -54,14 +55,24 @@ export const PaymentAdvanceFields = ({
     <div className={styles.PaymentAdvance}>
       <div className={styles.amountRow}>
         <FormField label="立替額" htmlFor={amountId}>
-          <Input
-            id={amountId}
-            inputMode="numeric"
-            align="end"
-            placeholder="0"
-            value={draft.advanceAmount ?? ""}
-            onChange={(event) => update({ advanceAmount: event.target.value })}
-          />
+          <div className={styles.AmountInput}>
+            <Input
+              id={amountId}
+              inputMode="numeric"
+              align="end"
+              placeholder="0"
+              value={draft.advanceAmount ?? ""}
+              onChange={(event) => update({ advanceAmount: event.target.value })}
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              tone="muted"
+              onClick={() => update({ advanceAmount: String(advanceTargetTotalOf(draft.items)) })}
+            >
+              全額
+            </Button>
+          </div>
         </FormField>
         <dl className={styles.stats}>
           {status !== "none" && <dd className={styles.status}>{ADVANCE_STATUS_LABELS[status]}</dd>}
