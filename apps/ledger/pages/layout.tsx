@@ -4,6 +4,7 @@ import "../src/styles.css";
 import { Link, useNavigation, useRouter } from "@void/react";
 import { Camera, ChartPie, List, type LucideIcon, Settings, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
+import { StatementCsvHandoffProvider } from "../src/web/components/StatementCsvHandoff.tsx";
 import { isActive, isNavigating, navHref, navPath } from "../src/web/nav.ts";
 import styles from "./layout.module.css";
 
@@ -108,7 +109,7 @@ const Layout = ({ children }: { children: ReactNode }) => {
         className={styles.main}
         data-wide={wide || undefined}
       >
-        {children}
+        <StatementCsvHandoffProvider>{children}</StatementCsvHandoffProvider>
       </main>
       <BottomNav activePath={activePath} hrefOf={hrefOf} />
     </div>

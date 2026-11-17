@@ -1,6 +1,14 @@
 import { Link, useRouter } from "@void/react";
 import { ChevronRight, CircleCheck, FileUp, LoaderCircle, TriangleAlert } from "lucide-react";
-import { memo, useCallback, useId, useState, type ChangeEvent } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useState,
+  type ChangeEvent,
+} from "react";
 import { Button, buttonStyleProps } from "@tsuke/ui/components/button";
 import { Checkbox } from "@tsuke/ui/components/checkbox";
 import { visuallyHiddenClassName } from "@tsuke/ui/lib/a11y";
@@ -32,6 +40,9 @@ import { Section } from "@tsuke/ui/patterns/Section";
 import { formatDateTime, formatDay, formatYen } from "@/web/format";
 import { MODE_LABELS } from "@/web/labels";
 import { formatReadTime } from "@/web/receiptQueue";
+import { FileDropOverlay, usePageFileDrop } from "@/web/components/FileDropOverlay";
+import { useStatementCsvHandoff } from "@/web/components/StatementCsvHandoff";
+import { isCsvFile } from "@/web/fileDrop";
 import {
   applyClassifiedRows,
   changeDraftMode,
@@ -378,6 +389,7 @@ const StatementImportPage = ({
   lastImports,
 }: Props) => {
   const router = useRouter();
+  const statementCsvHandoff = useStatementCsvHandoff();
   const fileInputId = useId();
   const placeListId = useId();
   const [reading, setReading] = useState(false);
@@ -487,12 +499,34 @@ const StatementImportPage = ({
     void readFile(file, "accurate");
   };
 
+  /**
+   * 選んだか落としたファイルを読み取る。ドロップでは種類を絞れないので、CSV でなければ読まずに知らせる。
+   */
+  const acceptFile = (file: File) => {
+    if (!isCsvFile(file)) {
+      setError(`${file.name} は CSV ではありません。CSV ファイルを選んでください`);
+      return;
+    }
+    void readFile(file);
+  };
+
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     // 同じファイルを選び直しても change が届くよう、選択を空に戻す
     event.target.value = "";
-    if (file !== undefined) void readFile(file);
+    if (file !== undefined) acceptFile(file);
   };
+
+  const draggingFile = usePageFileDrop(acceptFile, !busy);
+
+  // 取引の一覧に落とされた CSV を受け取って読み取る。受け取りは一度きりなので、開き直しても読み直さない
+  const acceptHandedOffFile = useEffectEvent(() => {
+    const file = statementCsvHandoff.take();
+    if (file !== null) acceptFile(file);
+  });
+  // 読み取りは API への送信を始める外への同期で、画面を開いたときにしか始められないので effect で行う
+  // oxlint-disable-next-line react/set-state-in-effect
+  useEffect(() => acceptHandedOffFile(), []);
 
   const register = async () => {
     if (accountId === null || summary === null) return;
@@ -544,7 +578,7 @@ const StatementImportPage = ({
             を選ぶと、列を読み取って店舗とカテゴリを分類します。登録した形式と利用先は覚えていて、次からは新しいものだけを
             AI が判定します。
           </p>
-          <div>
+          <div className={styles.picker}>
             <label
               htmlFor={fileInputId}
               {...buttonStyleProps({ variant: "outline" })}
@@ -571,6 +605,7 @@ const StatementImportPage = ({
                 onChange={onFileChange}
               />
             </label>
+            <p className={styles.dropHint}>ファイルをこの画面にドロップしても取り込めます</p>
           </div>
           {error !== null && <ErrorMessage message={error} />}
           {registeredCount !== null && (
@@ -679,6 +714,7 @@ const StatementImportPage = ({
           </Section>
         </>
       )}
+      <FileDropOverlay shown={draggingFile} message="CSV をドロップして読み取る" />
     </div>
   );
 };
