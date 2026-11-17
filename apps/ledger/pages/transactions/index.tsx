@@ -29,7 +29,7 @@ import { PeriodPager } from "@/web/components/PeriodPager";
 import { PeriodViewSwitch } from "@/web/components/PeriodViewSwitch";
 import { YearHeading } from "@/web/components/YearHeading";
 import { FileDropOverlay, usePageFileDrop } from "@/web/components/FileDropOverlay";
-import { handOffStatementCsv } from "@/web/fileDrop";
+import { useStatementCsvHandoff } from "@/web/components/StatementCsvHandoff";
 import { SkeletonBlock, SkeletonText } from "@/web/components/Skeleton";
 import { formatAmount, formatDayOfMonth, formatMonthDay } from "@/web/format";
 import { groupByDate } from "@/web/groupByDate";
@@ -630,9 +630,10 @@ const TransactionsPage = ({
   selected,
 }: Props) => {
   const router = useRouter();
+  const statementCsvHandoff = useStatementCsvHandoff();
   // 一覧に落とした CSV は取り込みの画面へ渡し、そこで読み取る
   const draggingFile = usePageFileDrop((file) => {
-    handOffStatementCsv(file);
+    statementCsvHandoff.handOff(file);
     void router.visit("/statements/import");
   });
   // パネルを閉じても列が縮みきるまでは中身を残すため、最後に開いた取引を持っておく

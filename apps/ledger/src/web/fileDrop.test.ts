@@ -2,9 +2,8 @@ import { describe, expect, test } from "vite-plus/test";
 import {
   carriesFiles,
   createFileDragTracker,
-  handOffStatementCsv,
+  createStatementCsvHandoff,
   isCsvFile,
-  takeHandedOffStatementCsv,
 } from "./fileDrop.ts";
 
 describe("carriesFiles", () => {
@@ -64,23 +63,34 @@ describe("createFileDragTracker", () => {
   });
 });
 
-describe("handOffStatementCsv", () => {
+describe("createStatementCsvHandoff", () => {
   test("預けた CSV を一度だけ受け取れる", () => {
+    const handoff = createStatementCsvHandoff();
     const file = new File(["日付,金額\n"], "meisai.csv", { type: "text/csv" });
 
-    handOffStatementCsv(file);
+    handoff.handOff(file);
 
-    expect(takeHandedOffStatementCsv()).toBe(file);
-    expect(takeHandedOffStatementCsv()).toBeNull();
+    expect(handoff.take()).toBe(file);
+    expect(handoff.take()).toBeNull();
   });
 
   test("続けて預けると後のものを受け取る", () => {
+    const handoff = createStatementCsvHandoff();
     const first = new File([""], "a.csv");
     const second = new File([""], "b.csv");
 
-    handOffStatementCsv(first);
-    handOffStatementCsv(second);
+    handoff.handOff(first);
+    handoff.handOff(second);
 
-    expect(takeHandedOffStatementCsv()).toBe(second);
+    expect(handoff.take()).toBe(second);
+  });
+
+  test("預け先ごとに中身は分かれる", () => {
+    const one = createStatementCsvHandoff();
+    const other = createStatementCsvHandoff();
+
+    one.handOff(new File([""], "a.csv"));
+
+    expect(other.take()).toBeNull();
   });
 });

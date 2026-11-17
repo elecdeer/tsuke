@@ -42,20 +42,27 @@ export const createFileDragTracker = (): FileDragTracker => {
   };
 };
 
-let handedOff: File | null = null;
-
-/**
- * 取り込みの画面に渡す CSV を預ける。取引の一覧に落としたファイルを、画面を移った先で読み取るのに使う。
- */
-export const handOffStatementCsv = (file: File): void => {
-  handedOff = file;
+/** 取り込みの画面に渡す CSV の預け先 */
+export type StatementCsvHandoff = {
+  /** CSV を預ける。続けて預けると後のもので置き換える */
+  handOff: (file: File) => void;
+  /** 預けられた CSV を受け取る。一度受け取ったら空にし、画面を開き直しても読み直さない */
+  take: () => File | null;
 };
 
 /**
- * 預けられた CSV を受け取る。一度受け取ったら空にし、画面を開き直しても読み直さない。
+ * 取り込みの画面に渡す CSV の預け先を作る。取引の一覧に落としたファイルを、画面を移った先で読み取るのに使う。
  */
-export const takeHandedOffStatementCsv = (): File | null => {
-  const file = handedOff;
-  handedOff = null;
-  return file;
+export const createStatementCsvHandoff = (): StatementCsvHandoff => {
+  let handedOff: File | null = null;
+  return {
+    handOff: (file) => {
+      handedOff = file;
+    },
+    take: () => {
+      const file = handedOff;
+      handedOff = null;
+      return file;
+    },
+  };
 };

@@ -41,7 +41,8 @@ import { formatDateTime, formatDay, formatYen } from "@/web/format";
 import { MODE_LABELS } from "@/web/labels";
 import { formatReadTime } from "@/web/receiptQueue";
 import { FileDropOverlay, usePageFileDrop } from "@/web/components/FileDropOverlay";
-import { isCsvFile, takeHandedOffStatementCsv } from "@/web/fileDrop";
+import { useStatementCsvHandoff } from "@/web/components/StatementCsvHandoff";
+import { isCsvFile } from "@/web/fileDrop";
 import {
   applyClassifiedRows,
   changeDraftMode,
@@ -388,6 +389,7 @@ const StatementImportPage = ({
   lastImports,
 }: Props) => {
   const router = useRouter();
+  const statementCsvHandoff = useStatementCsvHandoff();
   const fileInputId = useId();
   const placeListId = useId();
   const [reading, setReading] = useState(false);
@@ -519,9 +521,11 @@ const StatementImportPage = ({
 
   // 取引の一覧に落とされた CSV を受け取って読み取る。受け取りは一度きりなので、開き直しても読み直さない
   const acceptHandedOffFile = useEffectEvent(() => {
-    const file = takeHandedOffStatementCsv();
+    const file = statementCsvHandoff.take();
     if (file !== null) acceptFile(file);
   });
+  // 読み取りは API への送信を始める外への同期で、画面を開いたときにしか始められないので effect で行う
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => acceptHandedOffFile(), []);
 
   const register = async () => {
