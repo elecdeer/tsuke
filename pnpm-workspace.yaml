@@ -36,6 +36,8 @@ catalog:
   eslint-plugin-css-properties-order: ^0.0.1
   jiti: ^2.7.0
   temporal-polyfill-lite: ^1.0.1
+  "@modelcontextprotocol/server": 2.4.0
+  "@modelcontextprotocol/client": 2.4.0
 
 catalogMode: prefer
 overrides:
