@@ -255,6 +255,20 @@
     line-height: 1.25rem;
     color: var(--muted-foreground);
   }
+
+  /* 狭い画面ではドロップの案内をボタンの下に回す */
+  > .picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    align-items: center;
+
+    > .dropHint {
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: var(--muted-foreground);
+    }
+  }
 }
 
 /* CSV を選ぶボタン。label の中に file の input を隠す */
