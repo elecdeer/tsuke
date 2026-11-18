@@ -4,7 +4,13 @@ import { defineHandler, defineHead, type InferProps } from "void";
 import { db } from "void/db";
 import { places } from "@schema";
 import { formatMonth, isYearPeriod, monthOf, todayInTokyo } from "../../src/ledger/dates.ts";
-import { listAccounts, listCategories, listChains, listPlaces } from "../../src/ledger/masters.ts";
+import {
+  listAccounts,
+  listCategories,
+  listChains,
+  listPlaces,
+  listPlacesWithChain,
+} from "../../src/ledger/masters.ts";
 import {
   deleteTransaction,
   getTransaction,
@@ -75,22 +81,31 @@ export const loader = defineHandler.withValidator({ query: TransactionsQuerySche
 ) => {
   const currentMonth = monthOf(todayInTokyo());
   const filter = filterOf(query, currentMonth);
-  const [transactions, accounts, paymentCategories, incomeCategories, place, selected, chainNames] =
-    await Promise.all([
-      listTransactions(db, filter),
-      listAccounts(db),
-      listCategories(db, "payment"),
-      listCategories(db, "income"),
-      filter.placeId === undefined
-        ? undefined
-        : db
-            .select({ id: places.id, name: places.name })
-            .from(places)
-            .where(eq(places.id, filter.placeId))
-            .get(),
-      loadSelected(query.selected),
-      listChains(db),
-    ]);
+  const [
+    transactions,
+    accounts,
+    paymentCategories,
+    incomeCategories,
+    place,
+    selected,
+    chainNames,
+    placeList,
+  ] = await Promise.all([
+    listTransactions(db, filter),
+    listAccounts(db),
+    listCategories(db, "payment"),
+    listCategories(db, "income"),
+    filter.placeId === undefined
+      ? undefined
+      : db
+          .select({ id: places.id, name: places.name })
+          .from(places)
+          .where(eq(places.id, filter.placeId))
+          .get(),
+    loadSelected(query.selected),
+    listChains(db),
+    listPlacesWithChain(db),
+  ]);
   return {
     filter,
     currentMonth,
@@ -99,6 +114,8 @@ export const loader = defineHandler.withValidator({ query: TransactionsQuerySche
     categories: { payment: paymentCategories, income: incomeCategories },
     placeName: place?.name ?? null,
     chainNames,
+    /** 店舗の絞り込みの選択肢にする店舗 */
+    places: placeList,
     selected,
   };
 });

@@ -1,0 +1,4 @@
+/* 欄は中身に合わせて狭いので、店舗の名前が切れないよう一覧には最低限の幅を取る */
+.Content {
+  min-width: max(16rem, calc(var(--anchor-width) + 1.75rem));
+}

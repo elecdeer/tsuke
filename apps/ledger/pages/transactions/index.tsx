@@ -26,6 +26,7 @@ import { TransactionEditor } from "@/web/components/TransactionEditor";
 import { CategoryOptions } from "@/web/components/CategoryOptions";
 import { MonthHeading, StickyMonthBar, useMonthHeadingHidden } from "@/web/components/MonthHeading";
 import { PeriodPager } from "@/web/components/PeriodPager";
+import { PlaceFilterSelect } from "@/web/components/PlaceFilterSelect";
 import { PeriodViewSwitch } from "@/web/components/PeriodViewSwitch";
 import { YearHeading } from "@/web/components/YearHeading";
 import { FileDropOverlay, usePageFileDrop } from "@/web/components/FileDropOverlay";
@@ -47,7 +48,7 @@ const ADVANCE_FILTER_LABELS = { any: "立替あり", unreceived: "未入金" } a
 const ADVANCE_FILTERS = ["any", "unreceived"] as const;
 
 /**
- * 種類・口座・カテゴリの絞り込み。選ぶとすぐにその条件の一覧へ移る。
+ * 種類・口座・カテゴリ・立替・店舗の絞り込み。選ぶとすぐにその条件の一覧へ移る。
  * 何か絞り込んでいれば、期間だけを残してすべて外すリセットを出す。
  */
 const Filters = ({
@@ -55,8 +56,8 @@ const Filters = ({
   accounts,
   categories,
   placeName,
-  chainNames,
-}: Pick<Props, "filter" | "accounts" | "categories" | "placeName" | "chainNames">) => {
+  places,
+}: Pick<Props, "filter" | "accounts" | "categories" | "placeName" | "places">) => {
   const router = useRouter();
   const visit = (next: Partial<TransactionFilter>) => {
     void router.visit(transactionsHref({ ...filter, ...next }), { preserveScroll: true });
@@ -75,11 +76,6 @@ const Filters = ({
   const advanceItems: Record<string, string> = {
     "": "立替を問わない",
     ...ADVANCE_FILTER_LABELS,
-  };
-
-  const chainItems: Record<string, string> = {
-    "": "すべてのチェーン",
-    ...Object.fromEntries(chainNames.map((chain) => [chain, chain])),
   };
 
   return (
@@ -159,40 +155,12 @@ const Filters = ({
           ))}
         </SelectContent>
       </Select>
-      {chainNames.length > 0 && (
-        <Select
-          items={chainItems}
-          value={filter.chain ?? ""}
-          onValueChange={(value) =>
-            visit({ chain: value === null || value === "" ? undefined : value })
-          }
-        >
-          <SelectTrigger size="sm" aria-label="チェーン">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">すべてのチェーン</SelectItem>
-            {chainNames.map((chain) => (
-              <SelectItem key={chain} value={chain}>
-                {chain}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
-      {filter.placeId !== undefined && (
-        <span className={styles.placeChip}>
-          {placeName ?? "（削除された店舗）"}
-          <button
-            type="button"
-            aria-label="店舗の絞り込みを外す"
-            className={styles.chipRemove}
-            onClick={() => visit({ placeId: undefined })}
-          >
-            <X className={styles.chipRemoveIcon} />
-          </button>
-        </span>
-      )}
+      <PlaceFilterSelect
+        filter={filter}
+        places={places}
+        placeName={placeName}
+        onChange={(next) => visit(next)}
+      />
       {isFiltered(filter) && (
         <Link
           href={transactionsHref({ period: filter.period })}
@@ -627,6 +595,7 @@ const TransactionsPage = ({
   categories,
   placeName,
   chainNames,
+  places,
   selected,
 }: Props) => {
   const router = useRouter();
@@ -701,7 +670,7 @@ const TransactionsPage = ({
                 accounts={accounts}
                 categories={categories}
                 placeName={placeName}
-                chainNames={chainNames}
+                places={places}
               />
             </div>
             <div className={styles.actions}>

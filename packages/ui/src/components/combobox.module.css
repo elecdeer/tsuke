@@ -102,6 +102,11 @@
   .Item {
     padding-right: 2rem;
 
+    /* まとまりの中の項目（チェーンの中の店舗など）を一段下げる */
+    &[data-inset] {
+      padding-left: 1.25rem;
+    }
+
     > .indicator {
       position: absolute;
       right: 0.625rem;

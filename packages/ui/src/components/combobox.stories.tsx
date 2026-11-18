@@ -5,11 +5,14 @@ import { expect, waitFor, within } from "storybook/test";
 import { Input } from "./input.tsx";
 import {
   Combobox,
+  ComboboxCollection,
   ComboboxContent,
   ComboboxEmpty,
   ComboboxField,
+  ComboboxGroup,
   ComboboxInput,
   ComboboxItem,
+  ComboboxLabel,
   ComboboxList,
   ComboboxTrigger,
   ComboboxValue,
@@ -72,6 +75,87 @@ export const WithSearch = meta.story({
     await userEvent.click(await body.findByRole("option", { name: "交通費 / 電車・バス" }));
     await expect(canvas.getByRole("combobox", { name: "カテゴリ" })).toHaveTextContent(
       "交通費 / 電車・バス",
+    );
+  },
+});
+
+type StoreOption = { label: string; inset: boolean };
+
+const STORE_GROUPS: { value: string; items: StoreOption[] }[] = [
+  {
+    value: "コンビニB",
+    items: [
+      { label: "コンビニB（全店）", inset: false },
+      { label: "コンビニB 駅前店", inset: true },
+      { label: "コンビニB 本町店", inset: true },
+    ],
+  },
+  { value: "チェーンなし", items: [{ label: "カフェC", inset: false }] },
+];
+
+/**
+ * 見出しでまとめた選択肢。まとまりの中の項目は inset で一段下げる。検索で項目がなくなったまとまりは見出しごと消える。
+ */
+export const Grouped = meta.story({
+  render: () => (
+    <div style={{ maxWidth: "20rem" }}>
+      <Combobox
+        items={STORE_GROUPS}
+        itemToStringLabel={(option: StoreOption) => option.label}
+        isItemEqualToValue={(a: StoreOption, b: StoreOption) => a.label === b.label}
+      >
+        <ComboboxTrigger
+          render={
+            <button
+              type="button"
+              aria-label="店舗"
+              {...selectTriggerStyleProps({ width: "full" })}
+            />
+          }
+        >
+          <ComboboxValue>
+            {(value: StoreOption | null) => (
+              <SelectTriggerText placeholder={value === null}>
+                {value?.label ?? "店舗を選択"}
+              </SelectTriggerText>
+            )}
+          </ComboboxValue>
+        </ComboboxTrigger>
+        <ComboboxContent>
+          <ComboboxInput placeholder="店舗を検索" />
+          <ComboboxEmpty>店舗が見つかりません</ComboboxEmpty>
+          <ComboboxList>
+            {(group: (typeof STORE_GROUPS)[number]) => (
+              <ComboboxGroup key={group.value} items={group.items}>
+                <ComboboxLabel>{group.value}</ComboboxLabel>
+                <ComboboxCollection>
+                  {(option: StoreOption) => (
+                    <ComboboxItem key={option.label} value={option} inset={option.inset}>
+                      {option.label}
+                    </ComboboxItem>
+                  )}
+                </ComboboxCollection>
+              </ComboboxGroup>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+    </div>
+  ),
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await userEvent.click(canvas.getByRole("combobox", { name: "店舗" }));
+    const body = within(canvasElement.ownerDocument.body);
+    const inset = await body.findByRole("option", { name: "コンビニB 駅前店" });
+    await expect(inset).toHaveAttribute("data-inset");
+    await expect(body.getByRole("option", { name: "コンビニB（全店）" })).not.toHaveAttribute(
+      "data-inset",
+    );
+
+    await userEvent.type(body.getByPlaceholderText("店舗を検索"), "本町");
+    await waitFor(() => expect(body.queryByText("チェーンなし")).not.toBeInTheDocument());
+    await userEvent.click(body.getByRole("option", { name: "コンビニB 本町店" }));
+    await expect(canvas.getByRole("combobox", { name: "店舗" })).toHaveTextContent(
+      "コンビニB 本町店",
     );
   },
 });
