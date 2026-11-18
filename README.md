@@ -111,6 +111,14 @@ pnpm -F ledger exec void secret put ACCESS_AUD
 - コンテキスト変数の `user` は Void の認証機能（Better Auth）が型を予約しているため、`accessUser` を使う
 - 自動入力（`POST /api/transactions/extract`）が使う Workers AI にはローカルの模擬環境がなく、開発サーバーは Access の後ろにある `tsuke` 経由でリモートの AI につなぐ。そのため Access のサービストークン（`CLOUDFLARE_ACCESS_CLIENT_ID` と `CLOUDFLARE_ACCESS_CLIENT_SECRET`）がないと開発サーバーが起動しない。AI 以外を試すだけなら、`void.config.ts` に一時的に `inference: { bindings: { ai: false } }` を足す
 
+### MCP サーバー
+
+- `/mcp` で MCP サーバー（Streamable HTTP）を公開する。台帳の参照（取引・集計・残高・マスタ）、取引の登録・編集・削除、口座・カテゴリ・内訳・店舗の編集を tool として持つ（`apps/ledger/src/mcp/server.ts`）
+- `agents/mcp/server` の `createMcpHandler` でステートレスに動かし、リクエストごとに `McpServer` を作る。Durable Object は使わない
+- 認証は他のルートと同じく Access に任せる。MCP クライアントは Access の [Managed OAuth](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/managed-oauth/) でログインし、Worker は Access が付けた JWT を `middleware/02.access.ts` で確かめる。使うには Access アプリケーションの Advanced settings で Managed OAuth を有効にする
+- MCP クライアントには `https://<Worker のホスト>/mcp` を登録する。クライアントは RFC 8707（resource indicator）に対応している必要がある
+- tool の入力は valibot のスキーマで検証する。`@valibot/to-json-schema` の `toStandardJsonSchema` は `v.trim` のような JSON Schema にできないアクションで例外を投げるので、変換できないアクションを無視して書き出す（`apps/ledger/src/mcp/toolSchema.ts`）
+
 ### 自動入力の評価
 
 `scripts/eval-fixtures/` の事例を複数のモデルで台帳の抽出に通し、項目ごとの一致率・時間・トークン数を比べる。Workers AI は Cloudflare の AI の REST API で呼ぶので、Workers AI の権限を持つ API トークンとアカウント ID が要る。Workers AI の利用枠を実際に使う。

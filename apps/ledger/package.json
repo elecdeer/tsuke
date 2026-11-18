@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
+    "@modelcontextprotocol/server": "catalog:",
     "@tanstack/charts": "catalog:",
     "@tsuke/ui": "workspace:*",
     "@valibot/to-json-schema": "catalog:",
@@ -32,6 +33,7 @@
     "valibot": "catalog:"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "catalog:",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@void/react": "catalog:",
