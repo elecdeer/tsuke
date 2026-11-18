@@ -167,6 +167,24 @@ export const listPlaces = async (db: LedgerDb): Promise<PlaceWithUsage[]> => {
     .orderBy(sql`${usage.lastUsedOn} IS NULL`, desc(usage.lastUsedOn), asc(places.name));
 };
 
+/** チェーンの付いた店舗。チェーンでまとめて選ぶ選択肢に使う */
+export type PlaceWithChain = { id: number; name: string; chain: string | null };
+
+/**
+ * アーカイブしていない店舗を、チェーンを付けて返す。並びは listPlaces と同じ。
+ *
+ * listPlaces の結果は API で拡張機能にも返しているので、そちらに chain を足して応答の形を変えることはしない。
+ */
+export const listPlacesWithChain = async (db: LedgerDb): Promise<PlaceWithChain[]> => {
+  const usage = placeUsage(db);
+  return db
+    .select({ id: places.id, name: places.name, chain: places.chain })
+    .from(places)
+    .leftJoin(usage, eq(usage.placeId, places.id))
+    .where(eq(places.archived, false))
+    .orderBy(sql`${usage.lastUsedOn} IS NULL`, desc(usage.lastUsedOn), asc(places.name));
+};
+
 /**
  * アーカイブしていない店舗に付いているチェーンの名前を、名前順で返す。
  */

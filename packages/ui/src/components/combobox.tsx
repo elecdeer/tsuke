@@ -133,12 +133,21 @@ function ComboboxList({ className, ...props }: ComboboxPrimitive.List.Props) {
   );
 }
 
-function ComboboxItem({ className, children, ...props }: ComboboxPrimitive.Item.Props) {
+function ComboboxItem({
+  className,
+  children,
+  inset = false,
+  ...props
+}: ComboboxPrimitive.Item.Props & {
+  /** まとまりの中の項目（チェーンの中の店舗など）を一段下げる */
+  inset?: boolean;
+}) {
   const variant = React.use(ContentVariantContext);
   return (
     <ComboboxPrimitive.Item
       data-slot="combobox-item"
       data-variant={variant}
+      data-inset={inset || undefined}
       className={cn(listItemClassName, styles.Item, className)}
       {...props}
     >

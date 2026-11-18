@@ -56,7 +56,7 @@ vp run dev
 
 店舗の入力欄の地図のボタンから、現在地の周りの店舗を地図で選べる。店舗は [OpenPOI API](https://docs.openpoiapi.com/)（キー不要・CORS 可）をブラウザから直接呼んで探し、地図は Leaflet と OpenStreetMap のタイルで出す。OpenPOI のデータを出すときは「OpenPOI API」と書いて[出典のページ](https://openpoiapi.com/attribution.html)へリンクする決まりなので、地図の帰属表示に入れている。
 
-新しい店舗を入れると、入力欄の下に登録済みの似た店舗と OpenPOI の候補を出す。候補は押したときだけ反映し、押さなければ入れた名前のまま登録する。OpenPOI には施設の ID がなく、同じチェーンでも表記が揺れるので、自動ではまとめない。店舗は支店ごとに持ち、`places.chain` で支店をまとめて見る（取引の一覧をチェーンで絞り込める）。登録済みの店舗の整理と、拡張機能からの登録は対象外。
+新しい店舗を入れると、入力欄の下に登録済みの似た店舗と OpenPOI の候補を出す。候補は押したときだけ反映し、押さなければ入れた名前のまま登録する。OpenPOI には施設の ID がなく、同じチェーンでも表記が揺れるので、自動ではまとめない。店舗は支店ごとに持ち、`places.chain` で支店をまとめて見る（取引の一覧は、店舗の絞り込みで支店 1 つかチェーンの全店を選べる）。登録済みの店舗の整理と、拡張機能からの登録は対象外。
 
 - UI 部品・色や書体のトークン・画面に共通の型は、拡張機能と共有のパッケージ `packages/ui`（`@tsuke/ui`）に置く。base-ui の部品に CSS Modules で見た目を付けている。クラスの名前は CEV（Component / Element / Variant）にそろえ、見た目の違いは className ではなく部品のバリアントとして用意する。見た目の方針は [design.md](packages/ui/docs/design.md)、見本は `pnpm --filter @tsuke/ui run storybook` で開く Storybook
 - 表示するデータはページの `loader`、変更はページの `actions` で扱い、`/api/*`（拡張機能のための API）には足さない

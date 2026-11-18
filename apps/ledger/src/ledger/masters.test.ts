@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vite-plus/test";
 import { createTestLedgerDb, insert } from "../../db/testing.ts";
-import { listAccounts, listCategories, listChains, listPlaces } from "./masters.ts";
+import {
+  listAccounts,
+  listCategories,
+  listChains,
+  listPlaces,
+  listPlacesWithChain,
+} from "./masters.ts";
 
 describe("listAccounts", () => {
   test("アーカイブしていない口座を sort、id の順で返す", async () => {
@@ -82,6 +88,28 @@ describe("listPlaces", () => {
       { id: supermarket, name: "スーパー", lastUsedOn: "2026-10-20", useCount: 2 },
       { id: 4, name: "カフェ", lastUsedOn: null, useCount: 0 },
       { id: 3, name: "本屋", lastUsedOn: null, useCount: 0 },
+    ]);
+  });
+});
+
+describe("listPlacesWithChain", () => {
+  test("アーカイブしていない店舗をチェーンを付けて listPlaces と同じ順に返す", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const lawson = insert(
+      sqlite,
+      "INSERT INTO places (name, chain) VALUES ('ローソン新宿店', 'ローソン')",
+    );
+    const cafe = insert(sqlite, "INSERT INTO places (name) VALUES ('喫茶店')");
+    insert(sqlite, "INSERT INTO places (name, chain, archived) VALUES ('閉店', 'ローソン', 1)");
+    insert(
+      sqlite,
+      "INSERT INTO transactions (date, mode, place_id, source) VALUES ('2026-10-01', 'payment', ?, 'manual')",
+      cafe,
+    );
+
+    expect(await listPlacesWithChain(db)).toEqual([
+      { id: cafe, name: "喫茶店", chain: null },
+      { id: lawson, name: "ローソン新宿店", chain: "ローソン" },
     ]);
   });
 });
