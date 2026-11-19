@@ -35,7 +35,7 @@ import { SkeletonBlock, SkeletonText } from "@/web/components/Skeleton";
 import { formatAmount, formatDayOfMonth, formatMonthDay } from "@/web/format";
 import { groupByDate } from "@/web/groupByDate";
 import { ADVANCE_STATUS_LABELS, MODE_LABELS, TRANSACTION_MODES } from "@/web/labels";
-import { titleOf } from "@/web/transactionTitle";
+import { itemsSummaryOf, titleOf } from "@/web/transactionTitle";
 import { createMonthPageCache } from "@/web/monthPageCache";
 import { useMediaQuery } from "@/web/mediaQuery";
 import { monthForYear } from "@/web/summaryView";
@@ -209,17 +209,6 @@ const ListTotals = ({ transactions }: { transactions: TransactionListItem[] }) =
       </div>
     </dl>
   );
-};
-
-/**
- * 品目の要約。1 件ならその名前、複数なら「最初の品目名 ほか N 件」。
- */
-const itemsSummaryOf = (transaction: TransactionListItem): string | null => {
-  const [first, ...rest] = transaction.items;
-  if (first === undefined) return null;
-  const firstName = first.name ?? first.memo;
-  if (rest.length === 0) return transaction.placeName === null ? null : firstName;
-  return `${firstName ?? "品目"} ほか ${rest.length} 件`;
 };
 
 /**
