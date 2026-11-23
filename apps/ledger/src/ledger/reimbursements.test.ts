@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { describe, expect, test } from "vite-plus/test";
 import { createTestLedgerDb, insert } from "../../db/testing.ts";
-import { listReimbursementCandidates } from "./reimbursements.ts";
+import { listReimbursementCandidates, listUnreceivedAdvances } from "./reimbursements.ts";
 
 /**
  * 支出を入れる。advance は立替額。
@@ -99,6 +99,31 @@ describe("listReimbursementCandidates", () => {
 
     expect(candidate?.title).toBe("居酒屋");
     expect(candidate?.searchText).toBe("居酒屋 会費");
+  });
+});
+
+describe("listUnreceivedAdvances", () => {
+  test("未入金の残りがある支出だけを、残りの額と合わせて新しい順に返す", async () => {
+    const { db, sqlite } = createTestLedgerDb();
+    const place = insert(sqlite, "INSERT INTO places (name) VALUES ('居酒屋A')");
+    const income = insertIncome(sqlite);
+    insertPayment(sqlite, { date: "2026-10-05" });
+    const settled = insertPayment(sqlite, { date: "2026-10-06", advance: 1000 });
+    link(sqlite, settled, income, 1000);
+    const partial = insertPayment(sqlite, { date: "2026-09-01", advance: 2400, itemName: "食事" });
+    link(sqlite, partial, income, 1200);
+    const provisional = insertPayment(sqlite, {
+      date: "2026-10-01",
+      advance: 2000,
+      placeId: place,
+    });
+
+    const advances = await listUnreceivedAdvances(db);
+
+    expect(advances).toEqual([
+      { paymentId: provisional, date: "2026-10-01", title: "居酒屋A", unreceived: 2000 },
+      { paymentId: partial, date: "2026-09-01", title: "食事", unreceived: 1200 },
+    ]);
   });
 });
 

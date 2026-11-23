@@ -1,6 +1,7 @@
 /**
  * 履歴 CSV の取り込み画面で確かめる行の、下書きの組み立てと登録の入力への変換。
  */
+import type { UnreceivedAdvance } from "@/ledger/reimbursements";
 import type { StatementCsvRegisterInput } from "@/ledger/statementCsv";
 import type {
   StatementCsvClassifiedRow,
@@ -20,6 +21,11 @@ export type StatementCsvDraft = StatementCsvReadResultRow & {
   selectionEdited: boolean;
   /** AI が推測した内訳。AI の分類を反映した行だけが持ち、画面で直しても変えない。支出と分類しなかった行は null */
   aiGuess?: { genreId: number | null };
+  /**
+   * 立替の入金として紐付ける支出を手で選んだもの。null は紐付けないことを選んだ行。
+   * 選んでいなければ、候補のうち日付の近いものを紐付ける
+   */
+  advanceChoice?: number | null;
 };
 
 /** 画面に出す、列の読み取りの 1 行 */
@@ -166,6 +172,73 @@ export const draftProblem = (draft: StatementCsvDraft, accountId: number | null)
   return null;
 };
 
+/** 立替の入金と見なす、支出の日付から収入の日付までの日数の上限 */
+export const ADVANCE_MATCH_DAYS = 60;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * from から to までの日数を返す。日付は YYYY-MM-DD。
+ */
+const daysBetween = (from: string, to: string): number =>
+  Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS);
+
+/**
+ * 行を立替の入金と見なせる支出を、日付の近い順に返す。
+ *
+ * 収入の金額が未入金の残りと一致し、支出が収入の日付から上限の日数前までにあるものを候補にする。
+ * 額のずれた入金や別々の送金まで拾うと誤った紐付けが増えるので、それらは収入の詳細画面で紐付ける。
+ */
+export const advanceCandidatesOf = (
+  draft: StatementCsvDraft,
+  advances: ReadonlyArray<UnreceivedAdvance>,
+): UnreceivedAdvance[] => {
+  if (draft.mode !== "income" || draft.direction !== "in") return [];
+  return advances
+    .filter((advance) => {
+      const days = daysBetween(advance.date, draft.date);
+      return advance.unreceived === draft.amount && days >= 0 && days <= ADVANCE_MATCH_DAYS;
+    })
+    .sort(
+      (a, b) =>
+        daysBetween(a.date, draft.date) - daysBetween(b.date, draft.date) ||
+        b.paymentId - a.paymentId,
+    );
+};
+
+/**
+ * 選択した収入の行ごとに、紐付ける支出を決める。キーは行の番号。
+ *
+ * 1 件の支出は 1 行にだけ紐付ける。手で選んだ行を先に割り当て、残りの行には上の行から順に、
+ * まだ割り当てていない候補のうち日付の近いものを割り当てる。
+ */
+export const assignAdvances = (
+  drafts: ReadonlyArray<StatementCsvDraft>,
+  advances: ReadonlyArray<UnreceivedAdvance>,
+): Map<number, UnreceivedAdvance> => {
+  const assigned = new Map<number, UnreceivedAdvance>();
+  const taken = new Set<number>();
+  const targets = drafts.flatMap((draft) => {
+    if (!draft.selected || draft.advanceChoice === null) return [];
+    const candidates = advanceCandidatesOf(draft, advances);
+    return candidates.length === 0 ? [] : [{ draft, candidates }];
+  });
+  for (const { draft, candidates } of targets) {
+    const chosen = candidates.find((advance) => advance.paymentId === draft.advanceChoice);
+    if (chosen === undefined || taken.has(chosen.paymentId)) continue;
+    assigned.set(draft.line, chosen);
+    taken.add(chosen.paymentId);
+  }
+  for (const { draft, candidates } of targets) {
+    if (draft.advanceChoice !== undefined) continue;
+    const next = candidates.find((advance) => !taken.has(advance.paymentId));
+    if (next === undefined) continue;
+    assigned.set(draft.line, next);
+    taken.add(next.paymentId);
+  }
+  return assigned;
+};
+
 /**
  * 選択した行を登録の入力にする。
  *
@@ -179,6 +252,8 @@ export const registerInputFromDrafts = (params: {
   /** 分類に使ったモデル。推測の記録に使う */
   model?: string;
   drafts: ReadonlyArray<StatementCsvDraft>;
+  /** 収入の行に紐付ける支出。キーは行の番号 */
+  advances?: ReadonlyMap<number, UnreceivedAdvance>;
 }): StatementCsvRegisterInput => ({
   fileName: params.fileName,
   accountId: params.accountId,
@@ -205,7 +280,8 @@ export const registerInputFromDrafts = (params: {
                 ...(draft.aiGuess !== undefined && { aiGuess: draft.aiGuess }),
               },
             ];
-      case "income":
+      case "income": {
+        const advance = params.advances?.get(draft.line);
         return [
           {
             mode: "income",
@@ -215,8 +291,10 @@ export const registerInputFromDrafts = (params: {
             placeName,
             name,
             categoryId: draft.categoryId,
+            ...(advance !== undefined && { reimbursement: { paymentId: advance.paymentId } }),
           },
         ];
+      }
       case "transfer":
         return draft.counterAccountId === null
           ? []

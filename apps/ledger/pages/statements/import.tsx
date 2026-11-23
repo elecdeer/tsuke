@@ -1,11 +1,19 @@
 import { Link, useRouter } from "@void/react";
-import { ChevronRight, CircleCheck, FileUp, LoaderCircle, TriangleAlert } from "lucide-react";
+import {
+  ChevronRight,
+  CircleCheck,
+  FileUp,
+  HandCoins,
+  LoaderCircle,
+  TriangleAlert,
+} from "lucide-react";
 import {
   memo,
   useCallback,
   useEffect,
   useEffectEvent,
   useId,
+  useMemo,
   useState,
   type ChangeEvent,
 } from "react";
@@ -43,8 +51,11 @@ import { formatReadTime } from "@/web/receiptQueue";
 import { FileDropOverlay, usePageFileDrop } from "@/web/components/FileDropOverlay";
 import { useStatementCsvHandoff } from "@/web/components/StatementCsvHandoff";
 import { isCsvFile } from "@/web/fileDrop";
+import type { UnreceivedAdvance } from "@/ledger/reimbursements";
 import {
+  advanceCandidatesOf,
   applyClassifiedRows,
+  assignAdvances,
   changeDraftMode,
   decodeCsvBytes,
   describeColumns,
@@ -198,6 +209,15 @@ const LastImports = ({ lastImports }: { lastImports: Props["lastImports"] }) => 
   </div>
 );
 
+/** 候補のない行に渡す空の配列。行の memo が効くよう、描くたびに作らない */
+const NO_ADVANCES: UnreceivedAdvance[] = [];
+
+/**
+ * 立替の支出を選択肢の文言にする。
+ */
+const describeAdvance = (advance: UnreceivedAdvance): string =>
+  `${formatDay(advance.date)}${advance.title === null ? "" : ` ${advance.title}`} の立替 ${formatYen(advance.unreceived)}`;
+
 /**
  * 明細の 1 行。種類に応じて、内訳・カテゴリ・相手の口座のどれかを選ばせる。
  *
@@ -211,12 +231,18 @@ const DraftRow = memo(function DraftRow({
   accounts,
   paymentCategories,
   incomeCategories,
+  advanceCandidates,
+  advance,
   disabled,
   onDraftChange,
 }: {
   index: number;
   draft: StatementCsvDraft;
   problem: string | null;
+  /** 立替の入金と見なせる支出 */
+  advanceCandidates: UnreceivedAdvance[];
+  /** 紐付ける支出 */
+  advance: UnreceivedAdvance | null;
   placeListId: string;
   accounts: Props["accounts"];
   paymentCategories: Props["paymentCategories"];
@@ -255,6 +281,13 @@ const DraftRow = memo(function DraftRow({
             <CircleCheck className={styles.statusIcon} aria-hidden="true" />
             登録済みかもしれません（{formatDay(draft.registered.date)}
             {draft.registered.placeName === null ? "" : `・${draft.registered.placeName}`}）
+          </Link>
+        )}
+        {draft.selected && advance !== null && (
+          <Link href={`/transactions/${advance.paymentId}`} className={styles.registered}>
+            <HandCoins className={styles.statusIcon} aria-hidden="true" />
+            立替の入金として紐付けます（{formatDay(advance.date)}
+            {advance.title === null ? "" : `・${advance.title}`}）
           </Link>
         )}
         {draft.pending && (
@@ -338,6 +371,25 @@ const DraftRow = memo(function DraftRow({
             ))}
           </NativeSelect>
         )}
+        {advanceCandidates.length > 0 && (
+          <NativeSelect
+            size="sm"
+            width="full"
+            aria-label="立替の入金"
+            value={advance?.paymentId ?? ""}
+            disabled={disabled || !draft.selected}
+            onChange={(event) =>
+              onChange({ ...draft, advanceChoice: idFromValue(event.target.value) })
+            }
+          >
+            <NativeSelectOption value="">立替の入金として紐付けない</NativeSelectOption>
+            {advanceCandidates.map((candidate) => (
+              <NativeSelectOption key={candidate.paymentId} value={candidate.paymentId}>
+                {describeAdvance(candidate)}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        )}
         {draft.mode === "transfer" ? (
           <NativeSelect
             size="sm"
@@ -387,6 +439,7 @@ const StatementImportPage = ({
   incomeCategories,
   placeNames,
   lastImports,
+  unreceivedAdvances,
 }: Props) => {
   const router = useRouter();
   const statementCsvHandoff = useStatementCsvHandoff();
@@ -408,6 +461,20 @@ const StatementImportPage = ({
   const selected = drafts.filter((draft) => draft.selected);
   const problemCount = selected.filter((draft) => draftProblem(draft, accountId) !== null).length;
   const canRegister = accountId !== null && selected.length > 0 && problemCount === 0 && !busy;
+  const advanceCandidatesByLine = useMemo(
+    () =>
+      new Map(
+        drafts.flatMap((draft): Array<[number, UnreceivedAdvance[]]> => {
+          const candidates = advanceCandidatesOf(draft, unreceivedAdvances);
+          return candidates.length === 0 ? [] : [[draft.line, candidates]];
+        }),
+      ),
+    [drafts, unreceivedAdvances],
+  );
+  const assignedAdvances = useMemo(
+    () => assignAdvances(drafts, unreceivedAdvances),
+    [drafts, unreceivedAdvances],
+  );
 
   /**
    * ファイルを読み取り、届いた分から結果を確かめる行にする。
@@ -540,6 +607,7 @@ const StatementImportPage = ({
           format: summary.format,
           model: summary.model,
           drafts,
+          advances: assignedAdvances,
         }),
       });
       setRegisteredCount(count);
@@ -689,6 +757,8 @@ const StatementImportPage = ({
                   accounts={accounts}
                   paymentCategories={paymentCategories}
                   incomeCategories={incomeCategories}
+                  advanceCandidates={advanceCandidatesByLine.get(draft.line) ?? NO_ADVANCES}
+                  advance={assignedAdvances.get(draft.line) ?? null}
                   disabled={registering || rereading}
                   onDraftChange={updateDraft}
                 />
@@ -700,6 +770,7 @@ const StatementImportPage = ({
             <div className={styles.Submit}>
               <p className={styles.totals}>
                 {selected.length} 件・出金 {formatYen(outTotal)}・入金 {formatYen(inTotal)}
+                {assignedAdvances.size > 0 && `・立替の入金 ${assignedAdvances.size} 件`}
                 {problemCount > 0 && (
                   <span className={styles.problems}>
                     <TriangleAlert className={styles.problemsIcon} aria-hidden="true" />

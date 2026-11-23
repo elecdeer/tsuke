@@ -7,7 +7,7 @@ import {
   transactions,
 } from "../../db/schema.ts";
 import type { LedgerDb } from "../db.ts";
-import { advanceAmountAfterLink, advanceLimitOf } from "./advance.ts";
+import { advanceAmountAfterLink, advanceLimitOf, unreceivedAmountOf } from "./advance.ts";
 
 /** 紐付けの候補に出す支出 */
 export type ReimbursablePayment = {
@@ -282,4 +282,38 @@ export const planReimbursements = async (
       payments,
     },
   };
+};
+
+/** 未入金の残りがある支出。履歴 CSV の収入と照らし合わせて、立替の入金を見つけるのに使う */
+export type UnreceivedAdvance = {
+  paymentId: number;
+  date: string;
+  /** 店舗か最初の品目の名前。どちらもなければ null */
+  title: string | null;
+  /** 未入金の残り */
+  unreceived: number;
+};
+
+/**
+ * 未入金の残りがある支出を、新しい順に候補の上限の件数まで返す。
+ */
+export const listUnreceivedAdvances = async (db: LedgerDb): Promise<UnreceivedAdvance[]> => {
+  const rows = await db
+    .select({ id: transactions.id })
+    .from(transactions)
+    .where(and(eq(transactions.mode, "payment"), hasUnreceivedAdvance))
+    .orderBy(desc(transactions.date), desc(transactions.id))
+    .limit(CANDIDATE_LIMIT);
+  // どの収入の紐付けも除かないよう、収入には使われない ID を渡す
+  const payments = await loadReimbursablePayments(
+    db,
+    rows.map((row) => row.id),
+    0,
+  );
+  return payments.map((payment) => ({
+    paymentId: payment.paymentId,
+    date: payment.date,
+    title: payment.title,
+    unreceived: unreceivedAmountOf(payment.advanceAmount, payment.otherLinked),
+  }));
 };

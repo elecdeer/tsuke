@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vite-plus/test";
 import {
+  advanceCandidatesOf,
   applyClassifiedRows,
+  assignAdvances,
   changeDraftMode,
   decodeCsvBytes,
   describeColumns,
@@ -227,6 +229,82 @@ describe("draftProblem", () => {
   });
 });
 
+describe("advanceCandidatesOf", () => {
+  const income = (overrides: Partial<StatementCsvDraft> = {}) =>
+    draft({
+      mode: "income",
+      direction: "in",
+      genreId: null,
+      date: "2026-05-20",
+      amount: 2000,
+      ...overrides,
+    });
+  const advance = (paymentId: number, date: string, unreceived = 2000) => ({
+    paymentId,
+    date,
+    title: null,
+    unreceived,
+  });
+
+  test("金額が未入金の残りと一致し、収入の日付から 60 日前までの支出を、日付の近い順に返す", () => {
+    const advances = [
+      advance(1, "2026-03-20"),
+      advance(2, "2026-03-21"),
+      advance(3, "2026-05-01"),
+      advance(4, "2026-05-15"),
+      advance(5, "2026-05-21"),
+      advance(6, "2026-05-16", 2400),
+    ];
+
+    expect(advanceCandidatesOf(income(), advances).map((a) => a.paymentId)).toEqual([4, 3, 2]);
+  });
+
+  test("収入でない行には候補を出さない", () => {
+    const advances = [advance(1, "2026-05-15")];
+
+    expect(advanceCandidatesOf(income({ mode: "payment" }), advances)).toEqual([]);
+    expect(advanceCandidatesOf(income({ mode: "transfer" }), advances)).toEqual([]);
+  });
+});
+
+describe("assignAdvances", () => {
+  const income = (line: number, overrides: Partial<StatementCsvDraft> = {}) =>
+    draft({
+      line,
+      mode: "income",
+      direction: "in",
+      genreId: null,
+      date: "2026-05-20",
+      amount: 2000,
+      ...overrides,
+    });
+  const advances = [
+    { paymentId: 1, date: "2026-05-10", title: null, unreceived: 2000 },
+    { paymentId: 2, date: "2026-05-15", title: null, unreceived: 2000 },
+  ];
+  const paymentIdsOf = (assigned: ReturnType<typeof assignAdvances>) =>
+    Object.fromEntries([...assigned].map(([line, advance]) => [line, advance.paymentId]));
+
+  test("同じ支出を 2 行に割り当てず、上の行から日付の近い候補を割り当てる", () => {
+    expect(paymentIdsOf(assignAdvances([income(2), income(3), income(4)], advances))).toEqual({
+      2: 2,
+      3: 1,
+    });
+  });
+
+  test("手で選んだ支出を先に割り当て、紐付けないことを選んだ行と選択を外した行には割り当てない", () => {
+    expect(
+      paymentIdsOf(
+        assignAdvances(
+          [income(2), income(3, { advanceChoice: 2 }), income(4, { advanceChoice: null })],
+          advances,
+        ),
+      ),
+    ).toEqual({ 2: 1, 3: 2 });
+    expect(paymentIdsOf(assignAdvances([income(2, { selected: false })], advances))).toEqual({});
+  });
+});
+
 describe("registerInputFromDrafts", () => {
   const rowsOf = (drafts: StatementCsvDraft[]) =>
     registerInputFromDrafts({ fileName: "a.csv", accountId: 1, drafts }).rows;
@@ -266,6 +344,21 @@ describe("registerInputFromDrafts", () => {
     expect(
       registerInputFromDrafts({ fileName: "a.csv", accountId: 1, drafts: [] }),
     ).not.toHaveProperty("aiModel");
+  });
+
+  test("紐付ける支出があれば、収入の行に付ける", () => {
+    const income = draft({ line: 5, mode: "income", direction: "in", genreId: null });
+    const input = registerInputFromDrafts({
+      fileName: "a.csv",
+      accountId: 1,
+      drafts: [income, draft({ ...income, line: 6 })],
+      advances: new Map([[5, { paymentId: 9, date: "2026-05-01", title: null, unreceived: 1000 }]]),
+    });
+
+    expect(input.rows.map((row) => "reimbursement" in row && row.reimbursement)).toEqual([
+      { paymentId: 9 },
+      false,
+    ]);
   });
 
   test("返金は負の金額の支出にする", () => {
