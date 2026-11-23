@@ -296,6 +296,103 @@ describe("履歴 CSV の登録", () => {
     expect(matches.map((match) => match?.amount ?? null)).toEqual([1000, 50000, null]);
   });
 
+  describe("立替の入金の紐付け", () => {
+    /**
+     * 立替額を入れた支出を入れる。品目は 3,600 円。
+     */
+    const insertAdvancePayment = (advance: number): number => {
+      const id = insert(
+        sqlite,
+        "INSERT INTO transactions (date, mode, from_account_id, source, advance_amount) VALUES ('2026-05-01', 'payment', ?, 'manual', ?)",
+        card,
+        advance,
+      );
+      insert(
+        sqlite,
+        "INSERT INTO transaction_items (transaction_id, genre_id, amount) VALUES (?, ?, 3600)",
+        id,
+        genre,
+      );
+      return id;
+    };
+
+    const incomeRow = (paymentId: number | null, amount = 2000) => ({
+      mode: "income" as const,
+      date: "2026-05-20",
+      amount,
+      placeName: null,
+      name: null,
+      categoryId: incomeCategory,
+      ...(paymentId !== null && { reimbursement: { paymentId } }),
+    });
+
+    const linkRows = () =>
+      sqlite
+        .prepare(
+          `SELECT r.payment_transaction_id AS paymentId, t.mode, t.date, r.amount, t.aggregation
+           FROM advance_reimbursements r JOIN transactions t ON t.id = r.income_transaction_id`,
+        )
+        .all();
+
+    const advanceOf = (id: number) =>
+      sqlite.prepare("SELECT advance_amount AS advance FROM transactions WHERE id = ?").get(id);
+
+    test("紐付けた収入は集計に含めないで登録し、支出の立替額を入金の額で確定する", async () => {
+      const payment = insertAdvancePayment(2400);
+
+      const result = await register([
+        {
+          mode: "payment",
+          date: "2026-05-19",
+          amount: 500,
+          placeName: null,
+          name: null,
+          genreId: genre,
+        },
+        incomeRow(payment),
+        incomeRow(null, 300),
+      ]);
+
+      expect(result).toEqual({ ok: true, count: 3 });
+      expect(linkRows()).toEqual([
+        {
+          paymentId: payment,
+          mode: "income",
+          date: "2026-05-20",
+          amount: 2000,
+          aggregation: "never",
+        },
+      ]);
+      expect(advanceOf(payment)).toEqual({ advance: 2000 });
+      const aggregations = sqlite
+        .prepare("SELECT aggregation FROM transactions WHERE mode = 'income' ORDER BY id")
+        .all();
+      expect(aggregations).toEqual([{ aggregation: "never" }, { aggregation: "always" }]);
+    });
+
+    test("同じ支出を 2 行に紐付けると、何も登録しない", async () => {
+      const payment = insertAdvancePayment(2400);
+
+      const result = await register([incomeRow(payment, 1200), incomeRow(payment, 1200)]);
+
+      expect(result).toEqual({
+        ok: false,
+        error: "同じ支出を複数の収入に紐付けることはできません",
+      });
+      expect(transactionRows()).toEqual([]);
+    });
+
+    test("紐付けた額の合計が対象の品目の合計を超えると、何も登録しない", async () => {
+      const payment = insertAdvancePayment(2400);
+
+      const result = await register([incomeRow(payment, 4000)]);
+
+      expect(result).toMatchObject({ ok: false });
+      expect(transactionRows()).toEqual([]);
+      expect(advanceOf(payment)).toEqual({ advance: 2400 });
+    });
+  });
+
   describe("形式と分類を覚える", () => {
     const mapping = {
       firstDataRow: 1,

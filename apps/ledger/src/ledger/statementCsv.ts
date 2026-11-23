@@ -5,6 +5,7 @@ import { and, asc, eq, isNotNull, max, sql, type SQL } from "drizzle-orm";
 import * as v from "valibot";
 import {
   accounts,
+  advanceReimbursements,
   categories,
   genreInferences,
   genres,
@@ -24,6 +25,7 @@ import {
   type StatementCsvFormat,
 } from "../import/statementCsvEvents.ts";
 import { upsertPlaceByName } from "./places.ts";
+import { planReimbursements } from "./reimbursements.ts";
 
 /** 1 回の登録で受け付ける行数の上限 */
 const REGISTER_ROWS_MAX = 500;
@@ -68,6 +70,8 @@ export const StatementCsvRegisterSchema = v.object({
           placeName: TextSchema,
           name: TextSchema,
           categoryId: v.nullable(IdSchema),
+          /** 立替の入金として紐付ける支出。収入の金額をすべて充て、支出の立替額を確定する */
+          reimbursement: v.optional(v.object({ paymentId: IdSchema })),
         }),
         v.object({
           mode: v.literal("transfer"),
@@ -142,6 +146,40 @@ const resolveMasters = async (
     }
   }
   return { ok: true };
+};
+
+/** 収入の行の紐付けで、支出の立替額を書き換える内容 */
+type CsvReimbursementPlan = Map<RegisterRow, { paymentId: number; advanceAmount: number }>;
+
+/**
+ * 収入の行の紐付けを確かめ、行ごとに書き換える立替額を返す。合わなければ理由を返す。
+ *
+ * 行どうしで同じ支出を紐付けると、先の行の額を他の紐付けとして数えられないまま確かめることになるので、受け付けない。
+ */
+const planCsvReimbursements = async (
+  db: LedgerDb,
+  rows: ReadonlyArray<RegisterRow>,
+): Promise<{ ok: true; plan: CsvReimbursementPlan } | { ok: false; error: string }> => {
+  const linked = rows.flatMap((row) =>
+    row.mode === "income" && row.reimbursement !== undefined
+      ? [{ row, paymentId: row.reimbursement.paymentId }]
+      : [],
+  );
+  if (new Set(linked.map((entry) => entry.paymentId)).size !== linked.length) {
+    return { ok: false, error: "同じ支出を複数の収入に紐付けることはできません" };
+  }
+  const plan: CsvReimbursementPlan = new Map();
+  for (const { row, paymentId } of linked) {
+    // まだ登録していない収入なので、既にある紐付けはすべて他の収入の分として数える
+    const planned = await planReimbursements(db, 0, row.amount, [
+      { paymentId, amount: row.amount, expectMore: false },
+    ]);
+    if (!planned.ok) return planned;
+    const [payment] = planned.plan.payments;
+    if (payment === undefined) return { ok: false, error: "紐付ける支出が見つかりません" };
+    plan.set(row, { paymentId, advanceAmount: payment.advanceAmount });
+  }
+  return { ok: true, plan };
 };
 
 /**
@@ -235,6 +273,7 @@ const classificationsFromRows = (
  * 品目は直前に入れた取引を MAX(id) で参照する。
  * 形式と分類は、人が確かめた結果だけを覚えるよう、読み取りではなく登録のときに同じ batch で覚える。
  * AI が分類した支出の行は、推測した内訳と確定した内訳を同じ batch で記録する（プロンプトの改善に使う）。
+ * 立替の入金として紐付けた収入の行は、紐付けと支出の立替額の確定も同じ batch で行う。
  */
 export const registerStatementCsv = async (
   db: LedgerDb,
@@ -242,6 +281,8 @@ export const registerStatementCsv = async (
 ): Promise<{ ok: true; count: number } | { ok: false; error: string }> => {
   const masters = await resolveMasters(db, input);
   if (!masters.ok) return masters;
+  const reimbursements = await planCsvReimbursements(db, input.rows);
+  if (!reimbursements.ok) return reimbursements;
 
   const lastTransactionId = sql`(SELECT MAX(${transactions.id}) FROM ${transactions})`;
   const lastBatchId: SQL<number> = sql`(SELECT MAX(${importBatches.id}) FROM ${importBatches})`;
@@ -265,6 +306,21 @@ export const registerStatementCsv = async (
               genreId: row.genreId,
             }),
           ];
+    const reimbursement = reimbursements.plan.get(row);
+    const insertReimbursement =
+      reimbursement === undefined
+        ? []
+        : [
+            db.insert(advanceReimbursements).values({
+              paymentTransactionId: reimbursement.paymentId,
+              incomeTransactionId: lastTransactionId,
+              amount: row.amount,
+            }),
+            db
+              .update(transactions)
+              .set({ advanceAmount: reimbursement.advanceAmount })
+              .where(eq(transactions.id, reimbursement.paymentId)),
+          ];
     return [
       db.insert(transactions).values({
         date: row.date,
@@ -276,6 +332,8 @@ export const registerStatementCsv = async (
             : sql`(SELECT ${places.id} FROM ${places} WHERE ${places.name} = ${placeName})`,
         source: "statement_csv",
         importBatchId: lastBatchId,
+        // 紐付けた収入は立替の入金なので、収入の集計に数えて二重に計上しないようにする
+        aggregation: reimbursement === undefined ? undefined : "never",
       }),
       db.insert(transactionItems).values({
         transactionId: lastTransactionId,
@@ -286,6 +344,7 @@ export const registerStatementCsv = async (
         amount: row.amount,
       }),
       ...insertInference,
+      ...insertReimbursement,
     ];
   });
 
